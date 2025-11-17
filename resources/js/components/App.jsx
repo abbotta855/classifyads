@@ -1,34 +1,101 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import Login from './Login';
+import Register from './Register';
+import Dashboard from './Dashboard';
+import AdminPanel from './AdminPanel';
+import Homepage from './Homepage';
+import CategoriesPage from './CategoriesPage';
+import CategoryPage from './CategoryPage';
+import { Card, CardContent } from './ui/card';
+
+function LoadingCard() {
+  return (
+    <Card className="w-full">
+      <CardContent className="p-6">
+        <p className="text-center">Loading...</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return <LoadingCard />;
+  if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
+  return children;
+}
+
+function AdminRoute({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return <LoadingCard />;
+  if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
+  if (user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
+function GuestRoute({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return <LoadingCard />;
+  if (user) return <Navigate to={location.state?.from?.pathname || '/dashboard'} replace />;
+  return children;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Homepage />} />
+      <Route path="/categories" element={<CategoriesPage />} />
+      <Route path="/categories/:slug" element={<CategoryPage />} />
+      <Route path="/categories/:slug/:subSlug" element={<CategoryPage />} />
+      <Route
+        path="/login"
+        element={
+          <GuestRoute>
+            <Login />
+          </GuestRoute>
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          <GuestRoute>
+            <Register />
+          </GuestRoute>
+        }
+      />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute>
+            <AdminPanel />
+          </AdminRoute>
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
 
 function App() {
-  const [count, setCount] = useState(0);
-
   return (
-    <div className="p-6 bg-white dark:bg-[#161615] rounded-lg shadow-lg border-2 border-[#F53003] dark:border-[#FF4433]">
-      <h1 className="text-3xl font-bold mb-4 text-[#F53003] dark:text-[#FF4433]">
-        ⚛️ React is Working! 🎉
-      </h1>
-      <p className="mb-4 text-[#706f6c] dark:text-[#A1A09A] text-lg">
-        This is a React component running inside Laravel with Vite.
-      </p>
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => setCount(count - 1)}
-          className="px-6 py-3 bg-[#1b1b18] dark:bg-[#eeeeec] text-white dark:text-[#1C1C1A] rounded-sm hover:bg-black dark:hover:bg-white transition-colors text-lg font-bold"
-        >
-          -
-        </button>
-        <span className="text-2xl font-bold text-[#1b1b18] dark:text-[#EDEDEC] min-w-[120px] text-center">
-          Count: {count}
-        </span>
-        <button
-          onClick={() => setCount(count + 1)}
-          className="px-6 py-3 bg-[#1b1b18] dark:bg-[#eeeeec] text-white dark:text-[#1C1C1A] rounded-sm hover:bg-black dark:hover:bg-white transition-colors text-lg font-bold"
-        >
-          +
-        </button>
-      </div>
-    </div>
+    <AuthProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 
