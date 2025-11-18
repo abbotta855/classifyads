@@ -16,22 +16,25 @@ function Header() {
     <header className="border-b border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-sm sticky top-0 z-50">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
+          {/* Logo area */}
           <Link to="/" className="flex items-center space-x-2">
-            <h1 className="text-2xl font-bold text-[hsl(var(--primary))]">ClassifiedAds</h1>
+            <h1 className="text-2xl font-bold text-[hsl(var(--primary))]">Fresh Helpline</h1>
           </Link>
 
           <nav className="hidden md:flex items-center space-x-6">
-            <Link
-              to="/"
-              className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
-            >
-              Home
-            </Link>
+            {/* Category(All) */}
             <Link
               to="/categories"
               className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
             >
-              Categories
+              Category(All)
+            </Link>
+            {/* Location(All) */}
+            <Link
+              to="/"
+              className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+            >
+              Location(All)
             </Link>
             {user ? (
               <>
@@ -49,9 +52,14 @@ function Header() {
                     Admin Panel
                   </Link>
                 )}
+                <Link to="/dashboard">
+                  <Button variant="outline">
+                    Post Ad
+                  </Button>
+                </Link>
                 <Button
                   onClick={handleLogout}
-                  variant="outline"
+                  variant="ghost"
                 >
                   Logout
                 </Button>
@@ -60,12 +68,17 @@ function Header() {
               <>
                 <Link to="/login">
                   <Button variant="ghost">
-                    Login
+                    Log in
+                  </Button>
+                </Link>
+                <Link to="/register">
+                  <Button variant="outline">
+                    Sign up
                   </Button>
                 </Link>
                 <Link to="/register">
                   <Button>
-                    Sign Up
+                    Post Ad
                   </Button>
                 </Link>
               </>
