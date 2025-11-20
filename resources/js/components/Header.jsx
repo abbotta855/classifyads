@@ -1,11 +1,13 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 
 function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isAdminPage = location.pathname.startsWith('/admin');
 
   const handleLogout = async () => {
     await logout();
@@ -24,13 +26,15 @@ function Header() {
           <nav className="hidden md:flex items-center space-x-6">
             {user ? (
               <>
-                <Link
-                  to="/dashboard"
-                  className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
-                >
-                  Dashboard
-                </Link>
-                {user.role === 'admin' && (
+                {!isAdminPage && user.role !== 'admin' && (
+                  <Link
+                    to="/dashboard"
+                    className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                  >
+                    Dashboard
+                  </Link>
+                )}
+                {user.role === 'admin' && !isAdminPage && (
                   <Link
                     to="/admin"
                     className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
@@ -38,11 +42,16 @@ function Header() {
                     Admin Panel
                   </Link>
                 )}
-                <Link to="/dashboard">
-                  <Button variant="outline">
-                    Post Ad
-                  </Button>
-                </Link>
+                {!isAdminPage && user.role !== 'admin' && (
+                  <Link to="/dashboard">
+                    <Button variant="outline">
+                      Post Ad
+                    </Button>
+                  </Link>
+                )}
+                <span className="text-[hsl(var(--foreground))]">
+                  Welcome {user.name}
+                </span>
                 <Button
                   onClick={handleLogout}
                   variant="ghost"
