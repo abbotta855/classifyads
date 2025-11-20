@@ -18,24 +18,10 @@ function Header() {
         <div className="flex items-center justify-between h-16">
           {/* Logo area */}
           <Link to="/" className="flex items-center space-x-2">
-            <h1 className="text-2xl font-bold text-[hsl(var(--primary))]">Fresh Helpline</h1>
+            <h1 className="text-2xl font-bold text-[hsl(var(--primary))]">Shushil12</h1>
           </Link>
 
           <nav className="hidden md:flex items-center space-x-6">
-            {/* Category(All) */}
-            <Link
-              to="/categories"
-              className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
-            >
-              Category(All)
-            </Link>
-            {/* Location(All) */}
-            <Link
-              to="/"
-              className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
-            >
-              Location(All)
-            </Link>
             {user ? (
               <>
                 <Link
@@ -66,6 +52,13 @@ function Header() {
               </>
             ) : (
               <>
+                <Link to="/cart" className="transition-colors hover:opacity-80">
+                  <img 
+                    src="/images/shopping_cart.png" 
+                    alt="Shopping Cart" 
+                    className="w-8 h-8"
+                  />
+                </Link>
                 <Link to="/login">
                   <Button variant="ghost">
                     Log in

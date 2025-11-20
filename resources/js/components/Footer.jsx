@@ -22,7 +22,7 @@ function Footer() {
             Our Happy Customer Says About Us
           </h3>
           <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
-            Fresh Helpline always try to provide Best services to its Users. And here are some of the Satisfied Customers of Freshy Helpline.
+            Shushil12 always try to provide Best services to its Users. And here are some of the Satisfied Customers of Shushil12.
           </p>
           <Link to="/about">
             <Button variant="outline">Know more about us</Button>
@@ -30,7 +30,7 @@ function Footer() {
         </section>
 
         {/* Footer Links */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
+        <div className="grid grid-cols-2 gap-4 mb-8">
           <div>
             <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">Links</h4>
             <ul className="space-y-1 text-sm">
@@ -54,6 +54,11 @@ function Footer() {
                   FAQ
                 </Link>
               </li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">&nbsp;</h4>
+            <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/community" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
                   Online community
@@ -97,7 +102,7 @@ function Footer() {
         {/* Copyright and Social Media */}
         <div className="pt-8 border-t border-[hsl(var(--border))] flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Copyright reserve info... &copy; {new Date().getFullYear()} Fresh Helpline. All rights reserved.
+            Copyright reserve info... &copy; {new Date().getFullYear()} Shushil12. All rights reserved.
           </p>
           <div className="flex gap-4">
             {/* Social Media Links */}
