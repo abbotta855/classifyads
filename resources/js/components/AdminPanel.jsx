@@ -137,69 +137,8 @@ function AdminPanel() {
     }
   ]);
 
-  // Mock category management data
-  const [categoryManagementData, setCategoryManagementData] = useState([
-    {
-      id: 1,
-      categoryName: 'Art & Craft',
-      subcategoryName: 'Digital art'
-    },
-    {
-      id: 2,
-      categoryName: 'Art & Craft',
-      subcategoryName: 'Painting'
-    },
-    {
-      id: 3,
-      categoryName: 'Art & Craft',
-      subcategoryName: 'Sculpture'
-    },
-    {
-      id: 4,
-      categoryName: 'Electronics',
-      subcategoryName: 'Mobile Phones'
-    },
-    {
-      id: 5,
-      categoryName: 'Electronics',
-      subcategoryName: 'Laptops'
-    },
-    {
-      id: 6,
-      categoryName: 'Electronics',
-      subcategoryName: 'Tablets'
-    },
-    {
-      id: 7,
-      categoryName: 'Vehicles',
-      subcategoryName: 'Cars'
-    },
-    {
-      id: 8,
-      categoryName: 'Vehicles',
-      subcategoryName: 'Motorbikes'
-    },
-    {
-      id: 9,
-      categoryName: 'Vehicles',
-      subcategoryName: 'Buses'
-    },
-    {
-      id: 10,
-      categoryName: 'Real Estate',
-      subcategoryName: 'Land for sale'
-    },
-    {
-      id: 11,
-      categoryName: 'Real Estate',
-      subcategoryName: 'House for sale'
-    },
-    {
-      id: 12,
-      categoryName: 'Real Estate',
-      subcategoryName: 'Apartments'
-    }
-  ]);
+  // Category management data - will be populated from API
+  const [categoryManagementData, setCategoryManagementData] = useState([]);
 
   // Mock ads data
   const [ads, setAds] = useState([
@@ -423,12 +362,90 @@ function AdminPanel() {
     return parts.length > 0 ? parts.join(', ') : '';
   };
 
+  // Mock subcategories for each category
+  const getMockSubcategories = (categoryName) => {
+    const subcategoriesMap = {
+      'Art & Craft': ['Digital art', 'Painting', 'Sculpture', 'Drawing', 'Handicrafts', 'Pottery'],
+      'Bicycle & Accessories': ['Mountain Bikes', 'Road Bikes', 'Electric Bikes', 'Bike Parts', 'Bike Accessories'],
+      'Books & Magazine': ['Fiction', 'Non-Fiction', 'Textbooks', 'Comics', 'Magazines', 'E-books'],
+      'Building & Construction': ['Construction Materials', 'Tools', 'Hardware', 'Plumbing', 'Electrical Supplies'],
+      'Business for Sale': ['Retail Business', 'Restaurant', 'Service Business', 'Manufacturing', 'Online Business'],
+      'Clothes & Fashion': ['Men\'s Clothing', 'Women\'s Clothing', 'Kids Clothing', 'Shoes', 'Accessories'],
+      'Events/Tickets': ['Concert Tickets', 'Sports Tickets', 'Theater Tickets', 'Event Planning'],
+      'Farming & Agriculture': ['Seeds', 'Fertilizers', 'Farm Equipment', 'Livestock', 'Crops'],
+      'Furniture': ['Living Room', 'Bedroom', 'Kitchen & Dining', 'Office Furniture', 'Outdoor Furniture'],
+      'Health & Beauty': ['Skincare', 'Makeup', 'Hair Care', 'Fitness Equipment', 'Supplements'],
+      'Home & Garden': ['Garden Tools', 'Plants', 'Home Decor', 'Kitchenware', 'Cleaning Supplies'],
+      'IT & Computers': ['Laptops', 'Desktops', 'Computer Parts', 'Software', 'Networking Equipment'],
+      'Jewelers': ['Gold Jewelry', 'Silver Jewelry', 'Diamond Jewelry', 'Watches', 'Gemstones'],
+      'Jobs': ['Full-time', 'Part-time', 'Contract', 'Freelance', 'Internship'],
+      'Mobile phone & Gadgets': ['Smartphones', 'Tablets', 'Accessories', 'Wearables', 'Cases & Covers'],
+      'Music & Musical instrument': ['Guitars', 'Pianos', 'Drums', 'Wind Instruments', 'Audio Equipment'],
+      'Office Supply': ['Stationery', 'Office Furniture', 'Printers', 'Office Equipment', 'Supplies'],
+      'Pets & Animal': ['Dogs', 'Cats', 'Birds', 'Pet Supplies', 'Pet Food'],
+      'Photography': ['Cameras', 'Lenses', 'Accessories', 'Photo Equipment', 'Studio Equipment'],
+      'Property': ['Land for Sale', 'House for Sale', 'Apartments', 'Commercial Property', 'Rentals'],
+      'Sports & Recreation': ['Sports Equipment', 'Fitness Gear', 'Outdoor Gear', 'Sports Apparel', 'Games'],
+      'Travel & Tourism': ['Travel Packages', 'Hotel Bookings', 'Travel Guides', 'Travel Accessories'],
+      'Vehicle': ['Cars', 'Motorcycles', 'Trucks', 'Buses', 'Boats', 'RVs']
+    };
+    return subcategoriesMap[categoryName] || [];
+  };
+
   const fetchCategories = async () => {
     try {
       const response = await window.axios.get('/api/categories');
       setCategories(response.data);
+      
+      // Transform categories data for Category Management table with mock subcategories
+      // Flatten categories with subcategories into rows
+      const categoryManagementRows = [];
+      response.data.forEach((category) => {
+        // Get mock subcategories for this category
+        const mockSubcategories = getMockSubcategories(category.name);
+        
+        if (mockSubcategories.length > 0) {
+          mockSubcategories.forEach((subcategoryName, index) => {
+            categoryManagementRows.push({
+              id: `${category.id}-${index}`,
+              categoryName: category.name,
+              subcategoryName: subcategoryName
+            });
+          });
+        } else {
+          // If no mock subcategories, show category as a row with empty subcategory
+          categoryManagementRows.push({
+            id: category.id,
+            categoryName: category.name,
+            subcategoryName: ''
+          });
+        }
+      });
+      setCategoryManagementData(categoryManagementRows);
     } catch (error) {
       console.error('Error fetching categories:', error);
+      // Fallback to mock data if API fails
+      const fallbackCategories = [
+        'Art & Craft', 'Bicycle & Accessories', 'Books & Magazine', 'Building & Construction',
+        'Business for Sale', 'Clothes & Fashion', 'Events/Tickets', 'Farming & Agriculture',
+        'Furniture', 'Health & Beauty', 'Home & Garden', 'IT & Computers', 'Jewelers',
+        'Jobs', 'Mobile phone & Gadgets', 'Music & Musical instrument', 'Office Supply',
+        'Pets & Animal', 'Photography', 'Property', 'Sports & Recreation', 'Travel & Tourism', 'Vehicle'
+      ];
+      const fallbackRows = [];
+      fallbackCategories.forEach((categoryName) => {
+        const mockSubcategories = getMockSubcategories(categoryName);
+        if (mockSubcategories.length > 0) {
+          mockSubcategories.forEach((subcategoryName, index) => {
+            fallbackRows.push({
+              id: `${categoryName}-${index}`,
+              categoryName: categoryName,
+              subcategoryName: subcategoryName
+            });
+          });
+        }
+      });
+      setCategoryManagementData(fallbackRows);
     } finally {
       setLoading(false);
     }
