@@ -430,7 +430,7 @@ function Homepage() {
   // Generate mock ads for demonstration (more than 39 to show pagination)
   const generateMockAds = () => {
     const mockAds = [];
-    const categories = ['Land for sale', 'Car for sale', 'Motorbike for sale', 'Construction Materials', 'Job'];
+    const categories = ['Land for sale', 'Car for sale', 'Motorbike for sale', 'Bus for sale', 'Truck for sale', 'House for sale'];
     
     // Generate sample locations from the hierarchy
     const sampleLocations = [
@@ -634,8 +634,9 @@ function Homepage() {
       'Land for sale': '/categories/land-for-sale',
       'Car for sale': '/categories/vehicle-for-sale',
       'Motorbike for sale': '/categories/motor-bike-for-sale',
-      'Construction Materials': '/categories/construction-material-for-sale',
-      'Job': '/categories/land-for-sale' // Note: wireframe shows this redirects to land for sale
+      'Bus for sale': '/categories/bus-for-sale',
+      'Truck for sale': '/categories/truck-for-sale',
+      'House for sale': '/categories/house-for-sale'
     };
     return routeMap[categoryName] || '/categories';
   };
@@ -1243,8 +1244,11 @@ function Homepage() {
           )}
             </div>
 
+            {/* Separator between search results and category sections */}
+            <div className="my-8 border-t-2 border-[hsl(var(--border))]"></div>
+
             {/* Category-specific ad sections (4 ads per row, then "more ad" link) */}
-            {['Land for sale', 'Car for sale', 'Motorbike for sale', 'Construction Materials', 'Job'].map((categoryName) => {
+            {['Land for sale', 'Car for sale', 'Motorbike for sale', 'Bus for sale', 'Truck for sale', 'House for sale'].map((categoryName) => {
               const categoryAds = getCategoryAds(categoryName);
               if (categoryAds.length === 0) return null;
 
