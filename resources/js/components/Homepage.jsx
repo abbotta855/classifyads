@@ -1138,9 +1138,9 @@ function Homepage() {
           {/* Main Content Area */}
           <main className="flex-1">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-[hsl(var(--foreground))]">
-                Search and filter result
-              </h2>
+              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                Showing {startResult}-{endResult} of {filteredAdsCount} results
+              </p>
               <div className="flex items-center gap-2">
                 <label className="text-sm text-[hsl(var(--foreground))]">Sorting option:</label>
                 <select
@@ -1161,12 +1161,6 @@ function Homepage() {
 
             {/* Display ads with pagination */}
             <div className="mb-8">
-              {/* Results count */}
-              <div className="mb-4">
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                  Showing {startResult}-{endResult} of {filteredAdsCount} results
-                </p>
-                    </div>
 
               {/* Display ads in grid (4 per row) */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
