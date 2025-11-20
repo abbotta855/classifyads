@@ -1157,7 +1157,7 @@ function Homepage() {
                   <option value="top review">top review</option>
                 </select>
               </div>
-            </div>
+                    </div>
 
             {/* Display ads with pagination */}
             <div className="mb-8">

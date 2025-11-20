@@ -10,7 +10,8 @@ function AdminPanel() {
   const { user } = useAuth();
   const { section } = useParams();
   const navigate = useNavigate();
-  const activeSection = section || 'admin';
+  const activeSection = section || null; // No section selected when on /admin
+  const [selectedRole, setSelectedRole] = useState('admin'); // 'super-admin' or 'admin'
   const [searchQuery, setSearchQuery] = useState('');
   const [searchCategory, setSearchCategory] = useState('');
   const [categories, setCategories] = useState([]);
@@ -26,6 +27,179 @@ function AdminPanel() {
     adminPosted: 32,
     total: 405
   });
+
+  // Mock location data
+  const [locations, setLocations] = useState([
+    {
+      id: 1,
+      province: 'Bagmati Province',
+      district: 'Kathmandu',
+      localLevel: 'Kathmandu',
+      localLevelType: 'Municipality'
+    },
+    {
+      id: 2,
+      province: 'Bagmati Province',
+      district: 'Kathmandu',
+      localLevel: 'Kathmandu',
+      localLevelType: 'Municipality'
+    },
+    {
+      id: 3,
+      province: 'Bagmati Province',
+      district: 'Lalitpur',
+      localLevel: 'Lalitpur',
+      localLevelType: 'Municipality'
+    },
+    {
+      id: 4,
+      province: 'Bagmati Province',
+      district: 'Bhaktapur',
+      localLevel: 'Bhaktapur',
+      localLevelType: 'Municipality'
+    },
+    {
+      id: 5,
+      province: 'Province 1',
+      district: 'Morang',
+      localLevel: 'Biratnagar',
+      localLevelType: 'Municipality'
+    },
+    {
+      id: 6,
+      province: 'Province 1',
+      district: 'Morang',
+      localLevel: 'Biratnagar',
+      localLevelType: 'Municipality'
+    },
+    {
+      id: 7,
+      province: 'Province 1',
+      district: 'Morang',
+      localLevel: 'Itahari',
+      localLevelType: 'Municipality'
+    },
+    {
+      id: 8,
+      province: 'Province 1',
+      district: 'Morang',
+      localLevel: 'Ratuwamai',
+      localLevelType: 'Rural Municipality'
+    },
+    {
+      id: 9,
+      province: 'Province 2',
+      district: 'Dhanusha',
+      localLevel: 'Janakpur',
+      localLevelType: 'Municipality'
+    },
+    {
+      id: 10,
+      province: 'Province 2',
+      district: 'Dhanusha',
+      localLevel: 'Dhanusadham',
+      localLevelType: 'Rural Municipality'
+    },
+    {
+      id: 11,
+      province: 'Gandaki Province',
+      district: 'Kaski',
+      localLevel: 'Pokhara',
+      localLevelType: 'Municipality'
+    },
+    {
+      id: 12,
+      province: 'Gandaki Province',
+      district: 'Kaski',
+      localLevel: 'Pokhara',
+      localLevelType: 'Municipality'
+    },
+    {
+      id: 13,
+      province: 'Lumbini Province',
+      district: 'Rupandehi',
+      localLevel: 'Butwal',
+      localLevelType: 'Municipality'
+    },
+    {
+      id: 14,
+      province: 'Karnali Province',
+      district: 'Surkhet',
+      localLevel: 'Birendranagar',
+      localLevelType: 'Municipality'
+    },
+    {
+      id: 15,
+      province: 'Sudurpashchim Province',
+      district: 'Kailali',
+      localLevel: 'Dhangadhi',
+      localLevelType: 'Municipality'
+    }
+  ]);
+
+  // Mock category management data
+  const [categoryManagementData, setCategoryManagementData] = useState([
+    {
+      id: 1,
+      categoryName: 'Art & Craft',
+      subcategoryName: 'Digital art'
+    },
+    {
+      id: 2,
+      categoryName: 'Art & Craft',
+      subcategoryName: 'Painting'
+    },
+    {
+      id: 3,
+      categoryName: 'Art & Craft',
+      subcategoryName: 'Sculpture'
+    },
+    {
+      id: 4,
+      categoryName: 'Electronics',
+      subcategoryName: 'Mobile Phones'
+    },
+    {
+      id: 5,
+      categoryName: 'Electronics',
+      subcategoryName: 'Laptops'
+    },
+    {
+      id: 6,
+      categoryName: 'Electronics',
+      subcategoryName: 'Tablets'
+    },
+    {
+      id: 7,
+      categoryName: 'Vehicles',
+      subcategoryName: 'Cars'
+    },
+    {
+      id: 8,
+      categoryName: 'Vehicles',
+      subcategoryName: 'Motorbikes'
+    },
+    {
+      id: 9,
+      categoryName: 'Vehicles',
+      subcategoryName: 'Buses'
+    },
+    {
+      id: 10,
+      categoryName: 'Real Estate',
+      subcategoryName: 'Land for sale'
+    },
+    {
+      id: 11,
+      categoryName: 'Real Estate',
+      subcategoryName: 'House for sale'
+    },
+    {
+      id: 12,
+      categoryName: 'Real Estate',
+      subcategoryName: 'Apartments'
+    }
+  ]);
 
   // Mock ads data
   const [ads, setAds] = useState([
@@ -282,21 +456,20 @@ function AdminPanel() {
   }, [showLocationDropdown]);
 
   const menuItems = [
-    { id: 'super-admin', label: 'Super Admin' },
-    { id: 'admin', label: 'Admin' },
-    { id: 'change-password', label: 'Change password' },
-    { id: 'user-management', label: 'User Management' },
     { id: 'ad-management', label: 'Ad management' },
-    { id: 'category-management', label: 'Category Management' },
-    { id: 'transaction-management', label: 'Transaction Management' },
-    { id: 'sales-report', label: 'Sales Report' },
     { id: 'auction-management', label: 'Auction Management' },
+    { id: 'category-management', label: 'Category Management' },
+    { id: 'change-password', label: 'Change Password' },
+    { id: 'email-subscriber', label: 'Email Subscriber List' },
     { id: 'job', label: 'Job' },
-    { id: 'stock-management', label: 'Stock management' },
-    { id: 'rating-review', label: 'Rating/review' },
+    { id: 'location-address', label: 'Location/Address' },
     { id: 'offer-discount', label: 'Offer/Discount' },
-    { id: 'email-subscriber', label: 'Email subscriber list' },
+    { id: 'rating-review', label: 'Rating/Review' },
+    { id: 'sales-report', label: 'Sales Report' },
+    { id: 'stock-management', label: 'Stock Management' },
     { id: 'support-management', label: 'Support Management' },
+    { id: 'transaction-management', label: 'Transaction Management' },
+    { id: 'user-management', label: 'User Management' },
   ];
 
   return (
@@ -307,6 +480,31 @@ function AdminPanel() {
           <Card>
             <CardContent className="p-4">
               <h2 className="text-lg font-bold text-[hsl(var(--foreground))] mb-4">Admin Dashboard</h2>
+              
+              {/* Role Selection */}
+              <div className="mb-4 space-y-1">
+                <button
+                  onClick={() => setSelectedRole('super-admin')}
+                  className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                    selectedRole === 'super-admin'
+                      ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium'
+                      : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
+                  }`}
+                >
+                  Super Admin
+                </button>
+                <button
+                  onClick={() => setSelectedRole('admin')}
+                  className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                    selectedRole === 'admin'
+                      ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium'
+                      : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
+                  }`}
+                >
+                  Admin
+                </button>
+              </div>
+
               <nav className="space-y-1">
                 {menuItems.map((item) => (
                   <Link
@@ -488,20 +686,16 @@ function AdminPanel() {
             </Card>
           </section>
 
-          {/* Section-specific content */}
-          {activeSection === 'admin' && (
+          {/* Default view when no section is selected */}
+          {!activeSection && (
             <section>
-              <Card>
-                <CardContent className="p-6">
-                  <h2 className="text-2xl font-bold text-[hsl(var(--foreground))] mb-4">Welcome to Admin Dashboard</h2>
-                  <p className="text-[hsl(var(--muted-foreground))]">
-                    Select a section from the sidebar to get started.
-                  </p>
-                </CardContent>
-              </Card>
+              <div className="flex justify-end">
+                <Button>Post Ad</Button>
+              </div>
             </section>
           )}
 
+          {/* Section-specific content */}
           {activeSection === 'ad-management' && (
             <>
               {/* Ad Totals Summary and Post Ad Button */}
@@ -594,6 +788,100 @@ function AdminPanel() {
                 </Card>
               </section>
             </>
+          )}
+
+          {activeSection === 'location-address' && (
+            <section>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Location/address Management</h2>
+                    <Button variant="outline">Add Place</Button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Province</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">District</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Local level (Municipality or Rural Municipality)</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Ward_id</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {locations.map((location, index) => (
+                          <tr key={location.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{location.province}</td>
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{location.district}</td>
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">
+                              {location.localLevel} ({location.localLevelType === 'Municipality' ? 'M' : 'RM'})
+                            </td>
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                            <td className="p-3 text-sm">
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                                  Edit
+                                </Button>
+                                <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
+                                  Delete
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'category-management' && (
+            <section>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Category Management</h2>
+                    <Button variant="outline">Add Category/subcategory</Button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Category Name</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Subcategory Name</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {categoryManagementData.map((category, index) => (
+                          <tr key={category.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{category.categoryName}</td>
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{category.subcategoryName}</td>
+                            <td className="p-3 text-sm">
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                                  Edit
+                                </Button>
+                                <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
+                                  Delete
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
           )}
         </main>
       </div>
