@@ -15,14 +15,14 @@ function Homepage() {
   const [priceErrors, setPriceErrors] = useState({ min: '', max: '' });
   const [searchQuery, setSearchQuery] = useState('');
   const [searchCategory, setSearchCategory] = useState(''); // Category for search dropdown
-  const [searchLocationHierarchy, setSearchLocationHierarchy] = useState({
-    province: '',
-    zone: '',
-    district: '',
-    municipality: '',
-    ruralMunicipality: ''
-  });
-  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false); // For search bar
+  const [showSidebarLocationDropdown, setShowSidebarLocationDropdown] = useState(false); // For sidebar filter
+  const [expandedLocationItems, setExpandedLocationItems] = useState({
+    provinces: false,
+    districts: {},
+    localLevels: {},
+    wards: {}
+  }); // Track expanded items in tree view
   const [sortBy, setSortBy] = useState('most relevant');
   const [ads, setAds] = useState([]);
   const [allAds, setAllAds] = useState([]); // All ads for pagination
@@ -32,39 +32,37 @@ function Homepage() {
   const adsPerPage = 39;
 
   // Hierarchical location structure (Nepal administrative divisions)
+  // New structure: Province → District → Local Level → Ward
   const [locationHierarchy, setLocationHierarchy] = useState({
     province: '',
-    zone: '',
     district: '',
-    municipality: '',
-    ruralMunicipality: '',
-    wardNumber: '',
-    place: ''
+    localLevel: '',
+    ward: ''
+  });
+
+  // Search location hierarchy state
+  const [searchLocationHierarchy, setSearchLocationHierarchy] = useState({
+    province: '',
+    district: '',
+    localLevel: '',
+    ward: ''
   });
 
   // Mock location data structure - Replace with API call later
-  // This represents Nepal's administrative structure
+  // New structure: Province → District → Local Level (Municipality/Rural Municipality) → Ward
   const locationData = {
     provinces: [
       {
         id: 1,
         name: 'Province 1',
-        zones: [
+        districts: [
           {
             id: 1,
-            name: 'Koshi Zone',
-            districts: [
-              {
-                id: 1,
-                name: 'Morang',
-                municipalities: [
-                  { id: 1, name: 'Biratnagar', wards: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], places: ['Biratnagar-1', 'Biratnagar-2', 'Biratnagar-3'] },
-                  { id: 2, name: 'Itahari', wards: [1, 2, 3, 4, 5], places: ['Itahari-1', 'Itahari-2'] }
-                ],
-                ruralMunicipalities: [
-                  { id: 1, name: 'Ratuwamai', wards: [1, 2, 3, 4, 5], places: ['Ratuwamai-1', 'Ratuwamai-2'] }
-                ]
-              }
+            name: 'Morang',
+            localLevels: [
+              { id: 1, name: 'Biratnagar', type: 'municipality', wards: [{ ward_id: 1, ward_number: 32 }, { ward_id: 1, ward_number: 19 }] },
+              { id: 2, name: 'Itahari', type: 'municipality', wards: [{ ward_id: 1, ward_number: 9 }] },
+              { id: 3, name: 'Ratuwamai', type: 'rural_municipality', wards: [{ ward_id: 1, ward_number: 9 }] }
             ]
           }
         ]
@@ -72,21 +70,13 @@ function Homepage() {
       {
         id: 2,
         name: 'Province 2',
-        zones: [
+        districts: [
           {
             id: 2,
-            name: 'Janakpur Zone',
-            districts: [
-              {
-                id: 2,
-                name: 'Dhanusha',
-                municipalities: [
-                  { id: 3, name: 'Janakpur', wards: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], places: ['Janakpur-1', 'Janakpur-2', 'Janakpur-3'] }
-                ],
-                ruralMunicipalities: [
-                  { id: 2, name: 'Dhanusadham', wards: [1, 2, 3, 4, 5], places: ['Dhanusadham-1'] }
-                ]
-              }
+            name: 'Dhanusha',
+            localLevels: [
+              { id: 4, name: 'Janakpur', type: 'municipality', wards: [{ ward_id: 1, ward_number: 25 }] },
+              { id: 5, name: 'Dhanusadham', type: 'rural_municipality', wards: [{ ward_id: 1, ward_number: 9 }] }
             ]
           }
         ]
@@ -94,20 +84,13 @@ function Homepage() {
       {
         id: 3,
         name: 'Bagmati Province',
-        zones: [
+        districts: [
           {
             id: 3,
-            name: 'Bagmati Zone',
-            districts: [
-              {
-                id: 3,
-                name: 'Kathmandu',
-                municipalities: [
-                  { id: 4, name: 'Kathmandu', wards: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32], places: ['Thamel', 'Durbar Square', 'New Road', 'Lazimpat', 'Baneshwor'] },
-                  { id: 5, name: 'Lalitpur', wards: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29], places: ['Patan', 'Pulchowk', 'Jawalakhel'] }
-                ],
-                ruralMunicipalities: []
-              }
+            name: 'Kathmandu',
+            localLevels: [
+              { id: 6, name: 'Kathmandu', type: 'municipality', wards: [{ ward_id: 1, ward_number: 32 }, { ward_id: 2, ward_number: 15 }] },
+              { id: 7, name: 'Lalitpur', type: 'municipality', wards: [{ ward_id: 1, ward_number: 29 }] }
             ]
           }
         ]
@@ -115,34 +98,22 @@ function Homepage() {
     ]
   };
 
-  // Helper functions to get filtered options based on selections
+  // Helper functions to get filtered options based on selections (sidebar)
   const getSelectedProvince = () => {
     if (!locationHierarchy.province) return null;
     return locationData.provinces.find(p => p.id === parseInt(locationHierarchy.province));
   };
 
-  const getSelectedZone = () => {
-    const province = getSelectedProvince();
-    if (!province || !locationHierarchy.zone) return null;
-    return province.zones.find(z => z.id === parseInt(locationHierarchy.zone));
-  };
-
   const getSelectedDistrict = () => {
-    const zone = getSelectedZone();
-    if (!zone || !locationHierarchy.district) return null;
-    return zone.districts.find(d => d.id === parseInt(locationHierarchy.district));
+    const province = getSelectedProvince();
+    if (!province || !locationHierarchy.district) return null;
+    return province.districts.find(d => d.id === parseInt(locationHierarchy.district));
   };
 
-  const getSelectedMunicipality = () => {
+  const getSelectedLocalLevel = () => {
     const district = getSelectedDistrict();
-    if (!district || !locationHierarchy.municipality) return null;
-    return district.municipalities.find(m => m.id === parseInt(locationHierarchy.municipality));
-  };
-
-  const getSelectedRuralMunicipality = () => {
-    const district = getSelectedDistrict();
-    if (!district || !locationHierarchy.ruralMunicipality) return null;
-    return district.ruralMunicipalities.find(rm => rm.id === parseInt(locationHierarchy.ruralMunicipality));
+    if (!district || !locationHierarchy.localLevel) return null;
+    return district.localLevels.find(ll => ll.id === parseInt(locationHierarchy.localLevel));
   };
 
   const handleLocationHierarchyChange = (level, value) => {
@@ -151,7 +122,7 @@ function Homepage() {
       newHierarchy[level] = value;
       
       // Reset all dependent levels when a parent level changes
-      const levels = ['province', 'zone', 'district', 'municipality', 'ruralMunicipality', 'wardNumber', 'place'];
+      const levels = ['province', 'district', 'localLevel', 'ward'];
       const currentIndex = levels.indexOf(level);
       for (let i = currentIndex + 1; i < levels.length; i++) {
         newHierarchy[levels[i]] = '';
@@ -167,28 +138,16 @@ function Homepage() {
     return locationData.provinces.find(p => p.id === parseInt(searchLocationHierarchy.province));
   };
 
-  const getSearchZone = () => {
-    const province = getSearchProvince();
-    if (!province || !searchLocationHierarchy.zone) return null;
-    return province.zones.find(z => z.id === parseInt(searchLocationHierarchy.zone));
-  };
-
   const getSearchDistrict = () => {
-    const zone = getSearchZone();
-    if (!zone || !searchLocationHierarchy.district) return null;
-    return zone.districts.find(d => d.id === parseInt(searchLocationHierarchy.district));
+    const province = getSearchProvince();
+    if (!province || !searchLocationHierarchy.district) return null;
+    return province.districts.find(d => d.id === parseInt(searchLocationHierarchy.district));
   };
 
-  const getSearchMunicipality = () => {
+  const getSearchLocalLevel = () => {
     const district = getSearchDistrict();
-    if (!district || !searchLocationHierarchy.municipality) return null;
-    return district.municipalities.find(m => m.id === parseInt(searchLocationHierarchy.municipality));
-  };
-
-  const getSearchRuralMunicipality = () => {
-    const district = getSearchDistrict();
-    if (!district || !searchLocationHierarchy.ruralMunicipality) return null;
-    return district.ruralMunicipalities.find(rm => rm.id === parseInt(searchLocationHierarchy.ruralMunicipality));
+    if (!district || !searchLocationHierarchy.localLevel) return null;
+    return district.localLevels.find(ll => ll.id === parseInt(searchLocationHierarchy.localLevel));
   };
 
   const handleSearchLocationChange = (level, value) => {
@@ -197,7 +156,7 @@ function Homepage() {
       newHierarchy[level] = value;
       
       // Reset all dependent levels when a parent level changes
-      const levels = ['province', 'zone', 'district', 'municipality', 'ruralMunicipality'];
+      const levels = ['province', 'district', 'localLevel', 'ward'];
       const currentIndex = levels.indexOf(level);
       for (let i = currentIndex + 1; i < levels.length; i++) {
         newHierarchy[levels[i]] = '';
@@ -213,21 +172,20 @@ function Homepage() {
       const province = getSearchProvince();
       if (province) parts.push(province.name);
     }
-    if (searchLocationHierarchy.zone) {
-      const zone = getSearchZone();
-      if (zone) parts.push(zone.name);
-    }
     if (searchLocationHierarchy.district) {
       const district = getSearchDistrict();
       if (district) parts.push(district.name);
     }
-    if (searchLocationHierarchy.municipality) {
-      const municipality = getSearchMunicipality();
-      if (municipality) parts.push(municipality.name);
+    if (searchLocationHierarchy.localLevel) {
+      const localLevel = getSearchLocalLevel();
+      if (localLevel) parts.push(localLevel.name);
     }
-    if (searchLocationHierarchy.ruralMunicipality) {
-      const ruralMunicipality = getSearchRuralMunicipality();
-      if (ruralMunicipality) parts.push(ruralMunicipality.name);
+    if (searchLocationHierarchy.ward) {
+      const localLevel = getSearchLocalLevel();
+      if (localLevel) {
+        const ward = localLevel.wards.find(w => w.ward_id === parseInt(searchLocationHierarchy.ward.split('-')[0]) && w.ward_number === parseInt(searchLocationHierarchy.ward.split('-')[1]));
+        if (ward) parts.push(`Ward ${ward.ward_id}-${ward.ward_number}`);
+      }
     }
     return parts.length > 0 ? parts.join(', ') : '';
   };
@@ -347,22 +305,13 @@ function Homepage() {
       });
     }
 
-    // Filter by sidebar location hierarchy
+    // Filter by sidebar location hierarchy (new structure: province → district → localLevel → ward)
     if (locationHierarchy.province) {
       const province = getSelectedProvince();
       if (province) {
         filtered = filtered.filter(ad => {
           const adProvince = ad.locationHierarchy?.province;
           return adProvince && parseInt(adProvince) === parseInt(locationHierarchy.province);
-        });
-      }
-    }
-    if (locationHierarchy.zone) {
-      const zone = getSelectedZone();
-      if (zone) {
-        filtered = filtered.filter(ad => {
-          const adZone = ad.locationHierarchy?.zone;
-          return adZone && parseInt(adZone) === parseInt(locationHierarchy.zone);
         });
       }
     }
@@ -375,23 +324,20 @@ function Homepage() {
         });
       }
     }
-    if (locationHierarchy.municipality) {
-      const municipality = getSelectedMunicipality();
-      if (municipality) {
+    if (locationHierarchy.localLevel) {
+      const localLevel = getSelectedLocalLevel();
+      if (localLevel) {
         filtered = filtered.filter(ad => {
-          const adMunicipality = ad.locationHierarchy?.municipality;
-          return adMunicipality && parseInt(adMunicipality) === parseInt(locationHierarchy.municipality);
+          const adLocalLevel = ad.locationHierarchy?.localLevel;
+          return adLocalLevel && parseInt(adLocalLevel) === parseInt(locationHierarchy.localLevel);
         });
       }
     }
-    if (locationHierarchy.ruralMunicipality) {
-      const ruralMunicipality = getSelectedRuralMunicipality();
-      if (ruralMunicipality) {
-        filtered = filtered.filter(ad => {
-          const adRuralMunicipality = ad.locationHierarchy?.ruralMunicipality;
-          return adRuralMunicipality && parseInt(adRuralMunicipality) === parseInt(locationHierarchy.ruralMunicipality);
-        });
-      }
+    if (locationHierarchy.ward) {
+      filtered = filtered.filter(ad => {
+        const adWard = ad.locationHierarchy?.ward;
+        return adWard && adWard === locationHierarchy.ward;
+      });
     }
 
     // Filter by price range
@@ -587,29 +533,23 @@ function Homepage() {
       const province = getSelectedProvince();
       if (province) parts.push(province.name);
     }
-    if (locationHierarchy.zone) {
-      const zone = getSelectedZone();
-      if (zone) parts.push(zone.name);
-    }
     if (locationHierarchy.district) {
       const district = getSelectedDistrict();
       if (district) parts.push(district.name);
     }
-    if (locationHierarchy.municipality) {
-      const municipality = getSelectedMunicipality();
-      if (municipality) parts.push(municipality.name);
+    if (locationHierarchy.localLevel) {
+      const localLevel = getSelectedLocalLevel();
+      if (localLevel) {
+        // Add type indicator for local level
+        const typeLabel = localLevel.type === 'municipality' ? ' (M)' : ' (RM)';
+        parts.push(localLevel.name + typeLabel);
+      }
     }
-    if (locationHierarchy.ruralMunicipality) {
-      const ruralMunicipality = getSelectedRuralMunicipality();
-      if (ruralMunicipality) parts.push(ruralMunicipality.name);
+    if (locationHierarchy.ward) {
+      const [wardId, wardNumber] = locationHierarchy.ward.split('-');
+      parts.push(`Ward ${wardId}-${wardNumber}`);
     }
-    if (locationHierarchy.wardNumber) {
-      parts.push(`Ward ${locationHierarchy.wardNumber}`);
-    }
-    if (locationHierarchy.place) {
-      parts.push(locationHierarchy.place);
-    }
-    return parts.join(', ');
+    return parts.length > 0 ? parts.join(' / ') : '';
   };
 
   const handlePriceChange = (field, value) => {
@@ -663,16 +603,14 @@ function Homepage() {
     }
     
     // Apply search location to sidebar location hierarchy
-    if (searchLocationHierarchy.province || searchLocationHierarchy.zone || 
-        searchLocationHierarchy.district || searchLocationHierarchy.municipality || 
-        searchLocationHierarchy.ruralMunicipality) {
+    if (searchLocationHierarchy.province || searchLocationHierarchy.district || 
+        searchLocationHierarchy.localLevel || searchLocationHierarchy.ward) {
       setLocationHierarchy({
         ...locationHierarchy,
         province: searchLocationHierarchy.province || locationHierarchy.province,
-        zone: searchLocationHierarchy.zone || locationHierarchy.zone,
         district: searchLocationHierarchy.district || locationHierarchy.district,
-        municipality: searchLocationHierarchy.municipality || locationHierarchy.municipality,
-        ruralMunicipality: searchLocationHierarchy.ruralMunicipality || locationHierarchy.ruralMunicipality,
+        localLevel: searchLocationHierarchy.localLevel || locationHierarchy.localLevel,
+        ward: searchLocationHierarchy.ward || locationHierarchy.ward,
       });
     }
   };
@@ -742,94 +680,138 @@ function Homepage() {
                     </option>
                   ))}
                 </select>
-                {/* Location Selection - Cascading dropdowns */}
-                <div className="relative min-w-[150px] flex gap-1">
-                  {/* Province */}
-                  <select
-                    value={searchLocationHierarchy.province || ''}
-                    onChange={(e) => handleSearchLocationChange('province', e.target.value)}
-                    className="px-3 py-2 border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                  >
-                    <option value="">All Locations</option>
-                    {locationData.provinces.map((province) => (
-                      <option key={province.id} value={province.id}>
-                        {province.name}
-                      </option>
-                    ))}
-                  </select>
-                  
-                  {/* Zone - appears when Province is selected */}
-                  {searchLocationHierarchy.province && getSearchProvince() && (
-                    <select
-                      value={searchLocationHierarchy.zone || ''}
-                      onChange={(e) => handleSearchLocationChange('zone', e.target.value)}
-                      className="px-3 py-2 border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                {/* Location Selection - Cascading nested menu */}
+                <div className="relative min-w-[150px]">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+                      className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
                     >
-                      <option value="">Zone</option>
-                      {getSearchProvince().zones.map((zone) => (
-                        <option key={zone.id} value={zone.id}>
-                          {zone.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  
-                  {/* District - appears when Zone is selected */}
-                  {searchLocationHierarchy.zone && getSearchZone() && (
-                    <select
-                      value={searchLocationHierarchy.district || ''}
-                      onChange={(e) => handleSearchLocationChange('district', e.target.value)}
-                      className="px-3 py-2 border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                    >
-                      <option value="">District</option>
-                      {getSearchZone().districts.map((district) => (
-                        <option key={district.id} value={district.id}>
-                          {district.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  
-                  {/* Municipality - appears when District is selected */}
-                  {searchLocationHierarchy.district && getSearchDistrict() && getSearchDistrict().municipalities.length > 0 && (
-                    <select
-                      value={searchLocationHierarchy.municipality || ''}
-                      onChange={(e) => {
-                        handleSearchLocationChange('municipality', e.target.value);
-                        handleSearchLocationChange('ruralMunicipality', '');
-                      }}
-                      className="px-3 py-2 border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                    >
-                      <option value="">Municipality</option>
-                      {getSearchDistrict().municipalities.map((municipality) => (
-                        <option key={municipality.id} value={municipality.id}>
-                          {municipality.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  
-                  {/* Rural Municipality - appears when District is selected */}
-                  {searchLocationHierarchy.district && getSearchDistrict() && getSearchDistrict().ruralMunicipalities.length > 0 && (
-                    <select
-                      value={searchLocationHierarchy.ruralMunicipality || ''}
-                      onChange={(e) => {
-                        handleSearchLocationChange('ruralMunicipality', e.target.value);
-                        handleSearchLocationChange('municipality', '');
-                      }}
-                      className="px-3 py-2 border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                    >
-                      <option value="">Rural Municipality</option>
-                      {getSearchDistrict().ruralMunicipalities.map((ruralMunicipality) => (
-                        <option key={ruralMunicipality.id} value={ruralMunicipality.id}>
-                          {ruralMunicipality.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                      <span>{buildSearchLocationString() || 'All Locations'}</span>
+                      <span className="ml-2">{showLocationDropdown ? '▲' : '▼'}</span>
+                    </button>
+                    
+                    {/* Cascading Menu */}
+                    {showLocationDropdown && (
+                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
+                        {/* Province Column */}
+                        <div className="min-w-[200px] max-h-96 overflow-y-auto border-r border-[hsl(var(--border))]">
+                          <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                            Province
+                          </div>
+                          <div className="py-1">
+                            <button
+                              onClick={() => {
+                                handleSearchLocationChange('province', '');
+                                setShowLocationDropdown(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                !searchLocationHierarchy.province ? 'bg-[hsl(var(--accent))]' : ''
+                              }`}
+                            >
+                              All Locations
+                            </button>
+                            {locationData.provinces.map((province) => (
+                              <button
+                                key={province.id}
+                                onClick={() => handleSearchLocationChange('province', province.id.toString())}
+                                onMouseEnter={() => {
+                                  if (searchLocationHierarchy.province !== province.id.toString()) {
+                                    handleSearchLocationChange('province', province.id.toString());
+                                  }
+                                }}
+                                className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
+                                  searchLocationHierarchy.province === province.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                }`}
+                              >
+                                <span>{province.name}</span>
+                                {province.districts.length > 0 && <span>▶</span>}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        {/* District Column - appears when province is selected */}
+                        {searchLocationHierarchy.province && getSearchProvince() && (
+                          <div className="min-w-[200px] max-h-96 overflow-y-auto border-r border-[hsl(var(--border))]">
+                            <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                              District
+                            </div>
+                            <div className="py-1">
+                              <button
+                                onClick={() => {
+                                  handleSearchLocationChange('district', '');
+                                  setShowLocationDropdown(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                  !searchLocationHierarchy.district ? 'bg-[hsl(var(--accent))]' : ''
+                                }`}
+                              >
+                                All Districts
+                              </button>
+                              {getSearchProvince().districts.map((district) => (
+                                <button
+                                  key={district.id}
+                                  onClick={() => handleSearchLocationChange('district', district.id.toString())}
+                                  onMouseEnter={() => {
+                                    if (searchLocationHierarchy.district !== district.id.toString()) {
+                                      handleSearchLocationChange('district', district.id.toString());
+                                    }
+                                  }}
+                                  className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
+                                    searchLocationHierarchy.district === district.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                  }`}
+                                >
+                                  <span>{district.name}</span>
+                                  {district.localLevels.length > 0 && <span>▶</span>}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Local Level Column - appears when district is selected */}
+                        {searchLocationHierarchy.district && getSearchDistrict() && (
+                          <div className="min-w-[200px] max-h-96 overflow-y-auto">
+                            <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                              Local Level
+                            </div>
+                            <div className="py-1">
+                              <button
+                                onClick={() => {
+                                  handleSearchLocationChange('localLevel', '');
+                                  setShowLocationDropdown(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                  !searchLocationHierarchy.localLevel ? 'bg-[hsl(var(--accent))]' : ''
+                                }`}
+                              >
+                                All Local Levels
+                              </button>
+                              {getSearchDistrict().localLevels.map((localLevel) => (
+                                <button
+                                  key={localLevel.id}
+                                  onClick={() => {
+                                    handleSearchLocationChange('localLevel', localLevel.id.toString());
+                                    setShowLocationDropdown(false);
+                                  }}
+                                  className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                    searchLocationHierarchy.localLevel === localLevel.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                  }`}
+                                >
+                                  {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <Button onClick={handleSearch} className="min-w-[100px]">Search</Button>
-              </div>
+          </div>
             </CardContent>
           </Card>
         </section>
@@ -918,164 +900,197 @@ function Homepage() {
                   )}
                 </div>
 
-                {/* Location Filter - Hierarchical */}
+                {/* Location Filter - Tree View (Windows Explorer style) */}
                 <div className="mb-6">
-                  <h3 className="font-semibold text-[hsl(var(--foreground))] mb-2">
-                    Location
-                  </h3>
-                  <div className="space-y-2">
-                    {/* Province */}
-                    <div>
-                      <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Province</label>
-                      <select
-                        value={locationHierarchy.province}
-                        onChange={(e) => handleLocationHierarchyChange('province', e.target.value)}
-                        className="w-full px-2 py-1.5 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
-                      >
-                        <option value="">Select Province</option>
-                        {locationData.provinces.map((province) => (
-                          <option key={province.id} value={province.id}>
-                            {province.name}
-                          </option>
-                        ))}
-                      </select>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedLocationItems(prev => ({ ...prev, provinces: !prev.provinces }))}
+                    className="flex items-center justify-between w-full font-semibold text-[hsl(var(--foreground))] mb-2 hover:text-[hsl(var(--primary))] transition-colors"
+                  >
+                    <span>Location</span>
+                    <span className="text-sm">{expandedLocationItems.provinces ? '▼' : '▶'}</span>
+                  </button>
+                  
+                  {/* Current Location Path Display */}
+                  {buildLocationString() && (
+                    <div className="mb-2 px-2 py-1.5 text-xs text-[hsl(var(--muted-foreground))] bg-[hsl(var(--accent))] rounded border border-[hsl(var(--border))]">
+                      {buildLocationString()}
                     </div>
-
-                    {/* Zone */}
-                    {locationHierarchy.province && getSelectedProvince() && (
-                      <div>
-                        <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Zone</label>
-                        <select
-                          value={locationHierarchy.zone}
-                          onChange={(e) => handleLocationHierarchyChange('zone', e.target.value)}
-                          className="w-full px-2 py-1.5 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
-                        >
-                          <option value="">Select Zone</option>
-                          {getSelectedProvince().zones.map((zone) => (
-                            <option key={zone.id} value={zone.id}>
-                              {zone.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* District */}
-                    {locationHierarchy.zone && getSelectedZone() && (
-                      <div>
-                        <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">District</label>
-                        <select
-                          value={locationHierarchy.district}
-                          onChange={(e) => handleLocationHierarchyChange('district', e.target.value)}
-                          className="w-full px-2 py-1.5 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
-                        >
-                          <option value="">Select District</option>
-                          {getSelectedZone().districts.map((district) => (
-                            <option key={district.id} value={district.id}>
-                              {district.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* Municipality or Rural Municipality */}
-                    {locationHierarchy.district && getSelectedDistrict() && (
-                      <>
-                        {/* Municipality */}
-                        {getSelectedDistrict().municipalities.length > 0 && (
-                          <div>
-                            <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Municipality</label>
-                            <select
-                              value={locationHierarchy.municipality}
-                              onChange={(e) => {
-                                handleLocationHierarchyChange('municipality', e.target.value);
-                                handleLocationHierarchyChange('ruralMunicipality', ''); // Clear rural municipality when municipality is selected
-                              }}
-                              className="w-full px-2 py-1.5 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
-                            >
-                              <option value="">Select Municipality</option>
-                              {getSelectedDistrict().municipalities.map((municipality) => (
-                                <option key={municipality.id} value={municipality.id}>
-                                  {municipality.name}
-                                </option>
-                              ))}
-                            </select>
+                  )}
+                  
+                  {/* Provinces - shown when Location is expanded */}
+                  {expandedLocationItems.provinces && (
+                    <div className="space-y-1 ml-4">
+                      {locationData.provinces.map((province) => {
+                        const isProvinceExpanded = expandedLocationItems.districts[province.id] || false;
+                        const isProvinceSelected = locationHierarchy.province === province.id.toString();
+                        
+                        return (
+                          <div key={province.id} className="space-y-1">
+                            {/* Province Item */}
+                            <div className="flex items-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExpandedLocationItems(prev => ({
+                                    ...prev,
+                                    districts: {
+                                      ...prev.districts,
+                                      [province.id]: !prev.districts[province.id]
+                                    }
+                                  }));
+                                }}
+                                className="w-4 h-4 flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] mr-1"
+                              >
+                                {province.districts.length > 0 ? (isProvinceExpanded ? '▼' : '▶') : '•'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleLocationHierarchyChange('province', province.id.toString());
+                                  handleLocationHierarchyChange('district', '');
+                                  handleLocationHierarchyChange('localLevel', '');
+                                  handleLocationHierarchyChange('ward', '');
+                                }}
+                                className={`flex-1 text-left text-sm px-2 py-1 rounded hover:bg-[hsl(var(--accent))] ${
+                                  isProvinceSelected ? 'bg-[hsl(var(--accent))] font-medium' : ''
+                                }`}
+                              >
+                                {province.name}
+                              </button>
+                            </div>
+                            
+                            {/* Districts - shown when province is expanded */}
+                            {isProvinceExpanded && (
+                              <div className="space-y-1 ml-6">
+                                {province.districts.map((district) => {
+                                  const isDistrictExpanded = expandedLocationItems.localLevels[district.id] || false;
+                                  const isDistrictSelected = locationHierarchy.district === district.id.toString() && 
+                                                             locationHierarchy.province === province.id.toString();
+                                  
+                                  return (
+                                    <div key={district.id} className="space-y-1">
+                                      {/* District Item */}
+                                      <div className="flex items-center">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setExpandedLocationItems(prev => ({
+                                              ...prev,
+                                              localLevels: {
+                                                ...prev.localLevels,
+                                                [district.id]: !prev.localLevels[district.id]
+                                              }
+                                            }));
+                                          }}
+                                          className="w-4 h-4 flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] mr-1"
+                                        >
+                                          {district.localLevels.length > 0 ? (isDistrictExpanded ? '▼' : '▶') : '•'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            handleLocationHierarchyChange('province', province.id.toString());
+                                            handleLocationHierarchyChange('district', district.id.toString());
+                                            handleLocationHierarchyChange('localLevel', '');
+                                            handleLocationHierarchyChange('ward', '');
+                                          }}
+                                          className={`flex-1 text-left text-sm px-2 py-1 rounded hover:bg-[hsl(var(--accent))] ${
+                                            isDistrictSelected ? 'bg-[hsl(var(--accent))] font-medium' : ''
+                                          }`}
+                                        >
+                                          {district.name}
+                                        </button>
+                                      </div>
+                                      
+                                      {/* Local Levels - shown when district is expanded */}
+                                      {isDistrictExpanded && (
+                                        <div className="space-y-1 ml-6">
+                                          {district.localLevels.map((localLevel) => {
+                                            const isLocalLevelExpanded = expandedLocationItems.wards[localLevel.id] || false;
+                                            const isLocalLevelSelected = locationHierarchy.localLevel === localLevel.id.toString() &&
+                                                                         locationHierarchy.district === district.id.toString();
+                                            
+                                            return (
+                                              <div key={localLevel.id} className="space-y-1">
+                                                {/* Local Level Item */}
+                                                <div className="flex items-center">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setExpandedLocationItems(prev => ({
+                                                        ...prev,
+                                                        wards: {
+                                                          ...prev.wards,
+                                                          [localLevel.id]: !prev.wards[localLevel.id]
+                                                        }
+                                                      }));
+                                                    }}
+                                                    className="w-4 h-4 flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] mr-1"
+                                                  >
+                                                    {localLevel.wards.length > 0 ? (isLocalLevelExpanded ? '▼' : '▶') : '•'}
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      handleLocationHierarchyChange('province', province.id.toString());
+                                                      handleLocationHierarchyChange('district', district.id.toString());
+                                                      handleLocationHierarchyChange('localLevel', localLevel.id.toString());
+                                                      handleLocationHierarchyChange('ward', '');
+                                                    }}
+                                                    className={`flex-1 text-left text-sm px-2 py-1 rounded hover:bg-[hsl(var(--accent))] ${
+                                                      isLocalLevelSelected ? 'bg-[hsl(var(--accent))] font-medium' : ''
+                                                    }`}
+                                                  >
+                                                    {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
+                                                  </button>
+                                                </div>
+                                                
+                                                {/* Wards - shown when local level is expanded */}
+                                                {isLocalLevelExpanded && (
+                                                  <div className="space-y-1 ml-6">
+                                                    {localLevel.wards.map((ward) => {
+                                                      const wardValue = `${ward.ward_id}-${ward.ward_number}`;
+                                                      const isWardSelected = locationHierarchy.ward === wardValue &&
+                                                                             locationHierarchy.localLevel === localLevel.id.toString();
+                                                      
+                                                      return (
+                                                        <div key={wardValue} className="flex items-center">
+                                                          <span className="w-4 h-4 mr-1">•</span>
+                                                          <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                              handleLocationHierarchyChange('province', province.id.toString());
+                                                              handleLocationHierarchyChange('district', district.id.toString());
+                                                              handleLocationHierarchyChange('localLevel', localLevel.id.toString());
+                                                              handleLocationHierarchyChange('ward', wardValue);
+                                                            }}
+                                                            className={`flex-1 text-left text-sm px-2 py-1 rounded hover:bg-[hsl(var(--accent))] ${
+                                                              isWardSelected ? 'bg-[hsl(var(--accent))] font-medium' : ''
+                                                            }`}
+                                                          >
+                                                            Ward {ward.ward_id}-{ward.ward_number}
+                                                          </button>
+                                                        </div>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
-                        )}
-
-                        {/* Rural Municipality */}
-                        {getSelectedDistrict().ruralMunicipalities.length > 0 && (
-                          <div>
-                            <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Rural Municipality</label>
-                            <select
-                              value={locationHierarchy.ruralMunicipality}
-                              onChange={(e) => {
-                                handleLocationHierarchyChange('ruralMunicipality', e.target.value);
-                                handleLocationHierarchyChange('municipality', ''); // Clear municipality when rural municipality is selected
-                              }}
-                              className="w-full px-2 py-1.5 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
-                            >
-                              <option value="">Select Rural Municipality</option>
-                              {getSelectedDistrict().ruralMunicipalities.map((ruralMunicipality) => (
-                                <option key={ruralMunicipality.id} value={ruralMunicipality.id}>
-                                  {ruralMunicipality.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-                      </>
-                    )}
-
-                    {/* Ward Number */}
-                    {(locationHierarchy.municipality || locationHierarchy.ruralMunicipality) && (
-                      <div>
-                        <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Ward Number</label>
-                        <select
-                          value={locationHierarchy.wardNumber}
-                          onChange={(e) => handleLocationHierarchyChange('wardNumber', e.target.value)}
-                          className="w-full px-2 py-1.5 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
-                        >
-                          <option value="">Select Ward Number</option>
-                          {(() => {
-                            const selected = locationHierarchy.municipality 
-                              ? getSelectedMunicipality() 
-                              : getSelectedRuralMunicipality();
-                            return selected?.wards.map((ward) => (
-                              <option key={ward} value={ward}>
-                                Ward {ward}
-                              </option>
-                            ));
-                          })()}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* Place */}
-                    {locationHierarchy.wardNumber && (
-                      <div>
-                        <label className="text-xs text-[hsl(var(--muted-foreground))] mb-1 block">Place</label>
-                        <select
-                          value={locationHierarchy.place}
-                          onChange={(e) => handleLocationHierarchyChange('place', e.target.value)}
-                          className="w-full px-2 py-1.5 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
-                        >
-                          <option value="">Select Place</option>
-                          {(() => {
-                            const selected = locationHierarchy.municipality 
-                              ? getSelectedMunicipality() 
-                              : getSelectedRuralMunicipality();
-                            return selected?.places.map((place) => (
-                              <option key={place} value={place}>
-                                {place}
-                              </option>
-                            ));
-                          })()}
-                        </select>
-                      </div>
-                    )}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Price Range */}
@@ -1150,7 +1165,7 @@ function Homepage() {
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">
                   Showing {startResult}-{endResult} of {filteredAdsCount} results
                 </p>
-              </div>
+                    </div>
 
               {/* Display ads in grid (4 per row) */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -1173,9 +1188,9 @@ function Homepage() {
                           ${ad.price.toLocaleString()}
                         </p>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                  </CardContent>
+                </Card>
+              ))}
               </div>
 
               {/* Pagination */}
@@ -1224,8 +1239,8 @@ function Homepage() {
                   >
                     Next
                   </Button>
-                </div>
-              )}
+            </div>
+          )}
             </div>
 
             {/* Category-specific ad sections (4 ads per row, then "more ad" link) */}
