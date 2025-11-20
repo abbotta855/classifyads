@@ -17,6 +17,122 @@ function AdminPanel() {
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
   const locationDropdownRef = useRef(null);
+  const [adSort, setAdSort] = useState(''); // Sort option: 'price', 'date', 'alphabetical'
+
+  // Mock ad totals
+  const [adTotals, setAdTotals] = useState({
+    userPosted: 245,
+    vendorPosted: 128,
+    adminPosted: 32,
+    total: 405
+  });
+
+  // Mock ads data
+  const [ads, setAds] = useState([
+    {
+      id: 1,
+      sn: 1,
+      title: 'Beautiful Land for Sale in Kathmandu',
+      category: 'Land for sale',
+      description: 'Prime location land with excellent connectivity and all amenities nearby.',
+      price: 15000000,
+      views: 234,
+      date: '2024-01-15',
+      postedBy: 'user'
+    },
+    {
+      id: 2,
+      sn: 2,
+      title: 'Toyota Corolla 2020 - Excellent Condition',
+      category: 'Car for sale',
+      description: 'Well maintained car with low mileage. Single owner. All service records available.',
+      price: 2800000,
+      views: 567,
+      date: '2024-01-18',
+      postedBy: 'vendor'
+    },
+    {
+      id: 3,
+      sn: 3,
+      title: 'Honda CB 150R - Like New',
+      category: 'Motorbike for sale',
+      description: 'Barely used motorbike, perfect condition. All documents ready.',
+      price: 350000,
+      views: 189,
+      date: '2024-01-20',
+      postedBy: 'user'
+    },
+    {
+      id: 4,
+      sn: 4,
+      title: 'Modern House in Lalitpur',
+      category: 'House for sale',
+      description: '3 BHK house with garden, parking space, and modern amenities.',
+      price: 12000000,
+      views: 445,
+      date: '2024-01-22',
+      postedBy: 'admin'
+    },
+    {
+      id: 5,
+      sn: 5,
+      title: 'Isuzu Bus - Commercial Vehicle',
+      category: 'Bus for sale',
+      description: 'Perfect for commercial use. Recently serviced and ready to use.',
+      price: 4500000,
+      views: 123,
+      date: '2024-01-25',
+      postedBy: 'vendor'
+    },
+    {
+      id: 6,
+      sn: 6,
+      title: 'Tata Truck - Heavy Duty',
+      category: 'Truck for sale',
+      description: 'Heavy duty truck in excellent working condition. Ideal for logistics business.',
+      price: 3200000,
+      views: 98,
+      date: '2024-01-28',
+      postedBy: 'user'
+    },
+    {
+      id: 7,
+      sn: 7,
+      title: 'Luxury Apartment in Baneshwor',
+      category: 'House for sale',
+      description: 'Fully furnished apartment with modern facilities and security.',
+      price: 8500000,
+      views: 312,
+      date: '2024-02-01',
+      postedBy: 'admin'
+    },
+    {
+      id: 8,
+      sn: 8,
+      title: 'Yamaha FZ - Sports Edition',
+      category: 'Motorbike for sale',
+      description: 'Sports edition bike with all accessories. Low mileage.',
+      price: 420000,
+      views: 256,
+      date: '2024-02-03',
+      postedBy: 'user'
+    }
+  ]);
+
+  // Sort ads based on selected option
+  const sortedAds = React.useMemo(() => {
+    const adsCopy = [...ads];
+    switch (adSort) {
+      case 'price':
+        return adsCopy.sort((a, b) => a.price - b.price);
+      case 'date':
+        return adsCopy.sort((a, b) => new Date(a.date) - new Date(b.date));
+      case 'alphabetical':
+        return adsCopy.sort((a, b) => a.title.localeCompare(b.title));
+      default:
+        return adsCopy;
+    }
+  }, [ads, adSort]);
 
   // Search location hierarchy state
   const [searchLocationHierarchy, setSearchLocationHierarchy] = useState({
@@ -370,12 +486,115 @@ function AdminPanel() {
                 </div>
               </CardContent>
             </Card>
-            
-            {/* Post Ad Button */}
-            <div className="mt-4 flex justify-end">
-              <Button>Post Ad</Button>
-            </div>
           </section>
+
+          {/* Section-specific content */}
+          {activeSection === 'admin' && (
+            <section>
+              <Card>
+                <CardContent className="p-6">
+                  <h2 className="text-2xl font-bold text-[hsl(var(--foreground))] mb-4">Welcome to Admin Dashboard</h2>
+                  <p className="text-[hsl(var(--muted-foreground))]">
+                    Select a section from the sidebar to get started.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'ad-management' && (
+            <>
+              {/* Ad Totals Summary and Post Ad Button */}
+              <section className="mb-6">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-2 flex-1">
+                        <p className="text-sm text-[hsl(var(--foreground))]">
+                          User posted ad total: <span className="font-semibold">{adTotals.userPosted}</span>
+                        </p>
+                        <p className="text-sm text-[hsl(var(--foreground))]">
+                          Vendor posted ad total: <span className="font-semibold">{adTotals.vendorPosted}</span>
+                        </p>
+                        <p className="text-sm text-[hsl(var(--foreground))]">
+                          Admin posted ad total: <span className="font-semibold">{adTotals.adminPosted}</span>
+                        </p>
+                        <p className="text-sm text-[hsl(var(--foreground))]">
+                          Total All ads: <span className="font-semibold">{adTotals.total}</span>
+                        </p>
+                      </div>
+                      <div className="ml-4">
+                        <Button>Post Ad</Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+
+              {/* Ad Management Table */}
+              <section>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Ad Management</h2>
+                      <div className="flex items-center gap-2">
+                        
+                        <select
+                          value={adSort}
+                          onChange={(e) => setAdSort(e.target.value)}
+                          className="px-2 py-1 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                        >
+                          <option value="">Ad sort</option>
+                          <option value="price">Price</option>
+                          <option value="date">Posted date</option>
+                          <option value="alphabetical">Alphabetical</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b border-[hsl(var(--border))]">
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Title</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Category</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Description</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Price</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">View</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Data</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedAds.map((ad, index) => (
+                            <tr key={ad.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-medium">{ad.title}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.category}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))] max-w-xs truncate">{ad.description}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-semibold">Rs. {ad.price.toLocaleString()}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(ad.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                              <td className="p-3 text-sm">
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                                    Edit
+                                  </Button>
+                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
+                                    Delete
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+            </>
+          )}
         </main>
       </div>
     </Layout>

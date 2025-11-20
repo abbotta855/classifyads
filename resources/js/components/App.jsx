@@ -42,7 +42,7 @@ function GuestRoute({ children }) {
   const location = useLocation();
   if (loading) return <LoadingCard />;
   if (user) {
-    const redirectPath = user.role === 'admin' ? '/admin/admin' : '/dashboard';
+    const redirectPath = user.role === 'admin' ? '/admin' : '/dashboard';
     return <Navigate to={location.state?.from?.pathname || redirectPath} replace />;
   }
   return children;
@@ -51,7 +51,7 @@ function GuestRoute({ children }) {
 function DashboardRedirect() {
   const { user } = useAuth();
   if (user?.role === 'admin') {
-    return <Navigate to="/admin/admin" replace />;
+    return <Navigate to="/admin" replace />;
   }
   return <Dashboard />;
 }
@@ -88,15 +88,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin"
-        element={
-          <AdminRoute>
-            <Navigate to="/admin/admin" replace />
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/:section"
+        path="/admin/:section?"
         element={
           <AdminRoute>
             <AdminPanel />
