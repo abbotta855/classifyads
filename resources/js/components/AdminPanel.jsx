@@ -13,6 +13,7 @@ function AdminPanel() {
   const activeSection = section || null; // No section selected when on /admin
   const activeSubsection = subsection || null;
   const [selectedRole, setSelectedRole] = useState('admin'); // 'super-admin' or 'admin'
+  const [showAuctionForm, setShowAuctionForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchCategory, setSearchCategory] = useState('');
   const [categories, setCategories] = useState([]);
@@ -140,6 +141,161 @@ function AdminPanel() {
 
   // Category management data - will be populated from API
   const [categoryManagementData, setCategoryManagementData] = useState([]);
+
+  // Mock bidding history data
+  const [biddingHistoryData, setBiddingHistoryData] = useState([
+    {
+      id: 1,
+      userName: 'John Doe',
+      itemName: 'Vintage Watch Collection',
+      reservePrice: 50000,
+      buyNowPrice: 75000,
+      paymentMethod: 'Credit Card',
+      startDateTime: '2024-01-15T10:00:00'
+    },
+    {
+      id: 2,
+      userName: 'Jane Smith',
+      itemName: 'Antique Painting',
+      reservePrice: 120000,
+      buyNowPrice: 180000,
+      paymentMethod: 'Bank Transfer',
+      startDateTime: '2024-01-18T14:30:00'
+    },
+    {
+      id: 3,
+      userName: 'Mike Johnson',
+      itemName: 'Rare Coin Set',
+      reservePrice: 25000,
+      buyNowPrice: 40000,
+      paymentMethod: 'Digital Wallet',
+      startDateTime: '2024-01-20T09:15:00'
+    }
+  ]);
+
+  // Mock bid winner data
+  const [bidWinnerData, setBidWinnerData] = useState([
+    {
+      id: 1,
+      userName: 'Sarah Williams',
+      biddingItem: 'Vintage Watch Collection',
+      bidStartDate: '2024-01-15',
+      bidWonDate: '2024-01-22',
+      paymentProceedDate: '2024-01-23',
+      totalPayment: 65000,
+      sellerName: 'ABC Collectibles',
+      emailSent: 'Yes'
+    },
+    {
+      id: 2,
+      userName: 'David Brown',
+      biddingItem: 'Antique Painting',
+      bidStartDate: '2024-01-18',
+      bidWonDate: '2024-01-25',
+      paymentProceedDate: '2024-01-26',
+      totalPayment: 150000,
+      sellerName: 'Art Gallery Plus',
+      emailSent: 'Yes'
+    },
+    {
+      id: 3,
+      userName: 'Emily Davis',
+      biddingItem: 'Rare Coin Set',
+      bidStartDate: '2024-01-20',
+      bidWonDate: '2024-01-27',
+      paymentProceedDate: '2024-01-28',
+      totalPayment: 35000,
+      sellerName: 'Numismatic Store',
+      emailSent: 'Yes'
+    },
+    {
+      id: 4,
+      userName: 'Robert Wilson',
+      biddingItem: 'Classic Car Model',
+      bidStartDate: '2024-01-22',
+      bidWonDate: '2024-01-29',
+      paymentProceedDate: '2024-01-30',
+      totalPayment: 85000,
+      sellerName: 'Auto Collectors',
+      emailSent: 'Pending'
+    }
+  ]);
+
+  // Mock blocked user data
+  const [blockedUserData, setBlockedUserData] = useState([
+    {
+      id: 1,
+      userName: 'Tom Anderson',
+      email: 'tom.anderson@example.com',
+      address: 'Kathmandu, Bagmati Province',
+      dateToBlock: '2024-01-15',
+      reasonToBlock: 'Fraudulent bidding activity'
+    },
+    {
+      id: 2,
+      userName: 'Lisa Chen',
+      email: 'lisa.chen@example.com',
+      address: 'Lalitpur, Bagmati Province',
+      dateToBlock: '2024-01-18',
+      reasonToBlock: 'Non-payment after winning bid'
+    },
+    {
+      id: 3,
+      userName: 'Mark Taylor',
+      email: 'mark.taylor@example.com',
+      address: 'Pokhara, Gandaki Province',
+      dateToBlock: '2024-01-20',
+      reasonToBlock: 'Violation of auction terms'
+    },
+    {
+      id: 4,
+      userName: 'Anna Martinez',
+      email: 'anna.martinez@example.com',
+      address: 'Biratnagar, Province 1',
+      dateToBlock: '2024-01-22',
+      reasonToBlock: 'Multiple account creation'
+    }
+  ]);
+
+  // Mock bidding tracking data
+  const [biddingTrackingData, setBiddingTrackingData] = useState([
+    {
+      id: 1,
+      bidWinnerName: 'Sarah Williams',
+      bidWonItemName: 'Vintage Watch Collection',
+      paymentStatus: 'Completed',
+      pickupStatus: 'Picked Up',
+      completeProcessDateTime: '2024-01-24T15:30:00',
+      alertSent: 'No'
+    },
+    {
+      id: 2,
+      bidWinnerName: 'David Brown',
+      bidWonItemName: 'Antique Painting',
+      paymentStatus: 'Completed',
+      pickupStatus: 'Pending',
+      completeProcessDateTime: null,
+      alertSent: 'Yes'
+    },
+    {
+      id: 3,
+      bidWinnerName: 'Emily Davis',
+      bidWonItemName: 'Rare Coin Set',
+      paymentStatus: 'Pending',
+      pickupStatus: 'Not Started',
+      completeProcessDateTime: null,
+      alertSent: 'Yes'
+    },
+    {
+      id: 4,
+      bidWinnerName: 'Robert Wilson',
+      bidWonItemName: 'Classic Car Model',
+      paymentStatus: 'Completed',
+      pickupStatus: 'Scheduled',
+      completeProcessDateTime: null,
+      alertSent: 'No'
+    }
+  ]);
 
   // Mock delivery management data
   const [deliveryData, setDeliveryData] = useState([
@@ -1024,6 +1180,328 @@ function AdminPanel() {
                 </CardContent>
               </Card>
             </section>
+          )}
+
+          {activeSection === 'auction-management' && (
+            <>
+              {/* Auction Management Header */}
+              <section className="mb-6">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-2">Auction Management</h2>
+                        <p className="text-sm text-[hsl(var(--muted-foreground))]">The form of auction is submitted by super admin</p>
+                      </div>
+                      <Button onClick={() => setShowAuctionForm(!showAuctionForm)}>Start Auction</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+
+              {/* Auction Form - appears when Start Auction is clicked */}
+              <div
+                className={`mb-6 transition-all duration-400 ease-in-out ${
+                  showAuctionForm 
+                    ? 'opacity-100 translate-y-0' 
+                    : 'opacity-0 -translate-y-4 pointer-events-none'
+                }`}
+                style={{
+                  transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out'
+                }}
+              >
+                {showAuctionForm && (
+                  <section>
+                    <Card>
+                    <CardContent className="p-6">
+                      <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Auction Item Name</h3>
+                      <form 
+                        className="grid grid-cols-2 gap-4"
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          // Simulate form submission
+                          try {
+                            // TODO: Replace with actual API call
+                            await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+                            
+                            // On success, close the form with fade-up animation
+                            setShowAuctionForm(false);
+                            
+                            // Optional: Show success message or reset form
+                            // You can add a toast notification here if needed
+                          } catch (error) {
+                            console.error('Form submission error:', error);
+                            // Handle error (show error message, etc.)
+                          }
+                        }}
+                      >
+                        {/* Left Column */}
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">First Name</label>
+                            <Input className="w-full" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Last Name</label>
+                            <Input className="w-full" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Date of Birth</label>
+                            <Input type="date" className="w-full" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Username or our system suggest username</label>
+                            <Input className="w-full" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Mobile number</label>
+                            <Input type="tel" className="w-full" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction Item Name</label>
+                            <Input className="w-full" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description</label>
+                            <textarea className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
+                          </div>
+                        </div>
+
+                        {/* Right Column */}
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category/Sub category</label>
+                            <Input className="w-full" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Reserve price</label>
+                            <Input type="number" className="w-full" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Buy Now Price</label>
+                            <Input type="number" className="w-full" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction start date and time</label>
+                            <Input type="datetime-local" className="w-full" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction finish date and time</label>
+                            <Input type="datetime-local" className="w-full" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Must pick up Or provide delivery service by the seller</label>
+                            <textarea className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
+                          </div>
+                        </div>
+                        <div className="col-span-2 flex justify-end mt-6">
+                          <Button type="submit">Submit</Button>
+                        </div>
+                      </form>
+                    </CardContent>
+                  </Card>
+                  </section>
+                )}
+              </div>
+
+              {/* Bidding history tracking Table */}
+              <section className="mb-6">
+                <Card>
+                  <CardContent className="p-4">
+                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Bidding history tracking:</h2>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b border-[hsl(var(--border))]">
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User Name</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Item Name</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Reserve Price</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Buy Now Price</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Payment Method</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Start Date Time</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {biddingHistoryData.map((bid, index) => (
+                            <tr key={bid.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{bid.userName}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{bid.itemName}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-semibold">Rs. {bid.reservePrice.toLocaleString()}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-semibold">Rs. {bid.buyNowPrice.toLocaleString()}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{bid.paymentMethod}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(bid.startDateTime).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                              <td className="p-3 text-sm">
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                                    Edit
+                                  </Button>
+                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
+                                    Delete
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+
+              {/* Bid winner tracking Table */}
+              <section className="mb-6">
+                <Card>
+                  <CardContent className="p-4">
+                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Bid winner tracking</h2>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b border-[hsl(var(--border))]">
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User Name</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Bidding Item</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Bid Start Date</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Bid Won Date</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Payment Proceed Date</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Total Payment</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Seller Name</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Congratulation email send to the winner</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {bidWinnerData.map((winner, index) => (
+                            <tr key={winner.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{winner.userName}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{winner.biddingItem}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(winner.bidStartDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(winner.bidWonDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(winner.paymentProceedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-semibold">Rs. {winner.totalPayment.toLocaleString()}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{winner.sellerName}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{winner.emailSent}</td>
+                              <td className="p-3 text-sm">
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                                    Edit
+                                  </Button>
+                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
+                                    Delete
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+
+              {/* Block or backlist user Table */}
+              <section className="mb-6">
+                <Card>
+                  <CardContent className="p-4">
+                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Block or backlist user who violate the rule:</h2>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b border-[hsl(var(--border))]">
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User Name</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Email</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Address</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Date to block</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Reason to block</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {blockedUserData.map((user, index) => (
+                            <tr key={user.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{user.userName}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{user.email}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{user.address}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(user.dateToBlock).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{user.reasonToBlock}</td>
+                              <td className="p-3 text-sm">
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                                    Edit
+                                  </Button>
+                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
+                                    Delete
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+
+              {/* Bidding Tracking Table */}
+              <section>
+                <Card>
+                  <CardContent className="p-4">
+                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Bidding Tracking:</h2>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b border-[hsl(var(--border))]">
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Bid Winner Name</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Bid Won Item Name</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Payment Status</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Pickup Status</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Complete the Process(date time)</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Send alert to bid winner in case of pending status</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {biddingTrackingData.map((tracking, index) => (
+                            <tr key={tracking.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{tracking.bidWinnerName}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{tracking.bidWonItemName}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{tracking.paymentStatus}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{tracking.pickupStatus}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">
+                                {tracking.completeProcessDateTime 
+                                  ? new Date(tracking.completeProcessDateTime).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                  : '-'}
+                              </td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{tracking.alertSent}</td>
+                              <td className="p-3 text-sm">
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                                    Edit
+                                  </Button>
+                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
+                                    Delete
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+            </>
           )}
 
           {activeSection === 'category-management' && (
