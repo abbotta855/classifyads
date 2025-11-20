@@ -8,9 +8,10 @@ import { Input } from './ui/input';
 
 function AdminPanel() {
   const { user } = useAuth();
-  const { section } = useParams();
+  const { section, subsection } = useParams();
   const navigate = useNavigate();
   const activeSection = section || null; // No section selected when on /admin
+  const activeSubsection = subsection || null;
   const [selectedRole, setSelectedRole] = useState('admin'); // 'super-admin' or 'admin'
   const [searchQuery, setSearchQuery] = useState('');
   const [searchCategory, setSearchCategory] = useState('');
@@ -139,6 +140,116 @@ function AdminPanel() {
 
   // Category management data - will be populated from API
   const [categoryManagementData, setCategoryManagementData] = useState([]);
+
+  // Mock delivery management data
+  const [deliveryData, setDeliveryData] = useState([
+    {
+      id: 1,
+      sellerVendor: 'ABC Electronics',
+      item: 'iPhone 15 Pro',
+      price: 120000,
+      deliveryStatus: 'Pending',
+      pickupDate: '2024-01-15'
+    },
+    {
+      id: 2,
+      sellerVendor: 'XYZ Motors',
+      item: 'Honda CB 150R',
+      price: 350000,
+      deliveryStatus: 'In Transit',
+      pickupDate: '2024-01-18'
+    },
+    {
+      id: 3,
+      sellerVendor: 'Home Decor Plus',
+      item: 'Modern Sofa Set',
+      price: 85000,
+      deliveryStatus: 'Delivered',
+      pickupDate: '2024-01-20'
+    },
+    {
+      id: 4,
+      sellerVendor: 'Tech World',
+      item: 'MacBook Pro M3',
+      price: 250000,
+      deliveryStatus: 'Pending',
+      pickupDate: '2024-01-22'
+    },
+    {
+      id: 5,
+      sellerVendor: 'Fashion Hub',
+      item: 'Designer Handbag',
+      price: 15000,
+      deliveryStatus: 'In Transit',
+      pickupDate: '2024-01-25'
+    },
+    {
+      id: 6,
+      sellerVendor: 'Auto Dealer',
+      item: 'Toyota Corolla',
+      price: 2800000,
+      deliveryStatus: 'Delivered',
+      pickupDate: '2024-01-28'
+    }
+  ]);
+
+  // Mock purchase verification data
+  const [purchaseVerificationData, setPurchaseVerificationData] = useState([
+    {
+      id: 1,
+      buyerUser: 'John Doe',
+      item: 'iPhone 15 Pro',
+      price: 120000,
+      purchaseDate: '2024-01-10',
+      verificationCode: 'PV-2024-001',
+      deliveryStatus: 'Pending'
+    },
+    {
+      id: 2,
+      buyerUser: 'Jane Smith',
+      item: 'Honda CB 150R',
+      price: 350000,
+      purchaseDate: '2024-01-12',
+      verificationCode: 'PV-2024-002',
+      deliveryStatus: 'In Transit'
+    },
+    {
+      id: 3,
+      buyerUser: 'Mike Johnson',
+      item: 'Modern Sofa Set',
+      price: 85000,
+      purchaseDate: '2024-01-14',
+      verificationCode: 'PV-2024-003',
+      deliveryStatus: 'Delivered'
+    },
+    {
+      id: 4,
+      buyerUser: 'Sarah Williams',
+      item: 'MacBook Pro M3',
+      price: 250000,
+      purchaseDate: '2024-01-16',
+      verificationCode: 'PV-2024-004',
+      deliveryStatus: 'Pending'
+    },
+    {
+      id: 5,
+      buyerUser: 'David Brown',
+      item: 'Designer Handbag',
+      price: 15000,
+      purchaseDate: '2024-01-18',
+      verificationCode: 'PV-2024-005',
+      deliveryStatus: 'In Transit'
+    },
+    {
+      id: 6,
+      buyerUser: 'Emily Davis',
+      item: 'Toyota Corolla',
+      price: 2800000,
+      purchaseDate: '2024-01-20',
+      verificationCode: 'PV-2024-006',
+      deliveryStatus: 'Delivered'
+    }
+  ]);
 
   // Mock ads data
   const [ads, setAds] = useState([
@@ -473,12 +584,14 @@ function AdminPanel() {
   }, [showLocationDropdown]);
 
   const menuItems = [
-    { id: 'ad-management', label: 'Ad management' },
+    { id: 'ads-management', label: 'Ads management' },
     { id: 'auction-management', label: 'Auction Management' },
     { id: 'category-management', label: 'Category Management' },
     { id: 'change-password', label: 'Change Password' },
+    { id: 'delivery-management', label: 'Delivery Management' },
     { id: 'email-subscriber', label: 'Email Subscriber List' },
     { id: 'job', label: 'Job' },
+    { id: 'live-chat', label: 'Live Chat' },
     { id: 'location-address', label: 'Location/Address' },
     { id: 'offer-discount', label: 'Offer/Discount' },
     { id: 'rating-review', label: 'Rating/Review' },
@@ -713,7 +826,7 @@ function AdminPanel() {
           )}
 
           {/* Section-specific content */}
-          {activeSection === 'ad-management' && (
+          {activeSection === 'ads-management' && !activeSubsection && (
             <>
               {/* Ad Totals Summary and Post Ad Button */}
               <section className="mb-6">
@@ -727,7 +840,10 @@ function AdminPanel() {
                         <p className="text-sm text-[hsl(var(--foreground))]">
                           Vendor posted ad total: <span className="font-semibold">{adTotals.vendorPosted}</span>
                         </p>
-                        <p className="text-sm text-[hsl(var(--foreground))]">
+                        <p 
+                          className="text-sm text-[hsl(var(--foreground))] cursor-pointer hover:text-[hsl(var(--primary))] transition-colors"
+                          onClick={() => navigate('/admin/ads-management/admin-posted-ads')}
+                        >
                           Admin posted ad total: <span className="font-semibold">{adTotals.adminPosted}</span>
                         </p>
                         <p className="text-sm text-[hsl(var(--foreground))]">
@@ -805,6 +921,59 @@ function AdminPanel() {
                 </Card>
               </section>
             </>
+          )}
+
+          {/* Admin Posted Ads Subsection */}
+          {activeSection === 'ads-management' && activeSubsection === 'admin-posted-ads' && (
+            <section>
+              <Card>
+                <CardContent className="p-4">
+                  <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Admin Posted ads</h2>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Ad title</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Category</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Description</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Price</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Posted date</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Total view</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Item sold</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* Empty rows - 6 rows as shown in the image */}
+                        {Array.from({ length: 6 }, (_, index) => (
+                          <tr key={index + 1} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
+                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
+                            <td className="p-3 text-sm">
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                                  Edit
+                                </Button>
+                                <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
+                                  Delete
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
           )}
 
           {activeSection === 'location-address' && (
@@ -899,6 +1068,104 @@ function AdminPanel() {
                 </CardContent>
               </Card>
             </section>
+          )}
+
+          {activeSection === 'delivery-management' && (
+            <>
+              {/* Delivery Management Table */}
+              <section className="mb-6">
+                <Card>
+                  <CardContent className="p-4">
+                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Delivery Management</h2>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b border-[hsl(var(--border))]">
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Seller/Vendor</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Item</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Price</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Delivery Status</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Pick up date</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {deliveryData.map((delivery, index) => (
+                            <tr key={delivery.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{delivery.sellerVendor}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{delivery.item}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-semibold">Rs. {delivery.price.toLocaleString()}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{delivery.deliveryStatus}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(delivery.pickupDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                              <td className="p-3 text-sm">
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                                    Edit
+                                  </Button>
+                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
+                                    Delete
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+
+              {/* Purchase Verification info Table */}
+              <section>
+                <Card>
+                  <CardContent className="p-4">
+                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Purchase Verification info:</h2>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b border-[hsl(var(--border))]">
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Buyer/User</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Item</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Price</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Purchase Date</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Purchase verification code</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Delivery Status</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {purchaseVerificationData.map((purchase, index) => (
+                            <tr key={purchase.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{purchase.buyerUser}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{purchase.item}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-semibold">Rs. {purchase.price.toLocaleString()}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(purchase.purchaseDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-mono">{purchase.verificationCode}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{purchase.deliveryStatus}</td>
+                              <td className="p-3 text-sm">
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                                    Edit
+                                  </Button>
+                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
+                                    Delete
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+            </>
           )}
         </main>
       </div>

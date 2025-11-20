@@ -88,7 +88,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/:section?"
+        path="/admin/:section?/:subsection?"
         element={
           <AdminRoute>
             <AdminPanel />
