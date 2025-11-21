@@ -7,6 +7,7 @@ import { Input } from './ui/input';
 
 function Homepage() {
   const [categories, setCategories] = useState([]);
+  const [locationData, setLocationData] = useState({ provinces: [] }); // Location data from database
   const [showCategoryFilter, setShowCategoryFilter] = useState(false); // Track if category filter section is visible
   const [expandedCategories, setExpandedCategories] = useState([]); // Track which categories are expanded
   const [selectedCategories, setSelectedCategories] = useState([]);
@@ -48,54 +49,14 @@ function Homepage() {
     ward: ''
   });
 
-  // Mock location data structure - Replace with API call later
-  // New structure: Province → District → Local Level (Municipality/Rural Municipality) → Ward
-  const locationData = {
-    provinces: [
-      {
-        id: 1,
-        name: 'Province 1',
-        districts: [
-          {
-            id: 1,
-            name: 'Morang',
-            localLevels: [
-              { id: 1, name: 'Biratnagar', type: 'municipality', wards: [{ ward_id: 1, ward_number: 32 }, { ward_id: 1, ward_number: 19 }] },
-              { id: 2, name: 'Itahari', type: 'municipality', wards: [{ ward_id: 1, ward_number: 9 }] },
-              { id: 3, name: 'Ratuwamai', type: 'rural_municipality', wards: [{ ward_id: 1, ward_number: 9 }] }
-            ]
-          }
-        ]
-      },
-      {
-        id: 2,
-        name: 'Province 2',
-        districts: [
-          {
-            id: 2,
-            name: 'Dhanusha',
-            localLevels: [
-              { id: 4, name: 'Janakpur', type: 'municipality', wards: [{ ward_id: 1, ward_number: 25 }] },
-              { id: 5, name: 'Dhanusadham', type: 'rural_municipality', wards: [{ ward_id: 1, ward_number: 9 }] }
-            ]
-          }
-        ]
-      },
-      {
-        id: 3,
-        name: 'Bagmati Province',
-        districts: [
-          {
-            id: 3,
-            name: 'Kathmandu',
-            localLevels: [
-              { id: 6, name: 'Kathmandu', type: 'municipality', wards: [{ ward_id: 1, ward_number: 32 }, { ward_id: 2, ward_number: 15 }] },
-              { id: 7, name: 'Lalitpur', type: 'municipality', wards: [{ ward_id: 1, ward_number: 29 }] }
-            ]
-          }
-        ]
-      }
-    ]
+  // Fetch locations from database
+  const fetchLocations = async () => {
+    try {
+      const response = await window.axios.get('/api/locations');
+      setLocationData(response.data);
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+    }
   };
 
   // Helper functions to get filtered options based on selections (sidebar)
@@ -193,6 +154,7 @@ function Homepage() {
 
   useEffect(() => {
     fetchCategories();
+    fetchLocations();
     // TODO: Fetch ads when API is ready
     // fetchAds();
     generateMockAds();
@@ -419,7 +381,15 @@ function Homepage() {
   const fetchCategories = async () => {
     try {
       const response = await window.axios.get('/api/categories');
-      setCategories(response.data);
+      // Extract only unique main categories (from category column in database)
+      // The API returns main categories with nested subcategories
+      const uniqueMainCategories = response.data.map((category) => ({
+        id: category.id,
+        name: category.name, // This is the main category name from the database
+        slug: category.slug,
+        subcategories: category.subcategories || []
+      }));
+      setCategories(uniqueMainCategories);
     } catch (error) {
       console.error('Error fetching categories:', error);
     } finally {

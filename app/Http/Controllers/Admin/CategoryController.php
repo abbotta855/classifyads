@@ -13,9 +13,10 @@ class CategoryController extends Controller
      */
     public function index()
     {
-        // Get all categories ordered by category, then sub_category
+        // Get all categories ordered by category, then sub_category, then id (newest at bottom of same hierarchy)
         $categories = Category::orderBy('category')
             ->orderBy('sub_category')
+            ->orderBy('id', 'asc') // Within same hierarchy, newest at bottom
             ->get();
 
         // Transform to include category and subcategory info

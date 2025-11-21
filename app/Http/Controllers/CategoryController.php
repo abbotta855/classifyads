@@ -12,23 +12,35 @@ class CategoryController extends Controller
    */
   public function index()
   {
-    // Get all main categories (sub_category is null)
-    $mainCategories = Category::whereNull('sub_category')
+    // Get all unique category names from the category column
+    $uniqueCategoryNames = Category::distinct()
       ->orderBy('category')
-      ->get();
+      ->pluck('category')
+      ->unique()
+      ->values();
 
-    // Format response
-    $categories = $mainCategories->map(function ($category) {
+    // For each unique category name, get the main category entry and its subcategories
+    $categories = $uniqueCategoryNames->map(function ($categoryName) {
+      // Get the main category entry (sub_category is null) or first entry if no main category exists
+      $mainCategory = Category::where('category', $categoryName)
+        ->whereNull('sub_category')
+        ->first();
+
+      // If no main category exists, get the first entry with this category name
+      if (!$mainCategory) {
+        $mainCategory = Category::where('category', $categoryName)->first();
+      }
+
       // Get all subcategories for this category
-      $subcategories = Category::where('category', $category->category)
+      $subcategories = Category::where('category', $categoryName)
         ->whereNotNull('sub_category')
         ->orderBy('sub_category')
         ->get();
 
       return [
-        'id' => $category->id,
-        'name' => $category->category,
-        'slug' => $category->category, // Use category name as slug for main categories
+        'id' => $mainCategory ? $mainCategory->id : null,
+        'name' => $categoryName,
+        'slug' => $categoryName,
         'subcategories' => $subcategories->map(function ($subcategory) {
           return [
             'id' => $subcategory->id,

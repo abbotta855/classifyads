@@ -50,7 +50,9 @@ function AdminPanel() {
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchCategory, setSearchCategory] = useState('');
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState([]); // Main categories for search bar
+  const [flattenedCategories, setFlattenedCategories] = useState([]); // All categories + subcategories for forms
+  const [locationData, setLocationData] = useState({ provinces: [] }); // Location data from database
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
   const locationDropdownRef = useRef(null);
@@ -983,54 +985,6 @@ function AdminPanel() {
     ward: ''
   });
 
-  // Mock location data structure - Same as homepage
-  const locationData = {
-    provinces: [
-      {
-        id: 1,
-        name: 'Province 1',
-        districts: [
-          {
-            id: 1,
-            name: 'Morang',
-            localLevels: [
-              { id: 1, name: 'Biratnagar', type: 'municipality', wards: [{ ward_id: 1, ward_number: 32 }, { ward_id: 1, ward_number: 19 }] },
-              { id: 2, name: 'Itahari', type: 'municipality', wards: [{ ward_id: 1, ward_number: 9 }] },
-              { id: 3, name: 'Ratuwamai', type: 'rural_municipality', wards: [{ ward_id: 1, ward_number: 9 }] }
-            ]
-          }
-        ]
-      },
-      {
-        id: 2,
-        name: 'Province 2',
-        districts: [
-          {
-            id: 2,
-            name: 'Dhanusha',
-            localLevels: [
-              { id: 4, name: 'Janakpur', type: 'municipality', wards: [{ ward_id: 1, ward_number: 25 }] },
-              { id: 5, name: 'Dhanusadham', type: 'rural_municipality', wards: [{ ward_id: 1, ward_number: 9 }] }
-            ]
-          }
-        ]
-      },
-      {
-        id: 3,
-        name: 'Bagmati Province',
-        districts: [
-          {
-            id: 3,
-            name: 'Kathmandu',
-            localLevels: [
-              { id: 6, name: 'Kathmandu', type: 'municipality', wards: [{ ward_id: 1, ward_number: 32 }, { ward_id: 2, ward_number: 15 }] },
-              { id: 7, name: 'Lalitpur', type: 'municipality', wards: [{ ward_id: 1, ward_number: 29 }] }
-            ]
-          }
-        ]
-      }
-    ]
-  };
 
   // Helper functions for search location hierarchy
   const getSearchProvince = () => {
@@ -1123,25 +1077,35 @@ function AdminPanel() {
   const fetchCategories = async () => {
     try {
       const response = await window.axios.get('/api/categories');
-      // Flatten categories to include both main categories and subcategories for dropdowns
-      const flattenedCategories = [];
+      // For search bar dropdown: show only unique main categories (from category column in database)
+      const uniqueMainCategories = response.data.map((category) => ({
+        id: category.id,
+        name: category.name, // Main category name from database
+      }));
+      
+      // For forms (Post Ad, Auction): flatten to include both main categories and subcategories
+      const flattenedCategoriesForForms = [];
       response.data.forEach((category) => {
         // Add main category
-        flattenedCategories.push({
+        flattenedCategoriesForForms.push({
           id: category.id,
           name: category.name,
         });
         // Add subcategories
         if (category.subcategories && category.subcategories.length > 0) {
           category.subcategories.forEach((subcategory) => {
-            flattenedCategories.push({
+            flattenedCategoriesForForms.push({
               id: subcategory.id,
               name: `${category.name} - ${subcategory.name}`,
             });
           });
         }
       });
-      setCategories(flattenedCategories);
+      
+      // Set unique main categories for search bar
+      setCategories(uniqueMainCategories);
+      // Set flattened categories for forms
+      setFlattenedCategories(flattenedCategoriesForForms);
     } catch (error) {
       console.error('Error fetching categories:', error);
     } finally {
@@ -1231,7 +1195,18 @@ function AdminPanel() {
 
   useEffect(() => {
     fetchCategories();
+    fetchLocationHierarchy();
   }, []);
+
+  // Fetch location hierarchy from database for search bar
+  const fetchLocationHierarchy = async () => {
+    try {
+      const response = await window.axios.get('/api/locations');
+      setLocationData(response.data);
+    } catch (error) {
+      console.error('Error fetching location hierarchy:', error);
+    }
+  };
 
   // Close location dropdown when clicking outside
   useEffect(() => {
@@ -1548,7 +1523,7 @@ function AdminPanel() {
                               required
                             >
                               <option value="">Select Category</option>
-                              {categories.map((category) => (
+                              {flattenedCategories.map((category) => (
                                 <option key={category.id} value={category.id}>
                                   {category.name}
                                 </option>
@@ -2253,7 +2228,7 @@ function AdminPanel() {
                               required
                             >
                               <option value="">Select Category</option>
-                              {categories.map((category) => (
+                              {flattenedCategories.map((category) => (
                                 <option key={category.id} value={category.id}>
                                   {category.name}
                                 </option>
