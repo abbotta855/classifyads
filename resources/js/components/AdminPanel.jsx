@@ -16,6 +16,38 @@ function AdminPanel() {
   const activeSubsection = subsection || null;
   const [selectedRole, setSelectedRole] = useState('admin'); // 'super-admin' or 'admin'
   const [showAuctionForm, setShowAuctionForm] = useState(false);
+  const [showPostAdForm, setShowPostAdForm] = useState(false);
+  const [showAddLocationForm, setShowAddLocationForm] = useState(false);
+  const [showAddCategoryForm, setShowAddCategoryForm] = useState(false);
+  const [auctionFormData, setAuctionFormData] = useState({
+    user_id: '',
+    category_id: '',
+    title: '',
+    description: '',
+    starting_price: '',
+    reserve_price: '',
+    buy_now_price: '',
+    start_date_time: '',
+    end_date_time: '',
+  });
+  const [postAdFormData, setPostAdFormData] = useState({
+    title: '',
+    description: '',
+    price: '',
+    category_id: '',
+    user_id: '',
+  });
+  const [addLocationFormData, setAddLocationFormData] = useState({
+    province: '',
+    district: '',
+    localLevel: '',
+    localLevelType: 'Municipality',
+  });
+  const [addCategoryFormData, setAddCategoryFormData] = useState({
+    categoryName: '',
+    subcategoryName: '',
+  });
+  const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchCategory, setSearchCategory] = useState('');
   const [categories, setCategories] = useState([]);
@@ -90,8 +122,26 @@ function AdminPanel() {
   useEffect(() => {
     if (activeSection === 'ads-management' || !activeSection) {
       fetchAds();
+      fetchUsers();
     }
   }, [activeSection]);
+
+  // Fetch users and categories for auction form
+  useEffect(() => {
+    if (activeSection === 'auction-management') {
+      fetchUsers();
+    }
+  }, [activeSection]);
+
+  // Fetch users for Post Ad form
+  const fetchUsers = async () => {
+    try {
+      const response = await adminAPI.getUsers();
+      setUsers(response.data || []);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+    }
+  };
 
   const fetchAds = async () => {
     setAdsLoading(true);
@@ -179,6 +229,125 @@ function AdminPanel() {
   const handleCancelEditAd = () => {
     setEditingAdId(null);
     setEditingAdData(null);
+  };
+
+  // Handle Post Ad form submission
+  const handlePostAdSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await adminAPI.createAd({
+        title: postAdFormData.title,
+        description: postAdFormData.description,
+        price: parseFloat(postAdFormData.price),
+        category_id: parseInt(postAdFormData.category_id),
+        user_id: parseInt(postAdFormData.user_id),
+        posted_by: 'admin',
+      });
+      
+      setSuccessMessage('Ad created successfully');
+      setShowPostAdForm(false);
+      setPostAdFormData({
+        title: '',
+        description: '',
+        price: '',
+        category_id: '',
+        user_id: '',
+      });
+      fetchAds(); // Refresh the ads list
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to create ad: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle Add Location form submission
+  const handleAddLocationSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await adminAPI.createLocation({
+        province: addLocationFormData.province,
+        district: addLocationFormData.district,
+        local_level: addLocationFormData.localLevel,
+        local_level_type: addLocationFormData.localLevelType,
+        // ward_id is automatically set by the backend to match id
+      });
+      
+      setSuccessMessage('Location created successfully');
+      setShowAddLocationForm(false);
+      setAddLocationFormData({
+        province: '',
+        district: '',
+        localLevel: '',
+        localLevelType: 'Municipality',
+      });
+      fetchLocations(); // Refresh the locations list
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to create location: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle Add Category form submission
+  const handleAddCategorySubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await adminAPI.createCategory({
+        categoryName: addCategoryFormData.categoryName,
+        subcategoryName: addCategoryFormData.subcategoryName || null,
+      });
+      
+      setSuccessMessage('Category created successfully');
+      setShowAddCategoryForm(false);
+      setAddCategoryFormData({
+        categoryName: '',
+        subcategoryName: '',
+      });
+      fetchCategoryManagement(); // Refresh the categories list
+      fetchCategories(); // Also refresh the public categories for dropdowns
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to create category: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle Start Auction form submission
+  const handleStartAuctionSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await adminAPI.createAuction({
+        user_id: parseInt(auctionFormData.user_id),
+        category_id: parseInt(auctionFormData.category_id),
+        title: auctionFormData.title,
+        description: auctionFormData.description,
+        starting_price: parseFloat(auctionFormData.starting_price),
+        reserve_price: auctionFormData.reserve_price ? parseFloat(auctionFormData.reserve_price) : null,
+        buy_now_price: auctionFormData.buy_now_price ? parseFloat(auctionFormData.buy_now_price) : null,
+        current_bid_price: parseFloat(auctionFormData.starting_price), // Start with starting price
+        start_date_time: auctionFormData.start_date_time,
+        end_date_time: auctionFormData.end_date_time,
+      });
+      
+      setSuccessMessage('Auction created successfully');
+      setShowAuctionForm(false);
+      setAuctionFormData({
+        user_id: '',
+        category_id: '',
+        title: '',
+        description: '',
+        starting_price: '',
+        reserve_price: '',
+        buy_now_price: '',
+        start_date_time: '',
+        end_date_time: '',
+      });
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to create auction: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
   };
 
   // Fetch locations data
@@ -954,7 +1123,25 @@ function AdminPanel() {
   const fetchCategories = async () => {
     try {
       const response = await window.axios.get('/api/categories');
-      setCategories(response.data);
+      // Flatten categories to include both main categories and subcategories for dropdowns
+      const flattenedCategories = [];
+      response.data.forEach((category) => {
+        // Add main category
+        flattenedCategories.push({
+          id: category.id,
+          name: category.name,
+        });
+        // Add subcategories
+        if (category.subcategories && category.subcategories.length > 0) {
+          category.subcategories.forEach((subcategory) => {
+            flattenedCategories.push({
+              id: subcategory.id,
+              name: `${category.name} - ${subcategory.name}`,
+            });
+          });
+        }
+      });
+      setCategories(flattenedCategories);
     } catch (error) {
       console.error('Error fetching categories:', error);
     } finally {
@@ -1299,8 +1486,115 @@ function AdminPanel() {
           {/* Default view when no section is selected */}
           {!activeSection && (
             <section>
-              <div className="flex justify-end">
-                <Button>Post Ad</Button>
+              <div className="flex justify-end mb-6">
+                <Button onClick={() => setShowPostAdForm(!showPostAdForm)}>Post Ad</Button>
+              </div>
+
+              {/* Post Ad Form - appears when Post Ad is clicked */}
+              <div
+                className={`mb-6 transition-all duration-400 ease-in-out ${
+                  showPostAdForm 
+                    ? 'opacity-100 translate-y-0' 
+                    : 'opacity-0 -translate-y-4 pointer-events-none'
+                }`}
+                style={{
+                  transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out'
+                }}
+              >
+                {showPostAdForm && (
+                  <Card>
+                    <CardContent className="p-6">
+                      <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Create New Ad</h3>
+                      <form onSubmit={handlePostAdSubmit} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Title *</label>
+                            <Input
+                              value={postAdFormData.title}
+                              onChange={(e) => setPostAdFormData({...postAdFormData, title: e.target.value})}
+                              className="w-full"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Price *</label>
+                            <Input
+                              type="number"
+                              value={postAdFormData.price}
+                              onChange={(e) => setPostAdFormData({...postAdFormData, price: e.target.value})}
+                              className="w-full"
+                              min="0"
+                              step="0.01"
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description *</label>
+                          <textarea
+                            value={postAdFormData.description}
+                            onChange={(e) => setPostAdFormData({...postAdFormData, description: e.target.value})}
+                            className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                            required
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category *</label>
+                            <select
+                              value={postAdFormData.category_id}
+                              onChange={(e) => setPostAdFormData({...postAdFormData, category_id: e.target.value})}
+                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                              required
+                            >
+                              <option value="">Select Category</option>
+                              {categories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">User *</label>
+                            <select
+                              value={postAdFormData.user_id}
+                              onChange={(e) => setPostAdFormData({...postAdFormData, user_id: e.target.value})}
+                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                              required
+                            >
+                              <option value="">Select User</option>
+                              {users.map((user) => (
+                                <option key={user.id} value={user.id}>
+                                  {user.name} ({user.email})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                              setShowPostAdForm(false);
+                              setPostAdFormData({
+                                title: '',
+                                description: '',
+                                price: '',
+                                category_id: '',
+                                user_id: '',
+                              });
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit">Create Ad</Button>
+                        </div>
+                      </form>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </section>
           )}
@@ -1348,12 +1642,121 @@ function AdminPanel() {
                         </p>
                       </div>
                       <div className="ml-4">
-                        <Button>Post Ad</Button>
+                        <Button onClick={() => setShowPostAdForm(!showPostAdForm)}>Post Ad</Button>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               </section>
+
+              {/* Post Ad Form - appears when Post Ad is clicked */}
+              <div
+                className={`mb-6 transition-all duration-400 ease-in-out ${
+                  showPostAdForm 
+                    ? 'opacity-100 translate-y-0' 
+                    : 'opacity-0 -translate-y-4 pointer-events-none'
+                }`}
+                style={{
+                  transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out'
+                }}
+              >
+                {showPostAdForm && (
+                  <section>
+                    <Card>
+                      <CardContent className="p-6">
+                        <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Create New Ad</h3>
+                        <form onSubmit={handlePostAdSubmit} className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Title *</label>
+                              <Input
+                                value={postAdFormData.title}
+                                onChange={(e) => setPostAdFormData({...postAdFormData, title: e.target.value})}
+                                className="w-full"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Price *</label>
+                              <Input
+                                type="number"
+                                value={postAdFormData.price}
+                                onChange={(e) => setPostAdFormData({...postAdFormData, price: e.target.value})}
+                                className="w-full"
+                                min="0"
+                                step="0.01"
+                                required
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description *</label>
+                            <textarea
+                              value={postAdFormData.description}
+                              onChange={(e) => setPostAdFormData({...postAdFormData, description: e.target.value})}
+                              className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                              required
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category *</label>
+                              <select
+                                value={postAdFormData.category_id}
+                                onChange={(e) => setPostAdFormData({...postAdFormData, category_id: e.target.value})}
+                                className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                required
+                              >
+                                <option value="">Select Category</option>
+                                {categories.map((category) => (
+                                  <option key={category.id} value={category.id}>
+                                    {category.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">User *</label>
+                              <select
+                                value={postAdFormData.user_id}
+                                onChange={(e) => setPostAdFormData({...postAdFormData, user_id: e.target.value})}
+                                className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                required
+                              >
+                                <option value="">Select User</option>
+                                {users.map((user) => (
+                                  <option key={user.id} value={user.id}>
+                                    {user.name} ({user.email})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => {
+                                setShowPostAdForm(false);
+                                setPostAdFormData({
+                                  title: '',
+                                  description: '',
+                                  price: '',
+                                  category_id: '',
+                                  user_id: '',
+                                });
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button type="submit">Create Ad</Button>
+                          </div>
+                        </form>
+                      </CardContent>
+                    </Card>
+                  </section>
+                )}
+              </div>
 
               {/* Ad Management Table */}
               <section>
@@ -1548,8 +1951,94 @@ function AdminPanel() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Location/address Management</h2>
-                    <Button variant="outline">Add Place</Button>
+                    <Button variant="outline" onClick={() => setShowAddLocationForm(!showAddLocationForm)}>Add Location</Button>
                   </div>
+
+                  {/* Add Location Form - appears when Add Location is clicked */}
+                  <div
+                    className={`mb-4 transition-all duration-400 ease-in-out ${
+                      showAddLocationForm 
+                        ? 'opacity-100 translate-y-0' 
+                        : 'opacity-0 -translate-y-4 pointer-events-none'
+                    }`}
+                    style={{
+                      transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out'
+                    }}
+                  >
+                    {showAddLocationForm && (
+                      <Card className="mb-4">
+                        <CardContent className="p-6">
+                          <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Add New Location</h3>
+                          <form onSubmit={handleAddLocationSubmit} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Province *</label>
+                                <Input
+                                  value={addLocationFormData.province}
+                                  onChange={(e) => setAddLocationFormData({...addLocationFormData, province: e.target.value})}
+                                  className="w-full"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">District *</label>
+                                <Input
+                                  value={addLocationFormData.district}
+                                  onChange={(e) => setAddLocationFormData({...addLocationFormData, district: e.target.value})}
+                                  className="w-full"
+                                  required
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Local Level *</label>
+                                <Input
+                                  value={addLocationFormData.localLevel}
+                                  onChange={(e) => setAddLocationFormData({...addLocationFormData, localLevel: e.target.value})}
+                                  className="w-full"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Local Level Type *</label>
+                                <select
+                                  value={addLocationFormData.localLevelType}
+                                  onChange={(e) => setAddLocationFormData({...addLocationFormData, localLevelType: e.target.value})}
+                                  className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                  required
+                                >
+                                  <option value="Metropolitan City">Metropolitan City</option>
+                                  <option value="Sub-Metropolitan City">Sub-Metropolitan City</option>
+                                  <option value="Municipality">Municipality</option>
+                                  <option value="Rural Municipality">Rural Municipality</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-2 mt-6">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => {
+                                  setShowAddLocationForm(false);
+                                  setAddLocationFormData({
+                                    province: '',
+                                    district: '',
+                                    localLevel: '',
+                                    localLevelType: 'Municipality',
+                                  });
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button type="submit">Add Location</Button>
+                            </div>
+                          </form>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse">
                       <thead>
@@ -1698,87 +2187,143 @@ function AdminPanel() {
                   <section>
                     <Card>
                     <CardContent className="p-6">
-                      <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Auction Item Name</h3>
+                      <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Create New Auction</h3>
                       <form 
                         className="grid grid-cols-2 gap-4"
-                        onSubmit={async (e) => {
-                          e.preventDefault();
-                          // Simulate form submission
-                          try {
-                            // TODO: Replace with actual API call
-                            await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
-                            
-                            // On success, close the form with fade-up animation
-                            setShowAuctionForm(false);
-                            
-                            // Optional: Show success message or reset form
-                            // You can add a toast notification here if needed
-                          } catch (error) {
-                            console.error('Form submission error:', error);
-                            // Handle error (show error message, etc.)
-                          }
-                        }}
+                        onSubmit={handleStartAuctionSubmit}
                       >
                         {/* Left Column */}
                         <div className="space-y-4">
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">First Name</label>
-                            <Input className="w-full" />
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">User *</label>
+                            <select
+                              value={auctionFormData.user_id}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, user_id: e.target.value})}
+                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                              required
+                            >
+                              <option value="">Select User</option>
+                              {users.map((user) => (
+                                <option key={user.id} value={user.id}>
+                                  {user.name} ({user.email})
+                                </option>
+                              ))}
+                            </select>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Last Name</label>
-                            <Input className="w-full" />
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction Item Name (Title) *</label>
+                            <Input
+                              value={auctionFormData.title}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, title: e.target.value})}
+                              className="w-full"
+                              required
+                            />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Date of Birth</label>
-                            <Input type="date" className="w-full" />
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description *</label>
+                            <textarea
+                              value={auctionFormData.description}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, description: e.target.value})}
+                              className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                              required
+                            />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Username or our system suggest username</label>
-                            <Input className="w-full" />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Mobile number</label>
-                            <Input type="tel" className="w-full" />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction Item Name</label>
-                            <Input className="w-full" />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description</label>
-                            <textarea className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Starting Price *</label>
+                            <Input
+                              type="number"
+                              value={auctionFormData.starting_price}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, starting_price: e.target.value})}
+                              className="w-full"
+                              min="0"
+                              step="0.01"
+                              required
+                            />
                           </div>
                         </div>
 
                         {/* Right Column */}
                         <div className="space-y-4">
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category/Sub category</label>
-                            <Input className="w-full" />
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category/Subcategory *</label>
+                            <select
+                              value={auctionFormData.category_id}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, category_id: e.target.value})}
+                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                              required
+                            >
+                              <option value="">Select Category</option>
+                              {categories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.name}
+                                </option>
+                              ))}
+                            </select>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Reserve price</label>
-                            <Input type="number" className="w-full" />
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Reserve Price (Optional)</label>
+                            <Input
+                              type="number"
+                              value={auctionFormData.reserve_price}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, reserve_price: e.target.value})}
+                              className="w-full"
+                              min="0"
+                              step="0.01"
+                            />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Buy Now Price</label>
-                            <Input type="number" className="w-full" />
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Buy Now Price (Optional)</label>
+                            <Input
+                              type="number"
+                              value={auctionFormData.buy_now_price}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, buy_now_price: e.target.value})}
+                              className="w-full"
+                              min="0"
+                              step="0.01"
+                            />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction start date and time</label>
-                            <Input type="datetime-local" className="w-full" />
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction Start Date and Time *</label>
+                            <Input
+                              type="datetime-local"
+                              value={auctionFormData.start_date_time}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, start_date_time: e.target.value})}
+                              className="w-full"
+                              required
+                            />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction finish date and time</label>
-                            <Input type="datetime-local" className="w-full" />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Must pick up Or provide delivery service by the seller</label>
-                            <textarea className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]" />
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction End Date and Time *</label>
+                            <Input
+                              type="datetime-local"
+                              value={auctionFormData.end_date_time}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, end_date_time: e.target.value})}
+                              className="w-full"
+                              required
+                            />
                           </div>
                         </div>
-                        <div className="col-span-2 flex justify-end mt-6">
+                        <div className="col-span-2 flex justify-end gap-2 mt-6">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                              setShowAuctionForm(false);
+                              setAuctionFormData({
+                                user_id: '',
+                                category_id: '',
+                                title: '',
+                                description: '',
+                                starting_price: '',
+                                reserve_price: '',
+                                buy_now_price: '',
+                                start_date_time: '',
+                                end_date_time: '',
+                              });
+                            }}
+                          >
+                            Cancel
+                          </Button>
                           <Button type="submit">Submit</Button>
                         </div>
                       </form>
@@ -2381,8 +2926,65 @@ function AdminPanel() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Category Management</h2>
-                    <Button variant="outline">Add Category/subcategory</Button>
+                    <Button variant="outline" onClick={() => setShowAddCategoryForm(!showAddCategoryForm)}>Add Category/subcategory</Button>
                   </div>
+
+                  {/* Add Category Form - appears when Add Category/subcategory is clicked */}
+                  <div
+                    className={`mb-4 transition-all duration-400 ease-in-out ${
+                      showAddCategoryForm 
+                        ? 'opacity-100 translate-y-0' 
+                        : 'opacity-0 -translate-y-4 pointer-events-none'
+                    }`}
+                    style={{
+                      transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out'
+                    }}
+                  >
+                    {showAddCategoryForm && (
+                      <Card className="mb-4">
+                        <CardContent className="p-6">
+                          <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Add New Category/Subcategory</h3>
+                          <form onSubmit={handleAddCategorySubmit} className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category Name *</label>
+                              <Input
+                                value={addCategoryFormData.categoryName}
+                                onChange={(e) => setAddCategoryFormData({...addCategoryFormData, categoryName: e.target.value})}
+                                className="w-full"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Subcategory Name (Optional)</label>
+                              <Input
+                                value={addCategoryFormData.subcategoryName}
+                                onChange={(e) => setAddCategoryFormData({...addCategoryFormData, subcategoryName: e.target.value})}
+                                className="w-full"
+                                placeholder="Leave empty for main category"
+                              />
+                            </div>
+                            <div className="flex justify-end gap-2 mt-6">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => {
+                                  setShowAddCategoryForm(false);
+                                  setAddCategoryFormData({
+                                    categoryName: '',
+                                    subcategoryName: '',
+                                  });
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button type="submit">Add Category</Button>
+                            </div>
+                          </form>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse">
                       <thead>

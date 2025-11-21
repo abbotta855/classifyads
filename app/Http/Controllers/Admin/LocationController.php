@@ -16,6 +16,7 @@ class LocationController extends Controller
     $locations = Location::orderBy('province')
       ->orderBy('district')
       ->orderBy('local_level')
+      ->orderBy('id', 'asc') // Within same hierarchy, newest at bottom
       ->get();
 
     return response()->json($locations);
@@ -34,9 +35,10 @@ class LocationController extends Controller
     ]);
 
     $location = Location::create($validated);
-    // Set ward_id to match id
-    $location->ward_id = $location->id;
-    $location->save();
+    // ward_id is automatically set by database trigger to match id
+    
+    // Refresh to get the updated ward_id from the database
+    $location->refresh();
 
     return response()->json($location, 201);
   }
