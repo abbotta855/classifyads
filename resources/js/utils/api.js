@@ -1,0 +1,76 @@
+import axios from 'axios';
+
+const API_BASE = '/api/admin';
+
+export const adminAPI = {
+  // Ads
+  getAds: () => axios.get(`${API_BASE}/ads`),
+  getAd: (id) => axios.get(`${API_BASE}/ads/${id}`),
+  createAd: (data) => axios.post(`${API_BASE}/ads`, data),
+  updateAd: (id, data) => axios.put(`${API_BASE}/ads/${id}`, data),
+  deleteAd: (id) => axios.delete(`${API_BASE}/ads/${id}`),
+
+  // Locations
+  getLocations: () => axios.get(`${API_BASE}/locations`),
+  getLocation: (id) => axios.get(`${API_BASE}/locations/${id}`),
+  createLocation: (data) => axios.post(`${API_BASE}/locations`, data),
+  updateLocation: (id, data) => axios.put(`${API_BASE}/locations/${id}`, data),
+  deleteLocation: (id) => axios.delete(`${API_BASE}/locations/${id}`),
+
+  // Auctions
+  getAuctions: () => axios.get(`${API_BASE}/auctions`),
+  getAuction: (id) => axios.get(`${API_BASE}/auctions/${id}`),
+  createAuction: (data) => axios.post(`${API_BASE}/auctions`, data),
+  updateAuction: (id, data) => axios.put(`${API_BASE}/auctions/${id}`, data),
+  deleteAuction: (id) => axios.delete(`${API_BASE}/auctions/${id}`),
+
+  // Deliveries
+  getDeliveries: () => axios.get(`${API_BASE}/deliveries`),
+  getDelivery: (id) => axios.get(`${API_BASE}/deliveries/${id}`),
+  createDelivery: (data) => axios.post(`${API_BASE}/deliveries`, data),
+  updateDelivery: (id, data) => axios.put(`${API_BASE}/deliveries/${id}`, data),
+  deleteDelivery: (id) => axios.delete(`${API_BASE}/deliveries/${id}`),
+
+  // Purchase Verifications
+  getPurchaseVerifications: () => axios.get(`${API_BASE}/purchase-verifications`),
+  getPurchaseVerification: (id) => axios.get(`${API_BASE}/purchase-verifications/${id}`),
+  createPurchaseVerification: (data) => axios.post(`${API_BASE}/purchase-verifications`, data),
+  updatePurchaseVerification: (id, data) => axios.put(`${API_BASE}/purchase-verifications/${id}`, data),
+  deletePurchaseVerification: (id) => axios.delete(`${API_BASE}/purchase-verifications/${id}`),
+
+  // Bidding History
+  getBiddingHistory: () => axios.get(`${API_BASE}/bidding-history`),
+  getBiddingHistoryItem: (id) => axios.get(`${API_BASE}/bidding-history/${id}`),
+  createBiddingHistory: (data) => axios.post(`${API_BASE}/bidding-history`, data),
+  updateBiddingHistory: (id, data) => axios.put(`${API_BASE}/bidding-history/${id}`, data),
+  deleteBiddingHistory: (id) => axios.delete(`${API_BASE}/bidding-history/${id}`),
+
+  // Bid Winners
+  getBidWinners: () => axios.get(`${API_BASE}/bid-winners`),
+  getBidWinner: (id) => axios.get(`${API_BASE}/bid-winners/${id}`),
+  createBidWinner: (data) => axios.post(`${API_BASE}/bid-winners`, data),
+  updateBidWinner: (id, data) => axios.put(`${API_BASE}/bid-winners/${id}`, data),
+  deleteBidWinner: (id) => axios.delete(`${API_BASE}/bid-winners/${id}`),
+
+  // Blocked Users
+  getBlockedUsers: () => axios.get(`${API_BASE}/blocked-users`),
+  getBlockedUser: (id) => axios.get(`${API_BASE}/blocked-users/${id}`),
+  createBlockedUser: (data) => axios.post(`${API_BASE}/blocked-users`, data),
+  updateBlockedUser: (id, data) => axios.put(`${API_BASE}/blocked-users/${id}`, data),
+  deleteBlockedUser: (id) => axios.delete(`${API_BASE}/blocked-users/${id}`),
+
+  // Bidding Tracking
+  getBiddingTracking: () => axios.get(`${API_BASE}/bidding-tracking`),
+  getBiddingTrackingItem: (id) => axios.get(`${API_BASE}/bidding-tracking/${id}`),
+  createBiddingTracking: (data) => axios.post(`${API_BASE}/bidding-tracking`, data),
+  updateBiddingTracking: (id, data) => axios.put(`${API_BASE}/bidding-tracking/${id}`, data),
+  deleteBiddingTracking: (id) => axios.delete(`${API_BASE}/bidding-tracking/${id}`),
+
+  // Users
+  getUsers: () => axios.get(`${API_BASE}/users`),
+  getUser: (id) => axios.get(`${API_BASE}/users/${id}`),
+  createUser: (data) => axios.post(`${API_BASE}/users`, data),
+  updateUser: (id, data) => axios.put(`${API_BASE}/users/${id}`, data),
+  deleteUser: (id) => axios.delete(`${API_BASE}/users/${id}`),
+};
+

@@ -5,6 +5,8 @@ import Layout from './Layout';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { adminAPI } from '../utils/api';
+import axios from 'axios';
 
 function AdminPanel() {
   const { user } = useAuth();
@@ -22,16 +24,24 @@ function AdminPanel() {
   const locationDropdownRef = useRef(null);
   const [adSort, setAdSort] = useState(''); // Sort option: 'price', 'date', 'alphabetical'
 
-  // Mock ad totals
+  // Ad totals and ads data
   const [adTotals, setAdTotals] = useState({
-    userPosted: 245,
-    vendorPosted: 128,
-    adminPosted: 32,
-    total: 405
+    userPosted: 0,
+    vendorPosted: 0,
+    adminPosted: 0,
+    total: 0
   });
+  const [ads, setAds] = useState([]);
+  const [adsLoading, setAdsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
 
-  // Mock location data
-  const [locations, setLocations] = useState([
+  // Location data
+  const [locations, setLocations] = useState([]);
+  const [locationsLoading, setLocationsLoading] = useState(false);
+  
+  // Mock location data (for search dropdown - will be replaced with real data later)
+  const [mockLocations, setMockLocations] = useState([
     {
       id: 1,
       province: 'Bagmati Province',
@@ -407,8 +417,94 @@ function AdminPanel() {
     }
   ]);
 
-  // Mock ads data
-  const [ads, setAds] = useState([
+  // Fetch ads data
+  useEffect(() => {
+    if (activeSection === 'ads-management' || !activeSection) {
+      fetchAds();
+    }
+  }, [activeSection]);
+
+  const fetchAds = async () => {
+    setAdsLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getAds();
+      const adsData = response.data.ads || [];
+      const totals = response.data.totals || {
+        userPosted: 0,
+        vendorPosted: 0,
+        adminPosted: 0,
+        total: 0
+      };
+      
+      // Transform ads data to match the expected format
+      const transformedAds = adsData.map(ad => ({
+        id: ad.id,
+        sn: ad.id,
+        title: ad.title,
+        category: ad.category?.name || 'N/A',
+        description: ad.description,
+        price: parseFloat(ad.price) || 0,
+        views: ad.views || 0,
+        date: ad.created_at,
+        postedBy: ad.posted_by || 'user'
+      }));
+      
+      setAds(transformedAds);
+      setAdTotals(totals);
+    } catch (err) {
+      setError('Failed to fetch ads: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching ads:', err);
+    } finally {
+      setAdsLoading(false);
+    }
+  };
+
+  // Handle delete ad
+  const handleDeleteAd = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this ad?')) {
+      return;
+    }
+    
+    try {
+      await adminAPI.deleteAd(id);
+      setSuccessMessage('Ad deleted successfully');
+      fetchAds(); // Refresh the list
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete ad: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle edit ad - inline editing
+  const handleEditAd = async (ad) => {
+    const newTitle = prompt('Edit Title:', ad.title);
+    if (newTitle === null) return; // User cancelled
+    
+    const newDescription = prompt('Edit Description:', ad.description);
+    if (newDescription === null) return;
+    
+    const newPrice = prompt('Edit Price:', ad.price);
+    if (newPrice === null) return;
+    
+    try {
+      await adminAPI.updateAd(ad.id, {
+        title: newTitle,
+        description: newDescription,
+        price: parseFloat(newPrice),
+      });
+      setSuccessMessage('Ad updated successfully');
+      fetchAds(); // Refresh the list
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update ad: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Mock ads data (removed - now using real data)
+  const [oldMockAds, setOldMockAds] = useState([
     {
       id: 1,
       sn: 1,
@@ -498,6 +594,86 @@ function AdminPanel() {
       postedBy: 'user'
     }
   ]);
+
+  // Fetch locations data
+  useEffect(() => {
+    if (activeSection === 'location-address') {
+      fetchLocations();
+    }
+  }, [activeSection]);
+
+  const fetchLocations = async () => {
+    setLocationsLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getLocations();
+      const locationsData = response.data || [];
+      
+      // Transform locations data to match the expected format
+      const transformedLocations = locationsData.map(location => ({
+        id: location.id,
+        province: location.province,
+        district: location.district,
+        localLevel: location.local_level,
+        localLevelType: location.local_level_type,
+        wardId: location.ward_id
+      }));
+      
+      setLocations(transformedLocations);
+    } catch (err) {
+      setError('Failed to fetch locations: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching locations:', err);
+    } finally {
+      setLocationsLoading(false);
+    }
+  };
+
+  // Handle delete location
+  const handleDeleteLocation = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this location?')) {
+      return;
+    }
+    
+    try {
+      await adminAPI.deleteLocation(id);
+      setSuccessMessage('Location deleted successfully');
+      fetchLocations(); // Refresh the list
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete location: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle edit location - inline editing
+  const handleEditLocation = async (location) => {
+    const newProvince = prompt('Edit Province:', location.province);
+    if (newProvince === null) return; // User cancelled
+    
+    const newDistrict = prompt('Edit District:', location.district);
+    if (newDistrict === null) return;
+    
+    const newLocalLevel = prompt('Edit Local Level:', location.localLevel);
+    if (newLocalLevel === null) return;
+    
+    const newLocalLevelType = prompt('Edit Local Level Type (Metropolitan City, Sub-Metropolitan City, Municipality, Rural Municipality):', location.localLevelType);
+    if (newLocalLevelType === null) return;
+    
+    try {
+      await adminAPI.updateLocation(location.id, {
+        province: newProvince,
+        district: newDistrict,
+        local_level: newLocalLevel,
+        local_level_type: newLocalLevelType,
+      });
+      setSuccessMessage('Location updated successfully');
+      fetchLocations(); // Refresh the list
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update location: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
 
   // Sort ads based on selected option
   const sortedAds = React.useMemo(() => {
@@ -981,9 +1157,26 @@ function AdminPanel() {
             </section>
           )}
 
+          {/* Error and Success Messages */}
+          {error && (
+            <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
+          )}
+          {successMessage && (
+            <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
+              {successMessage}
+            </div>
+          )}
+
           {/* Section-specific content */}
           {activeSection === 'ads-management' && !activeSubsection && (
             <>
+              {adsLoading && (
+                <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading ads...
+                </div>
+              )}
               {/* Ad Totals Summary and Post Ad Button */}
               <section className="mb-6">
                 <Card>
@@ -1060,10 +1253,20 @@ function AdminPanel() {
                               <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(ad.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
                               <td className="p-3 text-sm">
                                 <div className="flex gap-2">
-                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => handleEditAd(ad)}
+                                  >
                                     Edit
                                   </Button>
-                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
+                                  <Button 
+                                    variant="destructive" 
+                                    size="sm" 
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => handleDeleteAd(ad.id)}
+                                  >
                                     Delete
                                   </Button>
                                 </div>
@@ -1134,6 +1337,11 @@ function AdminPanel() {
 
           {activeSection === 'location-address' && (
             <section>
+              {locationsLoading && (
+                <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading locations...
+                </div>
+              )}
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-4">
@@ -1164,10 +1372,20 @@ function AdminPanel() {
                             <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                             <td className="p-3 text-sm">
                               <div className="flex gap-2">
-                                <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="h-7 px-2 text-xs"
+                                  onClick={() => handleEditLocation(location)}
+                                >
                                   Edit
                                 </Button>
-                                <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
+                                <Button 
+                                  variant="destructive" 
+                                  size="sm" 
+                                  className="h-7 px-2 text-xs"
+                                  onClick={() => handleDeleteLocation(location.id)}
+                                >
                                   Delete
                                 </Button>
                               </div>
