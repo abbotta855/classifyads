@@ -35,387 +35,53 @@ function AdminPanel() {
   const [adsLoading, setAdsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [editingAdId, setEditingAdId] = useState(null);
+  const [editingAdData, setEditingAdData] = useState(null);
 
-  // Location data
+  // Location data - fetched from database via API
   const [locations, setLocations] = useState([]);
   const [locationsLoading, setLocationsLoading] = useState(false);
-  
-  // Mock location data (for search dropdown - will be replaced with real data later)
-  const [mockLocations, setMockLocations] = useState([
-    {
-      id: 1,
-      province: 'Bagmati Province',
-      district: 'Kathmandu',
-      localLevel: 'Kathmandu',
-      localLevelType: 'Municipality'
-    },
-    {
-      id: 2,
-      province: 'Bagmati Province',
-      district: 'Kathmandu',
-      localLevel: 'Kathmandu',
-      localLevelType: 'Municipality'
-    },
-    {
-      id: 3,
-      province: 'Bagmati Province',
-      district: 'Lalitpur',
-      localLevel: 'Lalitpur',
-      localLevelType: 'Municipality'
-    },
-    {
-      id: 4,
-      province: 'Bagmati Province',
-      district: 'Bhaktapur',
-      localLevel: 'Bhaktapur',
-      localLevelType: 'Municipality'
-    },
-    {
-      id: 5,
-      province: 'Province 1',
-      district: 'Morang',
-      localLevel: 'Biratnagar',
-      localLevelType: 'Municipality'
-    },
-    {
-      id: 6,
-      province: 'Province 1',
-      district: 'Morang',
-      localLevel: 'Biratnagar',
-      localLevelType: 'Municipality'
-    },
-    {
-      id: 7,
-      province: 'Province 1',
-      district: 'Morang',
-      localLevel: 'Itahari',
-      localLevelType: 'Municipality'
-    },
-    {
-      id: 8,
-      province: 'Province 1',
-      district: 'Morang',
-      localLevel: 'Ratuwamai',
-      localLevelType: 'Rural Municipality'
-    },
-    {
-      id: 9,
-      province: 'Province 2',
-      district: 'Dhanusha',
-      localLevel: 'Janakpur',
-      localLevelType: 'Municipality'
-    },
-    {
-      id: 10,
-      province: 'Province 2',
-      district: 'Dhanusha',
-      localLevel: 'Dhanusadham',
-      localLevelType: 'Rural Municipality'
-    },
-    {
-      id: 11,
-      province: 'Gandaki Province',
-      district: 'Kaski',
-      localLevel: 'Pokhara',
-      localLevelType: 'Municipality'
-    },
-    {
-      id: 12,
-      province: 'Gandaki Province',
-      district: 'Kaski',
-      localLevel: 'Pokhara',
-      localLevelType: 'Municipality'
-    },
-    {
-      id: 13,
-      province: 'Lumbini Province',
-      district: 'Rupandehi',
-      localLevel: 'Butwal',
-      localLevelType: 'Municipality'
-    },
-    {
-      id: 14,
-      province: 'Karnali Province',
-      district: 'Surkhet',
-      localLevel: 'Birendranagar',
-      localLevelType: 'Municipality'
-    },
-    {
-      id: 15,
-      province: 'Sudurpashchim Province',
-      district: 'Kailali',
-      localLevel: 'Dhangadhi',
-      localLevelType: 'Municipality'
-    }
-  ]);
+  const [editingLocationId, setEditingLocationId] = useState(null);
+  const [editingLocationData, setEditingLocationData] = useState(null);
 
   // Category management data - will be populated from API
   const [categoryManagementData, setCategoryManagementData] = useState([]);
 
-  // Mock bidding history data
-  const [biddingHistoryData, setBiddingHistoryData] = useState([
-    {
-      id: 1,
-      userName: 'John Doe',
-      itemName: 'Vintage Watch Collection',
-      reservePrice: 50000,
-      buyNowPrice: 75000,
-      paymentMethod: 'Credit Card',
-      startDateTime: '2024-01-15T10:00:00'
-    },
-    {
-      id: 2,
-      userName: 'Jane Smith',
-      itemName: 'Antique Painting',
-      reservePrice: 120000,
-      buyNowPrice: 180000,
-      paymentMethod: 'Bank Transfer',
-      startDateTime: '2024-01-18T14:30:00'
-    },
-    {
-      id: 3,
-      userName: 'Mike Johnson',
-      itemName: 'Rare Coin Set',
-      reservePrice: 25000,
-      buyNowPrice: 40000,
-      paymentMethod: 'Digital Wallet',
-      startDateTime: '2024-01-20T09:15:00'
-    }
-  ]);
+  // Bidding history data - fetched from database via API
+  const [biddingHistoryData, setBiddingHistoryData] = useState([]);
+  const [biddingHistoryLoading, setBiddingHistoryLoading] = useState(false);
+  const [editingBiddingHistoryId, setEditingBiddingHistoryId] = useState(null);
+  const [editingBiddingHistoryData, setEditingBiddingHistoryData] = useState(null);
 
-  // Mock bid winner data
-  const [bidWinnerData, setBidWinnerData] = useState([
-    {
-      id: 1,
-      userName: 'Sarah Williams',
-      biddingItem: 'Vintage Watch Collection',
-      bidStartDate: '2024-01-15',
-      bidWonDate: '2024-01-22',
-      paymentProceedDate: '2024-01-23',
-      totalPayment: 65000,
-      sellerName: 'ABC Collectibles',
-      emailSent: 'Yes'
-    },
-    {
-      id: 2,
-      userName: 'David Brown',
-      biddingItem: 'Antique Painting',
-      bidStartDate: '2024-01-18',
-      bidWonDate: '2024-01-25',
-      paymentProceedDate: '2024-01-26',
-      totalPayment: 150000,
-      sellerName: 'Art Gallery Plus',
-      emailSent: 'Yes'
-    },
-    {
-      id: 3,
-      userName: 'Emily Davis',
-      biddingItem: 'Rare Coin Set',
-      bidStartDate: '2024-01-20',
-      bidWonDate: '2024-01-27',
-      paymentProceedDate: '2024-01-28',
-      totalPayment: 35000,
-      sellerName: 'Numismatic Store',
-      emailSent: 'Yes'
-    },
-    {
-      id: 4,
-      userName: 'Robert Wilson',
-      biddingItem: 'Classic Car Model',
-      bidStartDate: '2024-01-22',
-      bidWonDate: '2024-01-29',
-      paymentProceedDate: '2024-01-30',
-      totalPayment: 85000,
-      sellerName: 'Auto Collectors',
-      emailSent: 'Pending'
-    }
-  ]);
+  // Bid winner data - fetched from database via API
+  const [bidWinnerData, setBidWinnerData] = useState([]);
+  const [bidWinnerLoading, setBidWinnerLoading] = useState(false);
+  const [editingBidWinnerId, setEditingBidWinnerId] = useState(null);
+  const [editingBidWinnerData, setEditingBidWinnerData] = useState(null);
 
-  // Mock blocked user data
-  const [blockedUserData, setBlockedUserData] = useState([
-    {
-      id: 1,
-      userName: 'Tom Anderson',
-      email: 'tom.anderson@example.com',
-      address: 'Kathmandu, Bagmati Province',
-      dateToBlock: '2024-01-15',
-      reasonToBlock: 'Fraudulent bidding activity'
-    },
-    {
-      id: 2,
-      userName: 'Lisa Chen',
-      email: 'lisa.chen@example.com',
-      address: 'Lalitpur, Bagmati Province',
-      dateToBlock: '2024-01-18',
-      reasonToBlock: 'Non-payment after winning bid'
-    },
-    {
-      id: 3,
-      userName: 'Mark Taylor',
-      email: 'mark.taylor@example.com',
-      address: 'Pokhara, Gandaki Province',
-      dateToBlock: '2024-01-20',
-      reasonToBlock: 'Violation of auction terms'
-    },
-    {
-      id: 4,
-      userName: 'Anna Martinez',
-      email: 'anna.martinez@example.com',
-      address: 'Biratnagar, Province 1',
-      dateToBlock: '2024-01-22',
-      reasonToBlock: 'Multiple account creation'
-    }
-  ]);
+  // Blocked user data - fetched from database via API
+  const [blockedUserData, setBlockedUserData] = useState([]);
+  const [blockedUserLoading, setBlockedUserLoading] = useState(false);
+  const [editingBlockedUserId, setEditingBlockedUserId] = useState(null);
+  const [editingBlockedUserData, setEditingBlockedUserData] = useState(null);
 
-  // Mock bidding tracking data
-  const [biddingTrackingData, setBiddingTrackingData] = useState([
-    {
-      id: 1,
-      bidWinnerName: 'Sarah Williams',
-      bidWonItemName: 'Vintage Watch Collection',
-      paymentStatus: 'Completed',
-      pickupStatus: 'Picked Up',
-      completeProcessDateTime: '2024-01-24T15:30:00',
-      alertSent: 'No'
-    },
-    {
-      id: 2,
-      bidWinnerName: 'David Brown',
-      bidWonItemName: 'Antique Painting',
-      paymentStatus: 'Completed',
-      pickupStatus: 'Pending',
-      completeProcessDateTime: null,
-      alertSent: 'Yes'
-    },
-    {
-      id: 3,
-      bidWinnerName: 'Emily Davis',
-      bidWonItemName: 'Rare Coin Set',
-      paymentStatus: 'Pending',
-      pickupStatus: 'Not Started',
-      completeProcessDateTime: null,
-      alertSent: 'Yes'
-    },
-    {
-      id: 4,
-      bidWinnerName: 'Robert Wilson',
-      bidWonItemName: 'Classic Car Model',
-      paymentStatus: 'Completed',
-      pickupStatus: 'Scheduled',
-      completeProcessDateTime: null,
-      alertSent: 'No'
-    }
-  ]);
+  // Bidding tracking data - fetched from database via API
+  const [biddingTrackingData, setBiddingTrackingData] = useState([]);
+  const [biddingTrackingLoading, setBiddingTrackingLoading] = useState(false);
+  const [editingBiddingTrackingId, setEditingBiddingTrackingId] = useState(null);
+  const [editingBiddingTrackingData, setEditingBiddingTrackingData] = useState(null);
 
-  // Mock delivery management data
-  const [deliveryData, setDeliveryData] = useState([
-    {
-      id: 1,
-      sellerVendor: 'ABC Electronics',
-      item: 'iPhone 15 Pro',
-      price: 120000,
-      deliveryStatus: 'Pending',
-      pickupDate: '2024-01-15'
-    },
-    {
-      id: 2,
-      sellerVendor: 'XYZ Motors',
-      item: 'Honda CB 150R',
-      price: 350000,
-      deliveryStatus: 'In Transit',
-      pickupDate: '2024-01-18'
-    },
-    {
-      id: 3,
-      sellerVendor: 'Home Decor Plus',
-      item: 'Modern Sofa Set',
-      price: 85000,
-      deliveryStatus: 'Delivered',
-      pickupDate: '2024-01-20'
-    },
-    {
-      id: 4,
-      sellerVendor: 'Tech World',
-      item: 'MacBook Pro M3',
-      price: 250000,
-      deliveryStatus: 'Pending',
-      pickupDate: '2024-01-22'
-    },
-    {
-      id: 5,
-      sellerVendor: 'Fashion Hub',
-      item: 'Designer Handbag',
-      price: 15000,
-      deliveryStatus: 'In Transit',
-      pickupDate: '2024-01-25'
-    },
-    {
-      id: 6,
-      sellerVendor: 'Auto Dealer',
-      item: 'Toyota Corolla',
-      price: 2800000,
-      deliveryStatus: 'Delivered',
-      pickupDate: '2024-01-28'
-    }
-  ]);
+  // Delivery management data - fetched from database via API
+  const [deliveryData, setDeliveryData] = useState([]);
+  const [deliveryLoading, setDeliveryLoading] = useState(false);
+  const [editingDeliveryId, setEditingDeliveryId] = useState(null);
+  const [editingDeliveryData, setEditingDeliveryData] = useState(null);
 
-  // Mock purchase verification data
-  const [purchaseVerificationData, setPurchaseVerificationData] = useState([
-    {
-      id: 1,
-      buyerUser: 'John Doe',
-      item: 'iPhone 15 Pro',
-      price: 120000,
-      purchaseDate: '2024-01-10',
-      verificationCode: 'PV-2024-001',
-      deliveryStatus: 'Pending'
-    },
-    {
-      id: 2,
-      buyerUser: 'Jane Smith',
-      item: 'Honda CB 150R',
-      price: 350000,
-      purchaseDate: '2024-01-12',
-      verificationCode: 'PV-2024-002',
-      deliveryStatus: 'In Transit'
-    },
-    {
-      id: 3,
-      buyerUser: 'Mike Johnson',
-      item: 'Modern Sofa Set',
-      price: 85000,
-      purchaseDate: '2024-01-14',
-      verificationCode: 'PV-2024-003',
-      deliveryStatus: 'Delivered'
-    },
-    {
-      id: 4,
-      buyerUser: 'Sarah Williams',
-      item: 'MacBook Pro M3',
-      price: 250000,
-      purchaseDate: '2024-01-16',
-      verificationCode: 'PV-2024-004',
-      deliveryStatus: 'Pending'
-    },
-    {
-      id: 5,
-      buyerUser: 'David Brown',
-      item: 'Designer Handbag',
-      price: 15000,
-      purchaseDate: '2024-01-18',
-      verificationCode: 'PV-2024-005',
-      deliveryStatus: 'In Transit'
-    },
-    {
-      id: 6,
-      buyerUser: 'Emily Davis',
-      item: 'Toyota Corolla',
-      price: 2800000,
-      purchaseDate: '2024-01-20',
-      verificationCode: 'PV-2024-006',
-      deliveryStatus: 'Delivered'
-    }
-  ]);
+  // Purchase verification data - fetched from database via API
+  const [purchaseVerificationData, setPurchaseVerificationData] = useState([]);
+  const [purchaseVerificationLoading, setPurchaseVerificationLoading] = useState(false);
+  const [editingPurchaseVerificationId, setEditingPurchaseVerificationId] = useState(null);
+  const [editingPurchaseVerificationData, setEditingPurchaseVerificationData] = useState(null);
 
   // Fetch ads data
   useEffect(() => {
@@ -477,24 +143,27 @@ function AdminPanel() {
     }
   };
 
-  // Handle edit ad - inline editing
-  const handleEditAd = async (ad) => {
-    const newTitle = prompt('Edit Title:', ad.title);
-    if (newTitle === null) return; // User cancelled
-    
-    const newDescription = prompt('Edit Description:', ad.description);
-    if (newDescription === null) return;
-    
-    const newPrice = prompt('Edit Price:', ad.price);
-    if (newPrice === null) return;
-    
+  // Handle edit ad - start inline editing
+  const handleEditAd = (ad) => {
+    setEditingAdId(ad.id);
+    setEditingAdData({
+      title: ad.title,
+      description: ad.description,
+      price: ad.price,
+    });
+  };
+
+  // Handle save ad - save changes
+  const handleSaveAd = async (adId) => {
     try {
-      await adminAPI.updateAd(ad.id, {
-        title: newTitle,
-        description: newDescription,
-        price: parseFloat(newPrice),
+      await adminAPI.updateAd(adId, {
+        title: editingAdData.title,
+        description: editingAdData.description,
+        price: parseFloat(editingAdData.price),
       });
       setSuccessMessage('Ad updated successfully');
+      setEditingAdId(null);
+      setEditingAdData(null);
       fetchAds(); // Refresh the list
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -503,102 +172,34 @@ function AdminPanel() {
     }
   };
 
-  // Mock ads data (removed - now using real data)
-  const [oldMockAds, setOldMockAds] = useState([
-    {
-      id: 1,
-      sn: 1,
-      title: 'Beautiful Land for Sale in Kathmandu',
-      category: 'Land for sale',
-      description: 'Prime location land with excellent connectivity and all amenities nearby.',
-      price: 15000000,
-      views: 234,
-      date: '2024-01-15',
-      postedBy: 'user'
-    },
-    {
-      id: 2,
-      sn: 2,
-      title: 'Toyota Corolla 2020 - Excellent Condition',
-      category: 'Car for sale',
-      description: 'Well maintained car with low mileage. Single owner. All service records available.',
-      price: 2800000,
-      views: 567,
-      date: '2024-01-18',
-      postedBy: 'vendor'
-    },
-    {
-      id: 3,
-      sn: 3,
-      title: 'Honda CB 150R - Like New',
-      category: 'Motorbike for sale',
-      description: 'Barely used motorbike, perfect condition. All documents ready.',
-      price: 350000,
-      views: 189,
-      date: '2024-01-20',
-      postedBy: 'user'
-    },
-    {
-      id: 4,
-      sn: 4,
-      title: 'Modern House in Lalitpur',
-      category: 'House for sale',
-      description: '3 BHK house with garden, parking space, and modern amenities.',
-      price: 12000000,
-      views: 445,
-      date: '2024-01-22',
-      postedBy: 'admin'
-    },
-    {
-      id: 5,
-      sn: 5,
-      title: 'Isuzu Bus - Commercial Vehicle',
-      category: 'Bus for sale',
-      description: 'Perfect for commercial use. Recently serviced and ready to use.',
-      price: 4500000,
-      views: 123,
-      date: '2024-01-25',
-      postedBy: 'vendor'
-    },
-    {
-      id: 6,
-      sn: 6,
-      title: 'Tata Truck - Heavy Duty',
-      category: 'Truck for sale',
-      description: 'Heavy duty truck in excellent working condition. Ideal for logistics business.',
-      price: 3200000,
-      views: 98,
-      date: '2024-01-28',
-      postedBy: 'user'
-    },
-    {
-      id: 7,
-      sn: 7,
-      title: 'Luxury Apartment in Baneshwor',
-      category: 'House for sale',
-      description: 'Fully furnished apartment with modern facilities and security.',
-      price: 8500000,
-      views: 312,
-      date: '2024-02-01',
-      postedBy: 'admin'
-    },
-    {
-      id: 8,
-      sn: 8,
-      title: 'Yamaha FZ - Sports Edition',
-      category: 'Motorbike for sale',
-      description: 'Sports edition bike with all accessories. Low mileage.',
-      price: 420000,
-      views: 256,
-      date: '2024-02-03',
-      postedBy: 'user'
-    }
-  ]);
+  // Handle cancel edit ad
+  const handleCancelEditAd = () => {
+    setEditingAdId(null);
+    setEditingAdData(null);
+  };
 
   // Fetch locations data
   useEffect(() => {
     if (activeSection === 'location-address') {
       fetchLocations();
+    }
+  }, [activeSection]);
+
+  // Fetch deliveries data
+  useEffect(() => {
+    if (activeSection === 'delivery-management') {
+      fetchDeliveries();
+      fetchPurchaseVerifications();
+    }
+  }, [activeSection]);
+
+  // Fetch auction-related data
+  useEffect(() => {
+    if (activeSection === 'auction-management') {
+      fetchBiddingHistory();
+      fetchBidWinners();
+      fetchBlockedUsers();
+      fetchBiddingTracking();
     }
   }, [activeSection]);
 
@@ -645,32 +246,537 @@ function AdminPanel() {
     }
   };
 
-  // Handle edit location - inline editing
-  const handleEditLocation = async (location) => {
-    const newProvince = prompt('Edit Province:', location.province);
-    if (newProvince === null) return; // User cancelled
-    
-    const newDistrict = prompt('Edit District:', location.district);
-    if (newDistrict === null) return;
-    
-    const newLocalLevel = prompt('Edit Local Level:', location.localLevel);
-    if (newLocalLevel === null) return;
-    
-    const newLocalLevelType = prompt('Edit Local Level Type (Metropolitan City, Sub-Metropolitan City, Municipality, Rural Municipality):', location.localLevelType);
-    if (newLocalLevelType === null) return;
-    
+  // Handle edit location - start inline editing
+  const handleEditLocation = (location) => {
+    setEditingLocationId(location.id);
+    setEditingLocationData({
+      province: location.province,
+      district: location.district,
+      localLevel: location.localLevel,
+      localLevelType: location.localLevelType,
+    });
+  };
+
+  // Handle save location - save changes
+  const handleSaveLocation = async (locationId) => {
     try {
-      await adminAPI.updateLocation(location.id, {
-        province: newProvince,
-        district: newDistrict,
-        local_level: newLocalLevel,
-        local_level_type: newLocalLevelType,
+      await adminAPI.updateLocation(locationId, {
+        province: editingLocationData.province,
+        district: editingLocationData.district,
+        local_level: editingLocationData.localLevel,
+        local_level_type: editingLocationData.localLevelType,
       });
       setSuccessMessage('Location updated successfully');
+      setEditingLocationId(null);
+      setEditingLocationData(null);
       fetchLocations(); // Refresh the list
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       setError('Failed to update location: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle cancel edit location
+  const handleCancelEditLocation = () => {
+    setEditingLocationId(null);
+    setEditingLocationData(null);
+  };
+
+  // Fetch deliveries
+  const fetchDeliveries = async () => {
+    setDeliveryLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getDeliveries();
+      const deliveriesData = response.data || [];
+      
+      const transformedDeliveries = deliveriesData.map(delivery => ({
+        id: delivery.id,
+        sellerVendor: delivery.seller_vendor?.name || 'N/A',
+        item: delivery.item,
+        price: parseFloat(delivery.price) || 0,
+        deliveryStatus: delivery.delivery_status,
+        pickupDate: delivery.pickup_date
+      }));
+      
+      setDeliveryData(transformedDeliveries);
+    } catch (err) {
+      setError('Failed to fetch deliveries: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching deliveries:', err);
+    } finally {
+      setDeliveryLoading(false);
+    }
+  };
+
+  // Handle edit delivery
+  const handleEditDelivery = (delivery) => {
+    setEditingDeliveryId(delivery.id);
+    setEditingDeliveryData({
+      item: delivery.item,
+      price: delivery.price,
+      deliveryStatus: delivery.deliveryStatus,
+      pickupDate: delivery.pickupDate
+    });
+  };
+
+  // Handle save delivery
+  const handleSaveDelivery = async (deliveryId) => {
+    try {
+      await adminAPI.updateDelivery(deliveryId, {
+        item: editingDeliveryData.item,
+        price: editingDeliveryData.price,
+        delivery_status: editingDeliveryData.deliveryStatus,
+        pickup_date: editingDeliveryData.pickupDate,
+      });
+      setSuccessMessage('Delivery updated successfully');
+      setEditingDeliveryId(null);
+      setEditingDeliveryData(null);
+      fetchDeliveries();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update delivery: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle cancel edit delivery
+  const handleCancelEditDelivery = () => {
+    setEditingDeliveryId(null);
+    setEditingDeliveryData(null);
+  };
+
+  // Handle delete delivery
+  const handleDeleteDelivery = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this delivery?')) {
+      return;
+    }
+    
+    try {
+      await adminAPI.deleteDelivery(id);
+      setSuccessMessage('Delivery deleted successfully');
+      fetchDeliveries();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete delivery: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Fetch purchase verifications
+  const fetchPurchaseVerifications = async () => {
+    setPurchaseVerificationLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getPurchaseVerifications();
+      const purchaseData = response.data || [];
+      
+      const transformedPurchases = purchaseData.map(purchase => ({
+        id: purchase.id,
+        buyerUser: purchase.buyer_user?.name || 'N/A',
+        item: purchase.item,
+        price: parseFloat(purchase.price) || 0,
+        purchaseDate: purchase.purchase_date,
+        verificationCode: purchase.verification_code,
+        deliveryStatus: purchase.delivery_status
+      }));
+      
+      setPurchaseVerificationData(transformedPurchases);
+    } catch (err) {
+      setError('Failed to fetch purchase verifications: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching purchase verifications:', err);
+    } finally {
+      setPurchaseVerificationLoading(false);
+    }
+  };
+
+  // Handle edit purchase verification
+  const handleEditPurchaseVerification = (purchase) => {
+    setEditingPurchaseVerificationId(purchase.id);
+    setEditingPurchaseVerificationData({
+      item: purchase.item,
+      price: purchase.price,
+      purchaseDate: purchase.purchaseDate,
+      verificationCode: purchase.verificationCode,
+      deliveryStatus: purchase.deliveryStatus
+    });
+  };
+
+  // Handle save purchase verification
+  const handleSavePurchaseVerification = async (purchaseId) => {
+    try {
+      await adminAPI.updatePurchaseVerification(purchaseId, {
+        item: editingPurchaseVerificationData.item,
+        price: editingPurchaseVerificationData.price,
+        purchase_date: editingPurchaseVerificationData.purchaseDate,
+        verification_code: editingPurchaseVerificationData.verificationCode,
+        delivery_status: editingPurchaseVerificationData.deliveryStatus,
+      });
+      setSuccessMessage('Purchase verification updated successfully');
+      setEditingPurchaseVerificationId(null);
+      setEditingPurchaseVerificationData(null);
+      fetchPurchaseVerifications();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update purchase verification: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle cancel edit purchase verification
+  const handleCancelEditPurchaseVerification = () => {
+    setEditingPurchaseVerificationId(null);
+    setEditingPurchaseVerificationData(null);
+  };
+
+  // Handle delete purchase verification
+  const handleDeletePurchaseVerification = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this purchase verification?')) {
+      return;
+    }
+    
+    try {
+      await adminAPI.deletePurchaseVerification(id);
+      setSuccessMessage('Purchase verification deleted successfully');
+      fetchPurchaseVerifications();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete purchase verification: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Fetch bidding history
+  const fetchBiddingHistory = async () => {
+    setBiddingHistoryLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getBiddingHistory();
+      const biddingData = response.data || [];
+      
+      const transformedBidding = biddingData.map(bid => ({
+        id: bid.id,
+        userName: bid.user?.name || 'N/A',
+        itemName: bid.item_name,
+        reservePrice: parseFloat(bid.reserve_price) || 0,
+        buyNowPrice: parseFloat(bid.buy_now_price) || 0,
+        paymentMethod: bid.payment_method,
+        startDateTime: bid.start_date_time
+      }));
+      
+      setBiddingHistoryData(transformedBidding);
+    } catch (err) {
+      setError('Failed to fetch bidding history: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching bidding history:', err);
+    } finally {
+      setBiddingHistoryLoading(false);
+    }
+  };
+
+  // Handle edit bidding history
+  const handleEditBiddingHistory = (bid) => {
+    setEditingBiddingHistoryId(bid.id);
+    setEditingBiddingHistoryData({
+      itemName: bid.itemName,
+      reservePrice: bid.reservePrice,
+      buyNowPrice: bid.buyNowPrice,
+      paymentMethod: bid.paymentMethod,
+      startDateTime: bid.startDateTime
+    });
+  };
+
+  // Handle save bidding history
+  const handleSaveBiddingHistory = async (bidId) => {
+    try {
+      await adminAPI.updateBiddingHistory(bidId, {
+        item_name: editingBiddingHistoryData.itemName,
+        reserve_price: editingBiddingHistoryData.reservePrice,
+        buy_now_price: editingBiddingHistoryData.buyNowPrice,
+        payment_method: editingBiddingHistoryData.paymentMethod,
+        start_date_time: editingBiddingHistoryData.startDateTime,
+      });
+      setSuccessMessage('Bidding history updated successfully');
+      setEditingBiddingHistoryId(null);
+      setEditingBiddingHistoryData(null);
+      fetchBiddingHistory();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update bidding history: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle cancel edit bidding history
+  const handleCancelEditBiddingHistory = () => {
+    setEditingBiddingHistoryId(null);
+    setEditingBiddingHistoryData(null);
+  };
+
+  // Handle delete bidding history
+  const handleDeleteBiddingHistory = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this bidding history?')) {
+      return;
+    }
+    
+    try {
+      await adminAPI.deleteBiddingHistory(id);
+      setSuccessMessage('Bidding history deleted successfully');
+      fetchBiddingHistory();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete bidding history: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Fetch bid winners
+  const fetchBidWinners = async () => {
+    setBidWinnerLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getBidWinners();
+      const winnersData = response.data || [];
+      
+      const transformedWinners = winnersData.map(winner => ({
+        id: winner.id,
+        userName: winner.user?.name || 'N/A',
+        biddingItem: winner.bidding_item,
+        bidStartDate: winner.bid_start_date,
+        bidWonDate: winner.bid_won_date,
+        paymentProceedDate: winner.payment_proceed_date,
+        totalPayment: parseFloat(winner.total_payment) || 0,
+        sellerName: winner.seller?.name || 'N/A',
+        emailSent: winner.congratulation_email_sent ? 'Yes' : 'No'
+      }));
+      
+      setBidWinnerData(transformedWinners);
+    } catch (err) {
+      setError('Failed to fetch bid winners: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching bid winners:', err);
+    } finally {
+      setBidWinnerLoading(false);
+    }
+  };
+
+  // Handle edit bid winner
+  const handleEditBidWinner = (winner) => {
+    setEditingBidWinnerId(winner.id);
+    setEditingBidWinnerData({
+      biddingItem: winner.biddingItem,
+      bidStartDate: winner.bidStartDate,
+      bidWonDate: winner.bidWonDate,
+      paymentProceedDate: winner.paymentProceedDate,
+      totalPayment: winner.totalPayment,
+      emailSent: winner.emailSent === 'Yes'
+    });
+  };
+
+  // Handle save bid winner
+  const handleSaveBidWinner = async (winnerId) => {
+    try {
+      await adminAPI.updateBidWinner(winnerId, {
+        bidding_item: editingBidWinnerData.biddingItem,
+        bid_start_date: editingBidWinnerData.bidStartDate,
+        bid_won_date: editingBidWinnerData.bidWonDate,
+        payment_proceed_date: editingBidWinnerData.paymentProceedDate,
+        total_payment: editingBidWinnerData.totalPayment,
+        congratulation_email_sent: editingBidWinnerData.emailSent,
+      });
+      setSuccessMessage('Bid winner updated successfully');
+      setEditingBidWinnerId(null);
+      setEditingBidWinnerData(null);
+      fetchBidWinners();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update bid winner: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle cancel edit bid winner
+  const handleCancelEditBidWinner = () => {
+    setEditingBidWinnerId(null);
+    setEditingBidWinnerData(null);
+  };
+
+  // Handle delete bid winner
+  const handleDeleteBidWinner = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this bid winner?')) {
+      return;
+    }
+    
+    try {
+      await adminAPI.deleteBidWinner(id);
+      setSuccessMessage('Bid winner deleted successfully');
+      fetchBidWinners();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete bid winner: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Fetch blocked users
+  const fetchBlockedUsers = async () => {
+    setBlockedUserLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getBlockedUsers();
+      const blockedData = response.data || [];
+      
+      const transformedBlocked = blockedData.map(blocked => ({
+        id: blocked.id,
+        userName: blocked.user?.name || 'N/A',
+        email: blocked.email,
+        address: blocked.address,
+        dateToBlock: blocked.date_to_block,
+        reasonToBlock: blocked.reason_to_block
+      }));
+      
+      setBlockedUserData(transformedBlocked);
+    } catch (err) {
+      setError('Failed to fetch blocked users: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching blocked users:', err);
+    } finally {
+      setBlockedUserLoading(false);
+    }
+  };
+
+  // Handle edit blocked user
+  const handleEditBlockedUser = (user) => {
+    setEditingBlockedUserId(user.id);
+    setEditingBlockedUserData({
+      email: user.email,
+      address: user.address,
+      dateToBlock: user.dateToBlock,
+      reasonToBlock: user.reasonToBlock
+    });
+  };
+
+  // Handle save blocked user
+  const handleSaveBlockedUser = async (userId) => {
+    try {
+      await adminAPI.updateBlockedUser(userId, {
+        email: editingBlockedUserData.email,
+        address: editingBlockedUserData.address,
+        date_to_block: editingBlockedUserData.dateToBlock,
+        reason_to_block: editingBlockedUserData.reasonToBlock,
+      });
+      setSuccessMessage('Blocked user updated successfully');
+      setEditingBlockedUserId(null);
+      setEditingBlockedUserData(null);
+      fetchBlockedUsers();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update blocked user: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle cancel edit blocked user
+  const handleCancelEditBlockedUser = () => {
+    setEditingBlockedUserId(null);
+    setEditingBlockedUserData(null);
+  };
+
+  // Handle delete blocked user
+  const handleDeleteBlockedUser = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this blocked user?')) {
+      return;
+    }
+    
+    try {
+      await adminAPI.deleteBlockedUser(id);
+      setSuccessMessage('Blocked user deleted successfully');
+      fetchBlockedUsers();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete blocked user: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Fetch bidding tracking
+  const fetchBiddingTracking = async () => {
+    setBiddingTrackingLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getBiddingTracking();
+      const trackingData = response.data || [];
+      
+      const transformedTracking = trackingData.map(tracking => ({
+        id: tracking.id,
+        bidWinnerName: tracking.bid_winner_name,
+        bidWonItemName: tracking.bid_won_item_name,
+        paymentStatus: tracking.payment_status,
+        pickupStatus: tracking.pickup_status,
+        completeProcessDateTime: tracking.complete_process_date_time,
+        alertSent: tracking.alert_sent ? 'Yes' : 'No'
+      }));
+      
+      setBiddingTrackingData(transformedTracking);
+    } catch (err) {
+      setError('Failed to fetch bidding tracking: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching bidding tracking:', err);
+    } finally {
+      setBiddingTrackingLoading(false);
+    }
+  };
+
+  // Handle edit bidding tracking
+  const handleEditBiddingTracking = (tracking) => {
+    setEditingBiddingTrackingId(tracking.id);
+    setEditingBiddingTrackingData({
+      bidWinnerName: tracking.bidWinnerName,
+      bidWonItemName: tracking.bidWonItemName,
+      paymentStatus: tracking.paymentStatus,
+      pickupStatus: tracking.pickupStatus,
+      completeProcessDateTime: tracking.completeProcessDateTime,
+      alertSent: tracking.alertSent === 'Yes'
+    });
+  };
+
+  // Handle save bidding tracking
+  const handleSaveBiddingTracking = async (trackingId) => {
+    try {
+      await adminAPI.updateBiddingTracking(trackingId, {
+        bid_winner_name: editingBiddingTrackingData.bidWinnerName,
+        bid_won_item_name: editingBiddingTrackingData.bidWonItemName,
+        payment_status: editingBiddingTrackingData.paymentStatus,
+        pickup_status: editingBiddingTrackingData.pickupStatus,
+        complete_process_date_time: editingBiddingTrackingData.completeProcessDateTime,
+        alert_sent: editingBiddingTrackingData.alertSent,
+      });
+      setSuccessMessage('Bidding tracking updated successfully');
+      setEditingBiddingTrackingId(null);
+      setEditingBiddingTrackingData(null);
+      fetchBiddingTracking();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update bidding tracking: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle cancel edit bidding tracking
+  const handleCancelEditBiddingTracking = () => {
+    setEditingBiddingTrackingId(null);
+    setEditingBiddingTrackingData(null);
+  };
+
+  // Handle delete bidding tracking
+  const handleDeleteBiddingTracking = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this bidding tracking?')) {
+      return;
+    }
+    
+    try {
+      await adminAPI.deleteBiddingTracking(id);
+      setSuccessMessage('Bidding tracking deleted successfully');
+      fetchBiddingTracking();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete bidding tracking: ' + (err.response?.data?.message || err.message));
       setTimeout(() => setError(null), 5000);
     }
   };
@@ -1243,32 +1349,86 @@ function AdminPanel() {
                         </thead>
                         <tbody>
                           {sortedAds.map((ad, index) => (
-                            <tr key={ad.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                            <tr key={ad.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingAdId === ad.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-medium">{ad.title}</td>
+                              <td className="p-3 text-sm">
+                                {editingAdId === ad.id ? (
+                                  <Input
+                                    value={editingAdData.title}
+                                    onChange={(e) => setEditingAdData({...editingAdData, title: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="font-medium">{ad.title}</span>
+                                )}
+                              </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.category}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))] max-w-xs truncate">{ad.description}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-semibold">Rs. {ad.price.toLocaleString()}</td>
+                              <td className="p-3 text-sm max-w-xs">
+                                {editingAdId === ad.id ? (
+                                  <Input
+                                    value={editingAdData.description}
+                                    onChange={(e) => setEditingAdData({...editingAdData, description: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="text-[hsl(var(--muted-foreground))] truncate block">{ad.description}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingAdId === ad.id ? (
+                                  <Input
+                                    type="number"
+                                    value={editingAdData.price}
+                                    onChange={(e) => setEditingAdData({...editingAdData, price: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="font-semibold">Rs. {ad.price.toLocaleString()}</span>
+                                )}
+                              </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views}</td>
                               <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(ad.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
                               <td className="p-3 text-sm">
                                 <div className="flex gap-2">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    className="h-7 px-2 text-xs"
-                                    onClick={() => handleEditAd(ad)}
-                                  >
-                                    Edit
-                                  </Button>
-                                  <Button 
-                                    variant="destructive" 
-                                    size="sm" 
-                                    className="h-7 px-2 text-xs"
-                                    onClick={() => handleDeleteAd(ad.id)}
-                                  >
-                                    Delete
-                                  </Button>
+                                  {editingAdId === ad.id ? (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleSaveAd(ad.id)}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={handleCancelEditAd}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleEditAd(ad)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleDeleteAd(ad.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -1362,32 +1522,96 @@ function AdminPanel() {
                       </thead>
                       <tbody>
                         {locations.map((location, index) => (
-                          <tr key={location.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                          <tr key={location.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingLocationId === location.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                             <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{location.province}</td>
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{location.district}</td>
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">
-                              {location.localLevel} ({location.localLevelType === 'Municipality' ? 'M' : 'RM'})
+                            <td className="p-3 text-sm">
+                              {editingLocationId === location.id ? (
+                                <Input
+                                  value={editingLocationData.province}
+                                  onChange={(e) => setEditingLocationData({...editingLocationData, province: e.target.value})}
+                                  className="w-full text-sm"
+                                />
+                              ) : (
+                                <span>{location.province}</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-sm">
+                              {editingLocationId === location.id ? (
+                                <Input
+                                  value={editingLocationData.district}
+                                  onChange={(e) => setEditingLocationData({...editingLocationData, district: e.target.value})}
+                                  className="w-full text-sm"
+                                />
+                              ) : (
+                                <span>{location.district}</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-sm">
+                              {editingLocationId === location.id ? (
+                                <div className="flex gap-2">
+                                  <Input
+                                    value={editingLocationData.localLevel}
+                                    onChange={(e) => setEditingLocationData({...editingLocationData, localLevel: e.target.value})}
+                                    className="flex-1 text-sm"
+                                    placeholder="Local Level"
+                                  />
+                                  <select
+                                    value={editingLocationData.localLevelType}
+                                    onChange={(e) => setEditingLocationData({...editingLocationData, localLevelType: e.target.value})}
+                                    className="px-2 py-1 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                  >
+                                    <option value="Metropolitan City">Metropolitan City</option>
+                                    <option value="Sub-Metropolitan City">Sub-Metropolitan City</option>
+                                    <option value="Municipality">Municipality</option>
+                                    <option value="Rural Municipality">Rural Municipality</option>
+                                  </select>
+                                </div>
+                              ) : (
+                                <span>{location.localLevel} ({location.localLevelType === 'Municipality' ? 'M' : location.localLevelType === 'Rural Municipality' ? 'RM' : location.localLevelType === 'Metropolitan City' ? 'MC' : 'SMC'})</span>
+                              )}
                             </td>
                             <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                             <td className="p-3 text-sm">
                               <div className="flex gap-2">
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  className="h-7 px-2 text-xs"
-                                  onClick={() => handleEditLocation(location)}
-                                >
-                                  Edit
-                                </Button>
-                                <Button 
-                                  variant="destructive" 
-                                  size="sm" 
-                                  className="h-7 px-2 text-xs"
-                                  onClick={() => handleDeleteLocation(location.id)}
-                                >
-                                  Delete
-                                </Button>
+                                {editingLocationId === location.id ? (
+                                  <>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => handleSaveLocation(location.id)}
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-7 px-2 text-xs"
+                                      onClick={handleCancelEditLocation}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => handleEditLocation(location)}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button 
+                                      variant="destructive" 
+                                      size="sm" 
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => handleDeleteLocation(location.id)}
+                                    >
+                                      Delete
+                                    </Button>
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1522,6 +1746,11 @@ function AdminPanel() {
                 )}
               </div>
 
+              {biddingHistoryLoading && (
+                <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading bidding history...
+                </div>
+              )}
               {/* Bidding history tracking Table */}
               <section className="mb-6">
                 <Card>
@@ -1543,22 +1772,108 @@ function AdminPanel() {
                         </thead>
                         <tbody>
                           {biddingHistoryData.map((bid, index) => (
-                            <tr key={bid.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                            <tr key={bid.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingBiddingHistoryId === bid.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{bid.userName}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{bid.itemName}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-semibold">Rs. {bid.reservePrice.toLocaleString()}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-semibold">Rs. {bid.buyNowPrice.toLocaleString()}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{bid.paymentMethod}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(bid.startDateTime).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                              <td className="p-3 text-sm">
+                                {editingBiddingHistoryId === bid.id ? (
+                                  <Input
+                                    value={editingBiddingHistoryData.itemName}
+                                    onChange={(e) => setEditingBiddingHistoryData({...editingBiddingHistoryData, itemName: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span>{bid.itemName}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBiddingHistoryId === bid.id ? (
+                                  <Input
+                                    type="number"
+                                    value={editingBiddingHistoryData.reservePrice}
+                                    onChange={(e) => setEditingBiddingHistoryData({...editingBiddingHistoryData, reservePrice: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="font-semibold">Rs. {bid.reservePrice.toLocaleString()}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBiddingHistoryId === bid.id ? (
+                                  <Input
+                                    type="number"
+                                    value={editingBiddingHistoryData.buyNowPrice}
+                                    onChange={(e) => setEditingBiddingHistoryData({...editingBiddingHistoryData, buyNowPrice: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="font-semibold">Rs. {bid.buyNowPrice.toLocaleString()}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBiddingHistoryId === bid.id ? (
+                                  <Input
+                                    value={editingBiddingHistoryData.paymentMethod}
+                                    onChange={(e) => setEditingBiddingHistoryData({...editingBiddingHistoryData, paymentMethod: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span>{bid.paymentMethod}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBiddingHistoryId === bid.id ? (
+                                  <Input
+                                    type="datetime-local"
+                                    value={editingBiddingHistoryData.startDateTime}
+                                    onChange={(e) => setEditingBiddingHistoryData({...editingBiddingHistoryData, startDateTime: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="text-[hsl(var(--muted-foreground))]">{new Date(bid.startDateTime).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                )}
+                              </td>
                               <td className="p-3 text-sm">
                                 <div className="flex gap-2">
-                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
-                                    Edit
-                                  </Button>
-                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
-                                    Delete
-                                  </Button>
+                                  {editingBiddingHistoryId === bid.id ? (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleSaveBiddingHistory(bid.id)}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={handleCancelEditBiddingHistory}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleEditBiddingHistory(bid)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleDeleteBiddingHistory(bid.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -1570,6 +1885,11 @@ function AdminPanel() {
                 </Card>
               </section>
 
+              {bidWinnerLoading && (
+                <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading bid winners...
+                </div>
+              )}
               {/* Bid winner tracking Table */}
               <section className="mb-6">
                 <Card>
@@ -1593,24 +1913,124 @@ function AdminPanel() {
                         </thead>
                         <tbody>
                           {bidWinnerData.map((winner, index) => (
-                            <tr key={winner.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                            <tr key={winner.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingBidWinnerId === winner.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{winner.userName}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{winner.biddingItem}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(winner.bidStartDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(winner.bidWonDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(winner.paymentProceedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-semibold">Rs. {winner.totalPayment.toLocaleString()}</td>
+                              <td className="p-3 text-sm">
+                                {editingBidWinnerId === winner.id ? (
+                                  <Input
+                                    value={editingBidWinnerData.biddingItem}
+                                    onChange={(e) => setEditingBidWinnerData({...editingBidWinnerData, biddingItem: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span>{winner.biddingItem}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBidWinnerId === winner.id ? (
+                                  <Input
+                                    type="date"
+                                    value={editingBidWinnerData.bidStartDate}
+                                    onChange={(e) => setEditingBidWinnerData({...editingBidWinnerData, bidStartDate: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="text-[hsl(var(--muted-foreground))]">{new Date(winner.bidStartDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBidWinnerId === winner.id ? (
+                                  <Input
+                                    type="date"
+                                    value={editingBidWinnerData.bidWonDate}
+                                    onChange={(e) => setEditingBidWinnerData({...editingBidWinnerData, bidWonDate: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="text-[hsl(var(--muted-foreground))]">{new Date(winner.bidWonDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBidWinnerId === winner.id ? (
+                                  <Input
+                                    type="date"
+                                    value={editingBidWinnerData.paymentProceedDate}
+                                    onChange={(e) => setEditingBidWinnerData({...editingBidWinnerData, paymentProceedDate: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="text-[hsl(var(--muted-foreground))]">{new Date(winner.paymentProceedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBidWinnerId === winner.id ? (
+                                  <Input
+                                    type="number"
+                                    value={editingBidWinnerData.totalPayment}
+                                    onChange={(e) => setEditingBidWinnerData({...editingBidWinnerData, totalPayment: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="font-semibold">Rs. {winner.totalPayment.toLocaleString()}</span>
+                                )}
+                              </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{winner.sellerName}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{winner.emailSent}</td>
+                              <td className="p-3 text-sm">
+                                {editingBidWinnerId === winner.id ? (
+                                  <select
+                                    value={editingBidWinnerData.emailSent ? 'Yes' : 'No'}
+                                    onChange={(e) => setEditingBidWinnerData({...editingBidWinnerData, emailSent: e.target.value === 'Yes'})}
+                                    className="px-2 py-1 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                  >
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                  </select>
+                                ) : (
+                                  <span>{winner.emailSent}</span>
+                                )}
+                              </td>
                               <td className="p-3 text-sm">
                                 <div className="flex gap-2">
-                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
-                                    Edit
-                                  </Button>
-                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
-                                    Delete
-                                  </Button>
+                                  {editingBidWinnerId === winner.id ? (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleSaveBidWinner(winner.id)}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={handleCancelEditBidWinner}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleEditBidWinner(winner)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleDeleteBidWinner(winner.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -1622,6 +2042,11 @@ function AdminPanel() {
                 </Card>
               </section>
 
+              {blockedUserLoading && (
+                <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading blocked users...
+                </div>
+              )}
               {/* Block or backlist user Table */}
               <section className="mb-6">
                 <Card>
@@ -1642,21 +2067,96 @@ function AdminPanel() {
                         </thead>
                         <tbody>
                           {blockedUserData.map((user, index) => (
-                            <tr key={user.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                            <tr key={user.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingBlockedUserId === user.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{user.userName}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{user.email}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{user.address}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(user.dateToBlock).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{user.reasonToBlock}</td>
+                              <td className="p-3 text-sm">
+                                {editingBlockedUserId === user.id ? (
+                                  <Input
+                                    type="email"
+                                    value={editingBlockedUserData.email}
+                                    onChange={(e) => setEditingBlockedUserData({...editingBlockedUserData, email: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span>{user.email}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBlockedUserId === user.id ? (
+                                  <Input
+                                    value={editingBlockedUserData.address}
+                                    onChange={(e) => setEditingBlockedUserData({...editingBlockedUserData, address: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span>{user.address}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBlockedUserId === user.id ? (
+                                  <Input
+                                    type="date"
+                                    value={editingBlockedUserData.dateToBlock}
+                                    onChange={(e) => setEditingBlockedUserData({...editingBlockedUserData, dateToBlock: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="text-[hsl(var(--muted-foreground))]">{new Date(user.dateToBlock).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBlockedUserId === user.id ? (
+                                  <Input
+                                    value={editingBlockedUserData.reasonToBlock}
+                                    onChange={(e) => setEditingBlockedUserData({...editingBlockedUserData, reasonToBlock: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span>{user.reasonToBlock}</span>
+                                )}
+                              </td>
                               <td className="p-3 text-sm">
                                 <div className="flex gap-2">
-                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
-                                    Edit
-                                  </Button>
-                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
-                                    Delete
-                                  </Button>
+                                  {editingBlockedUserId === user.id ? (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleSaveBlockedUser(user.id)}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={handleCancelEditBlockedUser}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleEditBlockedUser(user)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleDeleteBlockedUser(user.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -1689,26 +2189,132 @@ function AdminPanel() {
                         </thead>
                         <tbody>
                           {biddingTrackingData.map((tracking, index) => (
-                            <tr key={tracking.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                            <tr key={tracking.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingBiddingTrackingId === tracking.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{tracking.bidWinnerName}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{tracking.bidWonItemName}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{tracking.paymentStatus}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{tracking.pickupStatus}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">
-                                {tracking.completeProcessDateTime 
-                                  ? new Date(tracking.completeProcessDateTime).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                                  : '-'}
+                              <td className="p-3 text-sm">
+                                {editingBiddingTrackingId === tracking.id ? (
+                                  <Input
+                                    value={editingBiddingTrackingData.bidWinnerName}
+                                    onChange={(e) => setEditingBiddingTrackingData({...editingBiddingTrackingData, bidWinnerName: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span>{tracking.bidWinnerName}</span>
+                                )}
                               </td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{tracking.alertSent}</td>
+                              <td className="p-3 text-sm">
+                                {editingBiddingTrackingId === tracking.id ? (
+                                  <Input
+                                    value={editingBiddingTrackingData.bidWonItemName}
+                                    onChange={(e) => setEditingBiddingTrackingData({...editingBiddingTrackingData, bidWonItemName: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span>{tracking.bidWonItemName}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBiddingTrackingId === tracking.id ? (
+                                  <select
+                                    value={editingBiddingTrackingData.paymentStatus}
+                                    onChange={(e) => setEditingBiddingTrackingData({...editingBiddingTrackingData, paymentStatus: e.target.value})}
+                                    className="px-2 py-1 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                  >
+                                    <option value="Pending">Pending</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="Failed">Failed</option>
+                                  </select>
+                                ) : (
+                                  <span>{tracking.paymentStatus}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBiddingTrackingId === tracking.id ? (
+                                  <select
+                                    value={editingBiddingTrackingData.pickupStatus}
+                                    onChange={(e) => setEditingBiddingTrackingData({...editingBiddingTrackingData, pickupStatus: e.target.value})}
+                                    className="px-2 py-1 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                  >
+                                    <option value="Not Started">Not Started</option>
+                                    <option value="Scheduled">Scheduled</option>
+                                    <option value="Pending">Pending</option>
+                                    <option value="Picked Up">Picked Up</option>
+                                  </select>
+                                ) : (
+                                  <span>{tracking.pickupStatus}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBiddingTrackingId === tracking.id ? (
+                                  <Input
+                                    type="datetime-local"
+                                    value={editingBiddingTrackingData.completeProcessDateTime || ''}
+                                    onChange={(e) => setEditingBiddingTrackingData({...editingBiddingTrackingData, completeProcessDateTime: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="text-[hsl(var(--muted-foreground))]">
+                                    {tracking.completeProcessDateTime 
+                                      ? new Date(tracking.completeProcessDateTime).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                      : '-'}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingBiddingTrackingId === tracking.id ? (
+                                  <select
+                                    value={editingBiddingTrackingData.alertSent ? 'Yes' : 'No'}
+                                    onChange={(e) => setEditingBiddingTrackingData({...editingBiddingTrackingData, alertSent: e.target.value === 'Yes'})}
+                                    className="px-2 py-1 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                  >
+                                    <option value="Yes">Yes</option>
+                                    <option value="No">No</option>
+                                  </select>
+                                ) : (
+                                  <span>{tracking.alertSent}</span>
+                                )}
+                              </td>
                               <td className="p-3 text-sm">
                                 <div className="flex gap-2">
-                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
-                                    Edit
-                                  </Button>
-                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
-                                    Delete
-                                  </Button>
+                                  {editingBiddingTrackingId === tracking.id ? (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleSaveBiddingTracking(tracking.id)}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={handleCancelEditBiddingTracking}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleEditBiddingTracking(tracking)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleDeleteBiddingTracking(tracking.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -1768,6 +2374,11 @@ function AdminPanel() {
 
           {activeSection === 'delivery-management' && (
             <>
+              {deliveryLoading && (
+                <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading deliveries...
+                </div>
+              )}
               {/* Delivery Management Table */}
               <section className="mb-6">
                 <Card>
@@ -1788,21 +2399,100 @@ function AdminPanel() {
                         </thead>
                         <tbody>
                           {deliveryData.map((delivery, index) => (
-                            <tr key={delivery.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                            <tr key={delivery.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingDeliveryId === delivery.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{delivery.sellerVendor}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{delivery.item}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-semibold">Rs. {delivery.price.toLocaleString()}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{delivery.deliveryStatus}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(delivery.pickupDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                              <td className="p-3 text-sm">
+                                {editingDeliveryId === delivery.id ? (
+                                  <Input
+                                    value={editingDeliveryData.item}
+                                    onChange={(e) => setEditingDeliveryData({...editingDeliveryData, item: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span>{delivery.item}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingDeliveryId === delivery.id ? (
+                                  <Input
+                                    type="number"
+                                    value={editingDeliveryData.price}
+                                    onChange={(e) => setEditingDeliveryData({...editingDeliveryData, price: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="font-semibold">Rs. {delivery.price.toLocaleString()}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingDeliveryId === delivery.id ? (
+                                  <select
+                                    value={editingDeliveryData.deliveryStatus}
+                                    onChange={(e) => setEditingDeliveryData({...editingDeliveryData, deliveryStatus: e.target.value})}
+                                    className="px-2 py-1 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                  >
+                                    <option value="Pending">Pending</option>
+                                    <option value="In Transit">In Transit</option>
+                                    <option value="Delivered">Delivered</option>
+                                  </select>
+                                ) : (
+                                  <span>{delivery.deliveryStatus}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingDeliveryId === delivery.id ? (
+                                  <Input
+                                    type="date"
+                                    value={editingDeliveryData.pickupDate}
+                                    onChange={(e) => setEditingDeliveryData({...editingDeliveryData, pickupDate: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="text-[hsl(var(--muted-foreground))]">{new Date(delivery.pickupDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                                )}
+                              </td>
                               <td className="p-3 text-sm">
                                 <div className="flex gap-2">
-                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
-                                    Edit
-                                  </Button>
-                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
-                                    Delete
-                                  </Button>
+                                  {editingDeliveryId === delivery.id ? (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleSaveDelivery(delivery.id)}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={handleCancelEditDelivery}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleEditDelivery(delivery)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleDeleteDelivery(delivery.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -1814,6 +2504,11 @@ function AdminPanel() {
                 </Card>
               </section>
 
+              {purchaseVerificationLoading && (
+                <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading purchase verifications...
+                </div>
+              )}
               {/* Purchase Verification info Table */}
               <section>
                 <Card>
@@ -1835,22 +2530,112 @@ function AdminPanel() {
                         </thead>
                         <tbody>
                           {purchaseVerificationData.map((purchase, index) => (
-                            <tr key={purchase.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                            <tr key={purchase.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingPurchaseVerificationId === purchase.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{purchase.buyerUser}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{purchase.item}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-semibold">Rs. {purchase.price.toLocaleString()}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(purchase.purchaseDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))] font-mono">{purchase.verificationCode}</td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{purchase.deliveryStatus}</td>
+                              <td className="p-3 text-sm">
+                                {editingPurchaseVerificationId === purchase.id ? (
+                                  <Input
+                                    value={editingPurchaseVerificationData.item}
+                                    onChange={(e) => setEditingPurchaseVerificationData({...editingPurchaseVerificationData, item: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span>{purchase.item}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingPurchaseVerificationId === purchase.id ? (
+                                  <Input
+                                    type="number"
+                                    value={editingPurchaseVerificationData.price}
+                                    onChange={(e) => setEditingPurchaseVerificationData({...editingPurchaseVerificationData, price: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="font-semibold">Rs. {purchase.price.toLocaleString()}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingPurchaseVerificationId === purchase.id ? (
+                                  <Input
+                                    type="date"
+                                    value={editingPurchaseVerificationData.purchaseDate}
+                                    onChange={(e) => setEditingPurchaseVerificationData({...editingPurchaseVerificationData, purchaseDate: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span className="text-[hsl(var(--muted-foreground))]">{new Date(purchase.purchaseDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingPurchaseVerificationId === purchase.id ? (
+                                  <Input
+                                    value={editingPurchaseVerificationData.verificationCode}
+                                    onChange={(e) => setEditingPurchaseVerificationData({...editingPurchaseVerificationData, verificationCode: e.target.value})}
+                                    className="w-full text-sm font-mono"
+                                  />
+                                ) : (
+                                  <span className="font-mono">{purchase.verificationCode}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingPurchaseVerificationId === purchase.id ? (
+                                  <select
+                                    value={editingPurchaseVerificationData.deliveryStatus}
+                                    onChange={(e) => setEditingPurchaseVerificationData({...editingPurchaseVerificationData, deliveryStatus: e.target.value})}
+                                    className="px-2 py-1 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                  >
+                                    <option value="Pending">Pending</option>
+                                    <option value="In Transit">In Transit</option>
+                                    <option value="Delivered">Delivered</option>
+                                    <option value="Failed">Failed</option>
+                                  </select>
+                                ) : (
+                                  <span>{purchase.deliveryStatus}</span>
+                                )}
+                              </td>
                               <td className="p-3 text-sm">
                                 <div className="flex gap-2">
-                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
-                                    Edit
-                                  </Button>
-                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
-                                    Delete
-                                  </Button>
+                                  {editingPurchaseVerificationId === purchase.id ? (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleSavePurchaseVerification(purchase.id)}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={handleCancelEditPurchaseVerification}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleEditPurchaseVerification(purchase)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleDeletePurchaseVerification(purchase.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </>
+                                  )}
                                 </div>
                               </td>
                             </tr>
