@@ -3,9 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Category;
-use App\Models\Subcategory;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Str;
 
 class CategorySeeder extends Seeder
 {
@@ -16,41 +14,88 @@ class CategorySeeder extends Seeder
   {
     $categories = [
       [
-        'name' => 'Books & Magazines',
-        'description' => 'Find books, magazines, and reading materials',
+        'category' => 'Art & Craft',
         'subcategories' => [
-          'E-books',
+          'Digital art',
+          'Painting',
+          'Sculpture',
+          'Drawing',
+          'Handicrafts',
+          'Pottery',
+        ],
+      ],
+      [
+        'category' => 'Bicycle & Accessories',
+        'subcategories' => [
+          'Mountain Bikes',
+          'Road Bikes',
+          'Electric Bikes',
+          'Bike Parts',
+          'Bike Accessories',
+        ],
+      ],
+      [
+        'category' => 'Books & Magazine',
+        'subcategories' => [
           'Fiction',
           'Non-Fiction',
           'Textbooks',
-          'Comics & Graphic Novels',
+          'Comics',
+          'Magazines',
+          'E-books',
         ],
       ],
       [
-        'name' => 'Electronics',
-        'description' => 'Electronics, gadgets, and tech devices',
+        'category' => 'Building & Construction',
         'subcategories' => [
-          'Computers & Laptops',
-          'Mobile Phones',
-          'Tablets',
-          'Cameras',
-          'Audio Equipment',
+          'Construction Materials',
+          'Tools',
+          'Hardware',
+          'Plumbing',
+          'Electrical Supplies',
         ],
       ],
       [
-        'name' => 'Vehicles',
-        'description' => 'Cars, motorcycles, and other vehicles',
+        'category' => 'Business for Sale',
         'subcategories' => [
-          'Cars',
-          'Motorcycles',
-          'Trucks',
-          'Boats',
-          'RVs & Campers',
+          'Retail Business',
+          'Restaurant',
+          'Service Business',
+          'Manufacturing',
+          'Online Business',
         ],
       ],
       [
-        'name' => 'Furniture',
-        'description' => 'Home and office furniture',
+        'category' => 'Clothes & Fashion',
+        'subcategories' => [
+          'Men\'s Clothing',
+          'Women\'s Clothing',
+          'Kids Clothing',
+          'Shoes',
+          'Accessories',
+        ],
+      ],
+      [
+        'category' => 'Events/Tickets',
+        'subcategories' => [
+          'Concert Tickets',
+          'Sports Tickets',
+          'Theater Tickets',
+          'Event Planning',
+        ],
+      ],
+      [
+        'category' => 'Farming & Agriculture',
+        'subcategories' => [
+          'Seeds',
+          'Fertilizers',
+          'Farm Equipment',
+          'Livestock',
+          'Crops',
+        ],
+      ],
+      [
+        'category' => 'Furniture',
         'subcategories' => [
           'Living Room',
           'Bedroom',
@@ -60,34 +105,159 @@ class CategorySeeder extends Seeder
         ],
       ],
       [
-        'name' => 'Clothing & Accessories',
-        'description' => 'Fashion items and accessories',
+        'category' => 'Health & Beauty',
         'subcategories' => [
-          'Men\'s Clothing',
-          'Women\'s Clothing',
-          'Shoes',
-          'Jewelry',
+          'Skincare',
+          'Makeup',
+          'Hair Care',
+          'Fitness Equipment',
+          'Supplements',
+        ],
+      ],
+      [
+        'category' => 'Home & Garden',
+        'subcategories' => [
+          'Garden Tools',
+          'Plants',
+          'Home Decor',
+          'Kitchenware',
+          'Cleaning Supplies',
+        ],
+      ],
+      [
+        'category' => 'IT & Computers',
+        'subcategories' => [
+          'Laptops',
+          'Desktops',
+          'Computer Parts',
+          'Software',
+          'Networking Equipment',
+        ],
+      ],
+      [
+        'category' => 'Jewelers',
+        'subcategories' => [
+          'Gold Jewelry',
+          'Silver Jewelry',
+          'Diamond Jewelry',
           'Watches',
+          'Gemstones',
+        ],
+      ],
+      [
+        'category' => 'Jobs',
+        'subcategories' => [
+          'Full-time',
+          'Part-time',
+          'Contract',
+          'Freelance',
+          'Internship',
+        ],
+      ],
+      [
+        'category' => 'Mobile phone & Gadgets',
+        'subcategories' => [
+          'Smartphones',
+          'Tablets',
+          'Accessories',
+          'Wearables',
+          'Cases & Covers',
+        ],
+      ],
+      [
+        'category' => 'Music & Musical instrument',
+        'subcategories' => [
+          'Guitars',
+          'Pianos',
+          'Drums',
+          'Wind Instruments',
+          'Audio Equipment',
+        ],
+      ],
+      [
+        'category' => 'Office Supply',
+        'subcategories' => [
+          'Stationery',
+          'Office Furniture',
+          'Printers',
+          'Office Equipment',
+          'Supplies',
+        ],
+      ],
+      [
+        'category' => 'Pets & Animal',
+        'subcategories' => [
+          'Dogs',
+          'Cats',
+          'Birds',
+          'Pet Supplies',
+          'Pet Food',
+        ],
+      ],
+      [
+        'category' => 'Photography',
+        'subcategories' => [
+          'Cameras',
+          'Lenses',
+          'Accessories',
+          'Photo Equipment',
+          'Studio Equipment',
+        ],
+      ],
+      [
+        'category' => 'Property',
+        'subcategories' => [
+          'Land for Sale',
+          'House for Sale',
+          'Apartments',
+          'Commercial Property',
+          'Rentals',
+        ],
+      ],
+      [
+        'category' => 'Sports & Recreation',
+        'subcategories' => [
+          'Sports Equipment',
+          'Fitness Gear',
+          'Outdoor Gear',
+          'Sports Apparel',
+          'Games',
+        ],
+      ],
+      [
+        'category' => 'Travel & Tourism',
+        'subcategories' => [
+          'Travel Packages',
+          'Hotel Bookings',
+          'Travel Guides',
+          'Travel Accessories',
+        ],
+      ],
+      [
+        'category' => 'Vehicle',
+        'subcategories' => [
+          'Cars',
+          'Motorcycles',
+          'Trucks',
+          'Buses',
+          'Boats',
+          'RVs',
         ],
       ],
     ];
 
     foreach ($categories as $categoryData) {
-      $category = Category::create([
-        'name' => $categoryData['name'],
-        'slug' => Str::slug($categoryData['name']),
-        'description' => $categoryData['description'],
-        'is_active' => true,
-        'sort_order' => 0,
+      // Create main category (sub_category is null)
+      Category::create([
+        'category' => $categoryData['category'],
+        'sub_category' => null,
       ]);
 
+      // Create subcategories
       foreach ($categoryData['subcategories'] as $subcategoryName) {
-        Subcategory::create([
-          'category_id' => $category->id,
-          'name' => $subcategoryName,
-          'slug' => Str::slug($subcategoryName),
-          'is_active' => true,
-          'sort_order' => 0,
+        Category::create([
+          'category' => $categoryData['category'],
+          'sub_category' => $subcategoryName,
         ]);
       }
     }

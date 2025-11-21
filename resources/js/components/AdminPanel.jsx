@@ -44,8 +44,11 @@ function AdminPanel() {
   const [editingLocationId, setEditingLocationId] = useState(null);
   const [editingLocationData, setEditingLocationData] = useState(null);
 
-  // Category management data - will be populated from API
+  // Category management data - fetched from database via API
   const [categoryManagementData, setCategoryManagementData] = useState([]);
+  const [categoryManagementLoading, setCategoryManagementLoading] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [editingCategoryData, setEditingCategoryData] = useState(null);
 
   // Bidding history data - fetched from database via API
   const [biddingHistoryData, setBiddingHistoryData] = useState([]);
@@ -200,6 +203,13 @@ function AdminPanel() {
       fetchBidWinners();
       fetchBlockedUsers();
       fetchBiddingTracking();
+    }
+  }, [activeSection]);
+
+  // Fetch category management data
+  useEffect(() => {
+    if (activeSection === 'category-management') {
+      fetchCategoryManagement();
     }
   }, [activeSection]);
 
@@ -945,58 +955,90 @@ function AdminPanel() {
     try {
       const response = await window.axios.get('/api/categories');
       setCategories(response.data);
-      
-      // Transform categories data for Category Management table with mock subcategories
-      // Flatten categories with subcategories into rows
-      const categoryManagementRows = [];
-      response.data.forEach((category) => {
-        // Get mock subcategories for this category
-        const mockSubcategories = getMockSubcategories(category.name);
-        
-        if (mockSubcategories.length > 0) {
-          mockSubcategories.forEach((subcategoryName, index) => {
-            categoryManagementRows.push({
-              id: `${category.id}-${index}`,
-              categoryName: category.name,
-              subcategoryName: subcategoryName
-            });
-          });
-        } else {
-          // If no mock subcategories, show category as a row with empty subcategory
-          categoryManagementRows.push({
-            id: category.id,
-            categoryName: category.name,
-            subcategoryName: ''
-          });
-        }
-      });
-      setCategoryManagementData(categoryManagementRows);
     } catch (error) {
       console.error('Error fetching categories:', error);
-      // Fallback to mock data if API fails
-      const fallbackCategories = [
-        'Art & Craft', 'Bicycle & Accessories', 'Books & Magazine', 'Building & Construction',
-        'Business for Sale', 'Clothes & Fashion', 'Events/Tickets', 'Farming & Agriculture',
-        'Furniture', 'Health & Beauty', 'Home & Garden', 'IT & Computers', 'Jewelers',
-        'Jobs', 'Mobile phone & Gadgets', 'Music & Musical instrument', 'Office Supply',
-        'Pets & Animal', 'Photography', 'Property', 'Sports & Recreation', 'Travel & Tourism', 'Vehicle'
-      ];
-      const fallbackRows = [];
-      fallbackCategories.forEach((categoryName) => {
-        const mockSubcategories = getMockSubcategories(categoryName);
-        if (mockSubcategories.length > 0) {
-          mockSubcategories.forEach((subcategoryName, index) => {
-            fallbackRows.push({
-              id: `${categoryName}-${index}`,
-              categoryName: categoryName,
-              subcategoryName: subcategoryName
-            });
-          });
-        }
-      });
-      setCategoryManagementData(fallbackRows);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch category management data from admin API
+  const fetchCategoryManagement = async () => {
+    setCategoryManagementLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getCategories();
+      const categoriesData = response.data || [];
+      
+      // Transform to match expected format
+      const transformedCategories = categoriesData.map(item => ({
+        id: item.subcategoryId || item.categoryId,
+        categoryId: item.categoryId,
+        categoryName: item.categoryName,
+        subcategoryId: item.subcategoryId,
+        subcategoryName: item.subcategoryName || ''
+      }));
+      
+      setCategoryManagementData(transformedCategories);
+    } catch (err) {
+      setError('Failed to fetch categories: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching categories:', err);
+    } finally {
+      setCategoryManagementLoading(false);
+    }
+  };
+
+  // Handle edit category
+  const handleEditCategory = (category) => {
+    setEditingCategoryId(category.id);
+    setEditingCategoryData({
+      categoryName: category.categoryName,
+      subcategoryName: category.subcategoryName
+    });
+  };
+
+  // Handle save category
+  const handleSaveCategory = async (categoryId) => {
+    try {
+      const category = categoryManagementData.find(c => c.id === categoryId);
+      
+      // Update both category and subcategory
+      await adminAPI.updateCategory(categoryId, {
+        categoryName: editingCategoryData.categoryName,
+        subcategoryName: editingCategoryData.subcategoryName || null,
+      });
+      
+      setSuccessMessage('Category updated successfully');
+      setEditingCategoryId(null);
+      setEditingCategoryData(null);
+      fetchCategoryManagement();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update category: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle cancel edit category
+  const handleCancelEditCategory = () => {
+    setEditingCategoryId(null);
+    setEditingCategoryData(null);
+  };
+
+  // Handle delete category
+  const handleDeleteCategory = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this category/subcategory?')) {
+      return;
+    }
+    
+    try {
+      await adminAPI.deleteCategory(id);
+      setSuccessMessage('Category deleted successfully');
+      fetchCategoryManagement();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete category: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
     }
   };
 
@@ -2330,6 +2372,11 @@ function AdminPanel() {
 
           {activeSection === 'category-management' && (
             <section>
+              {categoryManagementLoading && (
+                <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading categories...
+                </div>
+              )}
               <Card>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-4">
@@ -2348,18 +2395,72 @@ function AdminPanel() {
                       </thead>
                       <tbody>
                         {categoryManagementData.map((category, index) => (
-                          <tr key={category.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                          <tr key={category.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingCategoryId === category.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                             <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{category.categoryName}</td>
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{category.subcategoryName}</td>
+                            <td className="p-3 text-sm">
+                              {editingCategoryId === category.id ? (
+                                <Input
+                                  value={editingCategoryData.categoryName}
+                                  onChange={(e) => setEditingCategoryData({...editingCategoryData, categoryName: e.target.value})}
+                                  className="w-full text-sm"
+                                />
+                              ) : (
+                                <span>{category.categoryName}</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-sm">
+                              {editingCategoryId === category.id ? (
+                                <Input
+                                  value={editingCategoryData.subcategoryName || ''}
+                                  onChange={(e) => setEditingCategoryData({...editingCategoryData, subcategoryName: e.target.value})}
+                                  className="w-full text-sm"
+                                  placeholder="Subcategory (optional)"
+                                />
+                              ) : (
+                                <span>{category.subcategoryName || '-'}</span>
+                              )}
+                            </td>
                             <td className="p-3 text-sm">
                               <div className="flex gap-2">
-                                <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
-                                  Edit
-                                </Button>
-                                <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
-                                  Delete
-                                </Button>
+                                {editingCategoryId === category.id ? (
+                                  <>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => handleSaveCategory(category.id)}
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-7 px-2 text-xs"
+                                      onClick={handleCancelEditCategory}
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => handleEditCategory(category)}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button 
+                                      variant="destructive" 
+                                      size="sm" 
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => handleDeleteCategory(category.id)}
+                                    >
+                                      Delete
+                                    </Button>
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>

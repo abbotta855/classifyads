@@ -72,5 +72,12 @@ export const adminAPI = {
   createUser: (data) => axios.post(`${API_BASE}/users`, data),
   updateUser: (id, data) => axios.put(`${API_BASE}/users/${id}`, data),
   deleteUser: (id) => axios.delete(`${API_BASE}/users/${id}`),
+
+  // Categories
+  getCategories: () => axios.get(`${API_BASE}/categories`),
+  getCategory: (id) => axios.get(`${API_BASE}/categories/${id}`),
+  createCategory: (data) => axios.post(`${API_BASE}/categories`, data),
+  updateCategory: (id, data) => axios.put(`${API_BASE}/categories/${id}`, data),
+  deleteCategory: (id) => axios.delete(`${API_BASE}/categories/${id}`),
 };
 

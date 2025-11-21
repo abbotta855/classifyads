@@ -8,35 +8,32 @@ use Illuminate\Http\Request;
 class CategoryController extends Controller
 {
   /**
-   * Get all active categories with subcategories and ad counts.
+   * Get all categories with subcategories.
    */
   public function index()
   {
-    // Get only top-level categories (parent_id is null)
-    $categories = Category::where('is_active', true)
-      ->whereNull('parent_id')
-      ->with(['children' => function ($query) {
-        $query->where('is_active', true)->orderBy('name');
-      }])
-      ->orderBy('name')
+    // Get all main categories (sub_category is null)
+    $mainCategories = Category::whereNull('sub_category')
+      ->orderBy('category')
       ->get();
 
-    // Format response with ad counts
-    $categories = $categories->map(function ($category) {
+    // Format response
+    $categories = $mainCategories->map(function ($category) {
+      // Get all subcategories for this category
+      $subcategories = Category::where('category', $category->category)
+        ->whereNotNull('sub_category')
+        ->orderBy('sub_category')
+        ->get();
+
       return [
         'id' => $category->id,
-        'name' => $category->name,
-        'slug' => $category->slug,
-        'description' => $category->description,
-        'icon' => $category->icon,
-        'ad_count' => $category->total_ads_count,
-        'subcategories' => $category->children->map(function ($subcategory) {
+        'name' => $category->category,
+        'slug' => $category->category, // Use category name as slug for main categories
+        'subcategories' => $subcategories->map(function ($subcategory) {
           return [
             'id' => $subcategory->id,
-            'name' => $subcategory->name,
-            'slug' => $subcategory->slug,
-            'description' => $subcategory->description,
-            'ad_count' => $subcategory->total_ads_count,
+            'name' => $subcategory->sub_category,
+            'slug' => $subcategory->sub_category,
           ];
         }),
       ];
@@ -50,27 +47,26 @@ class CategoryController extends Controller
    */
   public function show($slug)
   {
-    $category = Category::where('slug', $slug)
-      ->where('is_active', true)
-      ->with(['children' => function ($query) {
-        $query->where('is_active', true)->orderBy('name');
-      }])
+    // Find main category by category name
+    $category = Category::where('category', $slug)
+      ->whereNull('sub_category')
       ->firstOrFail();
+
+    // Get all subcategories for this category
+    $subcategories = Category::where('category', $category->category)
+      ->whereNotNull('sub_category')
+      ->orderBy('sub_category')
+      ->get();
 
     return response()->json([
       'id' => $category->id,
-      'name' => $category->name,
-      'slug' => $category->slug,
-      'description' => $category->description,
-      'icon' => $category->icon,
-      'ad_count' => $category->total_ads_count,
-      'subcategories' => $category->children->map(function ($subcategory) {
+      'name' => $category->category,
+      'slug' => $category->category,
+      'subcategories' => $subcategories->map(function ($subcategory) {
         return [
           'id' => $subcategory->id,
-          'name' => $subcategory->name,
-          'slug' => $subcategory->slug,
-          'description' => $subcategory->description,
-          'ad_count' => $subcategory->total_ads_count,
+          'name' => $subcategory->sub_category,
+          'slug' => $subcategory->sub_category,
         ];
       }),
     ]);
