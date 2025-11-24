@@ -156,6 +156,14 @@ function AdminPanel() {
     job_progress: 'applied',
   });
 
+  // Live chat data
+  const [liveChats, setLiveChats] = useState([]);
+  const [liveChatsLoading, setLiveChatsLoading] = useState(false);
+  const [selectedLiveChat, setSelectedLiveChat] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
+  const [newChatMessage, setNewChatMessage] = useState('');
+
   // Fetch ads data
   useEffect(() => {
     if (activeSection === 'ads-management' || !activeSection) {
@@ -176,6 +184,12 @@ function AdminPanel() {
     if (activeSection === 'job-management') {
       fetchJobCategories();
       fetchJobApplicants();
+    }
+  }, [activeSection]);
+
+  useEffect(() => {
+    if (activeSection === 'live-chat') {
+      fetchLiveChats();
     }
   }, [activeSection]);
 
@@ -406,6 +420,92 @@ function AdminPanel() {
     } catch (err) {
       setError('Failed to delete job applicant: ' + (err.response?.data?.message || err.message));
       console.error('Error deleting job applicant:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const fetchLiveChats = async () => {
+    setLiveChatsLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getLiveChats();
+      const chats = response.data || [];
+      setLiveChats(chats);
+      if (!selectedLiveChat && chats.length > 0) {
+        const firstChat = chats[0];
+        setSelectedLiveChat(firstChat);
+        await fetchChatMessages(firstChat.id);
+        await markChatAsRead(firstChat.id);
+        setLiveChats((prev) =>
+          prev.map((chat) => (chat.id === firstChat.id ? { ...chat, unread_admin_count: 0 } : chat))
+        );
+      } else if (selectedLiveChat) {
+        const updated = chats.find((chat) => chat.id === selectedLiveChat.id);
+        if (updated) {
+          setSelectedLiveChat(updated);
+        }
+      } else if (chats.length === 0) {
+        setSelectedLiveChat(null);
+        setChatMessages([]);
+      }
+    } catch (err) {
+      setError('Failed to fetch live chats: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching live chats:', err);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setLiveChatsLoading(false);
+    }
+  };
+
+  const handleSelectLiveChat = async (chat) => {
+    if (!chat) return;
+    setSelectedLiveChat(chat);
+    await fetchChatMessages(chat.id);
+    await markChatAsRead(chat.id);
+    setLiveChats((prev) =>
+      prev.map((item) =>
+        item.id === chat.id ? { ...item, unread_admin_count: 0 } : item
+      )
+    );
+  };
+
+  const fetchChatMessages = async (chatId) => {
+    setChatMessagesLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getLiveChatMessages(chatId);
+      setChatMessages(response.data || []);
+    } catch (err) {
+      setError('Failed to fetch chat messages: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching chat messages:', err);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setChatMessagesLoading(false);
+    }
+  };
+
+  const markChatAsRead = async (chatId) => {
+    try {
+      await adminAPI.markLiveChatRead(chatId);
+    } catch (err) {
+      console.error('Error marking chat as read:', err);
+    }
+  };
+
+  const handleSendChatMessage = async (e) => {
+    e.preventDefault();
+    if (!selectedLiveChat || !newChatMessage.trim()) return;
+    try {
+      const response = await adminAPI.sendLiveChatMessage(selectedLiveChat.id, {
+        message: newChatMessage,
+        sender_type: 'admin',
+      });
+      setChatMessages((prev) => [...prev, response.data]);
+      setNewChatMessage('');
+      fetchLiveChats();
+    } catch (err) {
+      setError('Failed to send message: ' + (err.response?.data?.message || err.message));
+      console.error('Error sending message:', err);
       setTimeout(() => setError(null), 5000);
     }
   };
@@ -3017,6 +3117,127 @@ function AdminPanel() {
                         )}
                       </tbody>
                     </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'live-chat' && (
+            <section className="space-y-4">
+              <Card>
+                <CardContent className="p-4">
+                  <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Live Chat</h2>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-md font-semibold text-[hsl(var(--foreground))]">Users</h3>
+                        <Button variant="ghost" size="sm" onClick={fetchLiveChats}>Refresh</Button>
+                      </div>
+                      <div className="border border-[hsl(var(--border))] rounded-md h-[420px] overflow-y-auto">
+                        <table className="w-full">
+                          <thead className="bg-[hsl(var(--secondary))]">
+                            <tr>
+                              <th className="text-left px-3 py-2 text-sm font-semibold text-[hsl(var(--foreground))]">User</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {liveChatsLoading ? (
+                              <tr>
+                                <td className="px-3 py-4 text-center text-[hsl(var(--muted-foreground))]">Loading chats...</td>
+                              </tr>
+                            ) : liveChats.length === 0 ? (
+                              <tr>
+                                <td className="px-3 py-4 text-center text-[hsl(var(--muted-foreground))]">No live chats found.</td>
+                              </tr>
+                            ) : (
+                              liveChats.map((chat) => {
+                                const isActive = selectedLiveChat && selectedLiveChat.id === chat.id;
+                                return (
+                                  <tr
+                                    key={chat.id}
+                                    className={`cursor-pointer border-b border-[hsl(var(--border))] ${
+                                      isActive ? 'bg-[hsl(var(--accent))]' : 'hover:bg-[hsl(var(--accent))]/40'
+                                    }`}
+                                    onClick={() => handleSelectLiveChat(chat)}
+                                  >
+                                    <td className="px-3 py-3 text-sm text-[hsl(var(--foreground))] flex items-center justify-between">
+                                      <div>
+                                        <p className="font-semibold">{chat.user?.name || 'Unknown User'}</p>
+                                        <p className="text-[hsl(var(--muted-foreground))] text-xs">
+                                          {chat.last_message_at ? new Date(chat.last_message_at).toLocaleString() : 'No messages yet'}
+                                        </p>
+                                      </div>
+                                      {chat.unread_admin_count > 0 && (
+                                        <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-semibold text-white bg-red-500 rounded-full">
+                                          {chat.unread_admin_count}
+                                        </span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div className="flex flex-col h-full">
+                      <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-2">Chat</h3>
+                      <div className="flex-1 border border-[hsl(var(--border))] rounded-md p-4 flex flex-col h-[420px] bg-[hsl(var(--background))]">
+                        {selectedLiveChat ? (
+                          <>
+                            <div className="mb-3">
+                              <p className="font-semibold text-[hsl(var(--foreground))]">{selectedLiveChat.user?.name || 'Unknown User'}</p>
+                              <p className="text-sm text-[hsl(var(--muted-foreground))]">{selectedLiveChat.user?.email}</p>
+                            </div>
+                            <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                              {chatMessagesLoading ? (
+                                <p className="text-center text-[hsl(var(--muted-foreground))]">Loading messages...</p>
+                              ) : chatMessages.length === 0 ? (
+                                <p className="text-center text-[hsl(var(--muted-foreground))]">No messages yet.</p>
+                              ) : (
+                                chatMessages.map((message) => (
+                                  <div
+                                    key={message.id}
+                                    className={`flex ${message.sender_type === 'admin' ? 'justify-end' : 'justify-start'}`}
+                                  >
+                                    <div
+                                      className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                                        message.sender_type === 'admin'
+                                          ? 'bg-[hsl(var(--primary))] text-white'
+                                          : 'bg-[hsl(var(--muted))] text-[hsl(var(--foreground))]'
+                                      }`}
+                                    >
+                                      <p>{message.message}</p>
+                                      <span className="block text-[10px] mt-1 opacity-80">
+                                        {message.sent_at ? new Date(message.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                            <form className="mt-3 pt-3 border-t border-[hsl(var(--border))]" onSubmit={handleSendChatMessage}>
+                              <div className="flex gap-2">
+                                <Input
+                                  value={newChatMessage}
+                                  onChange={(e) => setNewChatMessage(e.target.value)}
+                                  placeholder="Type your message..."
+                                />
+                                <Button type="submit" disabled={!newChatMessage.trim()}>
+                                  Send
+                                </Button>
+                              </div>
+                            </form>
+                          </>
+                        ) : (
+                          <div className="flex-1 flex items-center justify-center text-[hsl(var(--muted-foreground))]">
+                            Select a user to view the conversation.
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

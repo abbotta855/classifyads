@@ -15,6 +15,8 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Admin\JobCategoryController;
 use App\Http\Controllers\Admin\JobApplicantController;
+use App\Http\Controllers\Admin\LiveChatController;
+use App\Http\Controllers\Admin\LiveChatMessageController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -69,5 +71,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // Job management
     Route::apiResource('job-categories', JobCategoryController::class);
     Route::apiResource('job-applicants', JobApplicantController::class);
+
+    // Live chat management
+    Route::apiResource('live-chats', LiveChatController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
+    Route::get('live-chats/{live_chat}/messages', [LiveChatMessageController::class, 'index']);
+    Route::post('live-chats/{live_chat}/messages', [LiveChatMessageController::class, 'store']);
+    Route::post('live-chats/{live_chat}/mark-read', [LiveChatMessageController::class, 'markAsRead']);
   });
 });

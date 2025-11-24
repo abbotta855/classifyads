@@ -91,5 +91,12 @@ export const adminAPI = {
   createJobApplicant: (data) => axios.post(`${API_BASE}/job-applicants`, data),
   updateJobApplicant: (id, data) => axios.put(`${API_BASE}/job-applicants/${id}`, data),
   deleteJobApplicant: (id) => axios.delete(`${API_BASE}/job-applicants/${id}`),
+
+  // Live Chats
+  getLiveChats: () => axios.get(`${API_BASE}/live-chats`),
+  getLiveChat: (id) => axios.get(`${API_BASE}/live-chats/${id}`),
+  getLiveChatMessages: (id) => axios.get(`${API_BASE}/live-chats/${id}/messages`),
+  sendLiveChatMessage: (id, data) => axios.post(`${API_BASE}/live-chats/${id}/messages`, data),
+  markLiveChatRead: (id) => axios.post(`${API_BASE}/live-chats/${id}/mark-read`),
 };
 

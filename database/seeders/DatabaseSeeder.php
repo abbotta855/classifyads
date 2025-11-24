@@ -28,6 +28,7 @@ class DatabaseSeeder extends Seeder
             AdminDataSeeder::class,
             JobCategorySeeder::class,
             JobApplicantSeeder::class,
+            LiveChatSeeder::class,
         ]);
     }
 }
