@@ -11,9 +11,17 @@ return new class extends Migration
    */
   public function up(): void
   {
-    Schema::table('bid_winners', function (Blueprint $table) {
-      $table->dropTimestamps();
-    });
+    // Check if columns exist before trying to drop them
+    if (Schema::hasColumn('bid_winners', 'created_at')) {
+      Schema::table('bid_winners', function (Blueprint $table) {
+        $table->dropColumn('created_at');
+      });
+    }
+    if (Schema::hasColumn('bid_winners', 'updated_at')) {
+      Schema::table('bid_winners', function (Blueprint $table) {
+        $table->dropColumn('updated_at');
+      });
+    }
   }
 
   /**
