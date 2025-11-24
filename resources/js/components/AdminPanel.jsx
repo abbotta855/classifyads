@@ -163,7 +163,7 @@ function AdminPanel() {
         id: ad.id,
         sn: ad.id,
         title: ad.title,
-        category: ad.category?.name || 'N/A',
+        category: ad.category?.category || 'N/A',
         description: ad.description,
         price: parseFloat(ad.price) || 0,
         views: ad.views || 0,

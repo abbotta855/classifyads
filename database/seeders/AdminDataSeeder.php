@@ -51,35 +51,26 @@ class AdminDataSeeder extends Seeder
       }
     }
 
-    // Get or create categories
-    $categoryIds = DB::table('categories')->pluck('id')->toArray();
-    if (empty($categoryIds)) {
-      // Create a default category if none exist
-      $categoryId = DB::table('categories')->insertGetId([
-        'name' => 'Electronics',
-        'slug' => 'electronics',
-        'parent_id' => null,
-        'description' => 'Electronics category',
-        'is_active' => true,
-        'sort_order' => 0,
-        'total_ads' => 0,
-        'created_at' => now(),
-        'updated_at' => now(),
-      ]);
-      $categoryIds = [$categoryId];
-    }
+    // Get categories by name to assign appropriate category IDs
+    $propertyCategory = DB::table('categories')->where('category', 'Property')->whereNull('sub_category')->first();
+    $vehicleCategory = DB::table('categories')->where('category', 'Vehicle')->whereNull('sub_category')->first();
+    
+    // Get default category ID (first available category) as fallback
+    $defaultCategoryId = DB::table('categories')->value('id') ?? 1;
+    $propertyCategoryId = $propertyCategory->id ?? $defaultCategoryId;
+    $vehicleCategoryId = $vehicleCategory->id ?? $defaultCategoryId;
 
     // Create ads if they don't exist
     $adIds = [];
     $adData = [
-      ['title' => 'Beautiful Land for Sale in Kathmandu', 'category_id' => $categoryIds[0], 'user_id' => $users['seller1@example.com'] ?? 1, 'price' => 15000000, 'views' => 234, 'posted_by' => 'user'],
-      ['title' => 'Toyota Corolla 2020 - Excellent Condition', 'category_id' => $categoryIds[0], 'user_id' => $users['seller2@example.com'] ?? 2, 'price' => 2800000, 'views' => 567, 'posted_by' => 'vendor'],
-      ['title' => 'Honda CB 150R - Like New', 'category_id' => $categoryIds[0], 'user_id' => $users['seller1@example.com'] ?? 1, 'price' => 350000, 'views' => 189, 'posted_by' => 'user'],
-      ['title' => 'Modern House in Lalitpur', 'category_id' => $categoryIds[0], 'user_id' => $users['seller3@example.com'] ?? 3, 'price' => 12000000, 'views' => 445, 'posted_by' => 'admin'],
-      ['title' => 'Isuzu Bus - Commercial Vehicle', 'category_id' => $categoryIds[0], 'user_id' => $users['seller2@example.com'] ?? 2, 'price' => 4500000, 'views' => 123, 'posted_by' => 'vendor'],
-      ['title' => 'Tata Truck - Heavy Duty', 'category_id' => $categoryIds[0], 'user_id' => $users['seller1@example.com'] ?? 1, 'price' => 3200000, 'views' => 98, 'posted_by' => 'user'],
-      ['title' => 'Luxury Apartment in Baneshwor', 'category_id' => $categoryIds[0], 'user_id' => $users['seller3@example.com'] ?? 3, 'price' => 8500000, 'views' => 312, 'posted_by' => 'admin'],
-      ['title' => 'Yamaha FZ - Sports Edition', 'category_id' => $categoryIds[0], 'user_id' => $users['seller1@example.com'] ?? 1, 'price' => 420000, 'views' => 256, 'posted_by' => 'user'],
+      ['title' => 'Beautiful Land for Sale in Kathmandu', 'category_id' => $propertyCategoryId, 'user_id' => $users['seller1@example.com'] ?? 1, 'price' => 15000000, 'views' => 234, 'posted_by' => 'user'],
+      ['title' => 'Toyota Corolla 2020 - Excellent Condition', 'category_id' => $vehicleCategoryId, 'user_id' => $users['seller2@example.com'] ?? 2, 'price' => 2800000, 'views' => 567, 'posted_by' => 'vendor'],
+      ['title' => 'Honda CB 150R - Like New', 'category_id' => $vehicleCategoryId, 'user_id' => $users['seller1@example.com'] ?? 1, 'price' => 350000, 'views' => 189, 'posted_by' => 'user'],
+      ['title' => 'Modern House in Lalitpur', 'category_id' => $propertyCategoryId, 'user_id' => $users['seller3@example.com'] ?? 3, 'price' => 12000000, 'views' => 445, 'posted_by' => 'admin'],
+      ['title' => 'Isuzu Bus - Commercial Vehicle', 'category_id' => $vehicleCategoryId, 'user_id' => $users['seller2@example.com'] ?? 2, 'price' => 4500000, 'views' => 123, 'posted_by' => 'vendor'],
+      ['title' => 'Tata Truck - Heavy Duty', 'category_id' => $vehicleCategoryId, 'user_id' => $users['seller1@example.com'] ?? 1, 'price' => 3200000, 'views' => 98, 'posted_by' => 'user'],
+      ['title' => 'Luxury Apartment in Baneshwor', 'category_id' => $propertyCategoryId, 'user_id' => $users['seller3@example.com'] ?? 3, 'price' => 8500000, 'views' => 312, 'posted_by' => 'admin'],
+      ['title' => 'Yamaha FZ - Sports Edition', 'category_id' => $vehicleCategoryId, 'user_id' => $users['seller1@example.com'] ?? 1, 'price' => 420000, 'views' => 256, 'posted_by' => 'user'],
     ];
 
     foreach ($adData as $ad) {
