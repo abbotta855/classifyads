@@ -126,7 +126,7 @@ function AdminPanel() {
       fetchAds();
       fetchUsers();
     }
-  }, [activeSection]);
+  }, [activeSection, activeSubsection]);
 
   // Fetch users and categories for auction form
   useEffect(() => {
@@ -1600,10 +1600,16 @@ function AdminPanel() {
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
                       <div className="space-y-2 flex-1">
-                        <p className="text-sm text-[hsl(var(--foreground))]">
+                        <p 
+                          className="text-sm text-[hsl(var(--foreground))] cursor-pointer hover:text-[hsl(var(--primary))] transition-colors"
+                          onClick={() => navigate('/admin/ads-management/user-posted-ads')}
+                        >
                           User posted ad total: <span className="font-semibold">{adTotals.userPosted}</span>
                         </p>
-                        <p className="text-sm text-[hsl(var(--foreground))]">
+                        <p 
+                          className="text-sm text-[hsl(var(--foreground))] cursor-pointer hover:text-[hsl(var(--primary))] transition-colors"
+                          onClick={() => navigate('/admin/ads-management/vendor-posted-ads')}
+                        >
                           Vendor posted ad total: <span className="font-semibold">{adTotals.vendorPosted}</span>
                         </p>
                         <p 
@@ -1884,29 +1890,375 @@ function AdminPanel() {
                         </tr>
                       </thead>
                       <tbody>
-                        {/* Empty rows - 6 rows as shown in the image */}
-                        {Array.from({ length: 6 }, (_, index) => (
-                          <tr key={index + 1} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]"></td>
-                            <td className="p-3 text-sm">
-                              <div className="flex gap-2">
-                                <Button variant="outline" size="sm" className="h-7 px-2 text-xs">
-                                  Edit
-                                </Button>
-                                <Button variant="destructive" size="sm" className="h-7 px-2 text-xs">
-                                  Delete
-                                </Button>
-                              </div>
+                        {adsLoading ? (
+                          <tr>
+                            <td colSpan="9" className="p-4 text-center text-[hsl(var(--muted-foreground))]">
+                              Loading ads...
                             </td>
                           </tr>
-                        ))}
+                        ) : ads.filter(ad => ad.postedBy === 'admin').length === 0 ? (
+                          <tr>
+                            <td colSpan="9" className="p-4 text-center text-[hsl(var(--muted-foreground))]">
+                              No admin posted ads found.
+                            </td>
+                          </tr>
+                        ) : (
+                          ads
+                            .filter(ad => ad.postedBy === 'admin')
+                            .map((ad, index) => (
+                              <tr key={ad.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingAdId === ad.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                                <td className="p-3 text-sm">
+                                  {editingAdId === ad.id ? (
+                                    <Input
+                                      value={editingAdData.title}
+                                      onChange={(e) => setEditingAdData({...editingAdData, title: e.target.value})}
+                                      className="w-full text-sm"
+                                    />
+                                  ) : (
+                                    <span className="font-medium">{ad.title}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.category}</td>
+                                <td className="p-3 text-sm max-w-xs">
+                                  {editingAdId === ad.id ? (
+                                    <Input
+                                      value={editingAdData.description}
+                                      onChange={(e) => setEditingAdData({...editingAdData, description: e.target.value})}
+                                      className="w-full text-sm"
+                                    />
+                                  ) : (
+                                    <span className="text-[hsl(var(--muted-foreground))] truncate block">{ad.description}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-sm">
+                                  {editingAdId === ad.id ? (
+                                    <Input
+                                      type="number"
+                                      value={editingAdData.price}
+                                      onChange={(e) => setEditingAdData({...editingAdData, price: e.target.value})}
+                                      className="w-full text-sm"
+                                      step="0.01"
+                                    />
+                                  ) : (
+                                    <span className="text-[hsl(var(--foreground))]">Rs. {ad.price.toLocaleString()}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">
+                                  {ad.date ? new Date(ad.date).toLocaleDateString() : 'N/A'}
+                                </td>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views || 0}</td>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">No</td>
+                                <td className="p-3 text-sm">
+                                  {editingAdId === ad.id ? (
+                                    <div className="flex gap-2">
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleSaveAd(ad.id)}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={handleCancelEditAd}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex gap-2">
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleEditAd(ad)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleDeleteAd(ad.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {/* User Posted Ads Subsection */}
+          {activeSection === 'ads-management' && activeSubsection === 'user-posted-ads' && (
+            <section>
+              <Card>
+                <CardContent className="p-4">
+                  <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">User Posted ads</h2>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Ad title</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Category</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Description</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Price</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Posted date</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Total view</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Item sold</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {adsLoading ? (
+                          <tr>
+                            <td colSpan="9" className="p-4 text-center text-[hsl(var(--muted-foreground))]">
+                              Loading ads...
+                            </td>
+                          </tr>
+                        ) : ads.filter(ad => ad.postedBy === 'user').length === 0 ? (
+                          <tr>
+                            <td colSpan="9" className="p-4 text-center text-[hsl(var(--muted-foreground))]">
+                              No user posted ads found.
+                            </td>
+                          </tr>
+                        ) : (
+                          ads
+                            .filter(ad => ad.postedBy === 'user')
+                            .map((ad, index) => (
+                              <tr key={ad.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingAdId === ad.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                                <td className="p-3 text-sm">
+                                  {editingAdId === ad.id ? (
+                                    <Input
+                                      value={editingAdData.title}
+                                      onChange={(e) => setEditingAdData({...editingAdData, title: e.target.value})}
+                                      className="w-full text-sm"
+                                    />
+                                  ) : (
+                                    <span className="font-medium">{ad.title}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.category}</td>
+                                <td className="p-3 text-sm max-w-xs">
+                                  {editingAdId === ad.id ? (
+                                    <Input
+                                      value={editingAdData.description}
+                                      onChange={(e) => setEditingAdData({...editingAdData, description: e.target.value})}
+                                      className="w-full text-sm"
+                                    />
+                                  ) : (
+                                    <span className="text-[hsl(var(--muted-foreground))] truncate block">{ad.description}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-sm">
+                                  {editingAdId === ad.id ? (
+                                    <Input
+                                      type="number"
+                                      value={editingAdData.price}
+                                      onChange={(e) => setEditingAdData({...editingAdData, price: e.target.value})}
+                                      className="w-full text-sm"
+                                      step="0.01"
+                                    />
+                                  ) : (
+                                    <span className="text-[hsl(var(--foreground))]">Rs. {ad.price.toLocaleString()}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">
+                                  {ad.date ? new Date(ad.date).toLocaleDateString() : 'N/A'}
+                                </td>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views || 0}</td>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">No</td>
+                                <td className="p-3 text-sm">
+                                  {editingAdId === ad.id ? (
+                                    <div className="flex gap-2">
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleSaveAd(ad.id)}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={handleCancelEditAd}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex gap-2">
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleEditAd(ad)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleDeleteAd(ad.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {/* Vendor Posted Ads Subsection */}
+          {activeSection === 'ads-management' && activeSubsection === 'vendor-posted-ads' && (
+            <section>
+              <Card>
+                <CardContent className="p-4">
+                  <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Vendor Posted ads</h2>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Ad title</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Category</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Description</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Price</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Posted date</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Total view</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Item sold</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {adsLoading ? (
+                          <tr>
+                            <td colSpan="9" className="p-4 text-center text-[hsl(var(--muted-foreground))]">
+                              Loading ads...
+                            </td>
+                          </tr>
+                        ) : ads.filter(ad => ad.postedBy === 'vendor').length === 0 ? (
+                          <tr>
+                            <td colSpan="9" className="p-4 text-center text-[hsl(var(--muted-foreground))]">
+                              No vendor posted ads found.
+                            </td>
+                          </tr>
+                        ) : (
+                          ads
+                            .filter(ad => ad.postedBy === 'vendor')
+                            .map((ad, index) => (
+                              <tr key={ad.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingAdId === ad.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                                <td className="p-3 text-sm">
+                                  {editingAdId === ad.id ? (
+                                    <Input
+                                      value={editingAdData.title}
+                                      onChange={(e) => setEditingAdData({...editingAdData, title: e.target.value})}
+                                      className="w-full text-sm"
+                                    />
+                                  ) : (
+                                    <span className="font-medium">{ad.title}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.category}</td>
+                                <td className="p-3 text-sm max-w-xs">
+                                  {editingAdId === ad.id ? (
+                                    <Input
+                                      value={editingAdData.description}
+                                      onChange={(e) => setEditingAdData({...editingAdData, description: e.target.value})}
+                                      className="w-full text-sm"
+                                    />
+                                  ) : (
+                                    <span className="text-[hsl(var(--muted-foreground))] truncate block">{ad.description}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-sm">
+                                  {editingAdId === ad.id ? (
+                                    <Input
+                                      type="number"
+                                      value={editingAdData.price}
+                                      onChange={(e) => setEditingAdData({...editingAdData, price: e.target.value})}
+                                      className="w-full text-sm"
+                                      step="0.01"
+                                    />
+                                  ) : (
+                                    <span className="text-[hsl(var(--foreground))]">Rs. {ad.price.toLocaleString()}</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">
+                                  {ad.date ? new Date(ad.date).toLocaleDateString() : 'N/A'}
+                                </td>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views || 0}</td>
+                                <td className="p-3 text-sm text-[hsl(var(--foreground))]">No</td>
+                                <td className="p-3 text-sm">
+                                  {editingAdId === ad.id ? (
+                                    <div className="flex gap-2">
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleSaveAd(ad.id)}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={handleCancelEditAd}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex gap-2">
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleEditAd(ad)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleDeleteAd(ad.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                        )}
                       </tbody>
                     </table>
                   </div>
