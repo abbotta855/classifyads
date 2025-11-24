@@ -120,6 +120,42 @@ function AdminPanel() {
   const [editingPurchaseVerificationId, setEditingPurchaseVerificationId] = useState(null);
   const [editingPurchaseVerificationData, setEditingPurchaseVerificationData] = useState(null);
 
+  // Job management data
+  const [jobCategories, setJobCategories] = useState([]);
+  const [jobCategoriesLoading, setJobCategoriesLoading] = useState(false);
+  const [editingJobCategoryId, setEditingJobCategoryId] = useState(null);
+  const [editingJobCategoryData, setEditingJobCategoryData] = useState(null);
+  const [showAddJobCategoryForm, setShowAddJobCategoryForm] = useState(false);
+  const [jobCategoryFormData, setJobCategoryFormData] = useState({
+    category: '',
+    sub_category: '',
+    posted_job: 0,
+    job_status: 'draft',
+  });
+
+  const [jobApplicants, setJobApplicants] = useState([]);
+  const [jobApplicantsLoading, setJobApplicantsLoading] = useState(false);
+  const [editingJobApplicantId, setEditingJobApplicantId] = useState(null);
+  const [editingJobApplicantData, setEditingJobApplicantData] = useState(null);
+  const [showPostJobApplicantForm, setShowPostJobApplicantForm] = useState(false);
+  const [showApplyJobForm, setShowApplyJobForm] = useState(false);
+  const [jobApplicantFormData, setJobApplicantFormData] = useState({
+    job_title: '',
+    posted_date: '',
+    expected_salary: '',
+    applicant_name: '',
+    interview_date: '',
+    job_progress: 'applied',
+  });
+  const [applyJobFormData, setApplyJobFormData] = useState({
+    job_title: '',
+    applicant_name: '',
+    expected_salary: '',
+    posted_date: '',
+    interview_date: '',
+    job_progress: 'applied',
+  });
+
   // Fetch ads data
   useEffect(() => {
     if (activeSection === 'ads-management' || !activeSection) {
@@ -135,6 +171,14 @@ function AdminPanel() {
     }
   }, [activeSection]);
 
+  // Fetch job management data
+  useEffect(() => {
+    if (activeSection === 'job-management') {
+      fetchJobCategories();
+      fetchJobApplicants();
+    }
+  }, [activeSection]);
+
   // Fetch users for Post Ad form
   const fetchUsers = async () => {
     try {
@@ -142,6 +186,227 @@ function AdminPanel() {
       setUsers(response.data || []);
     } catch (err) {
       console.error('Error fetching users:', err);
+    }
+  };
+
+  const fetchJobCategories = async () => {
+    setJobCategoriesLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getJobCategories();
+      setJobCategories(response.data || []);
+    } catch (err) {
+      setError('Failed to fetch job categories: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching job categories:', err);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setJobCategoriesLoading(false);
+    }
+  };
+
+  const fetchJobApplicants = async () => {
+    setJobApplicantsLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getJobApplicants();
+      setJobApplicants(response.data || []);
+    } catch (err) {
+      setError('Failed to fetch job applicants: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching job applicants:', err);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setJobApplicantsLoading(false);
+    }
+  };
+
+  const handleAddJobCategorySubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await adminAPI.createJobCategory({
+        category: jobCategoryFormData.category,
+        sub_category: jobCategoryFormData.sub_category || null,
+        posted_job: parseInt(jobCategoryFormData.posted_job, 10) || 0,
+        job_status: jobCategoryFormData.job_status,
+      });
+      setSuccessMessage('Job category created successfully');
+      setShowAddJobCategoryForm(false);
+      setJobCategoryFormData({
+        category: '',
+        sub_category: '',
+        posted_job: 0,
+        job_status: 'draft',
+      });
+      fetchJobCategories();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to create job category: ' + (err.response?.data?.message || err.message));
+      console.error('Error creating job category:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleEditJobCategory = (category) => {
+    setEditingJobCategoryId(category.id);
+    setEditingJobCategoryData({
+      category: category.category,
+      sub_category: category.sub_category || '',
+      posted_job: category.posted_job,
+      job_status: category.job_status,
+    });
+  };
+
+  const handleSaveJobCategory = async (categoryId) => {
+    try {
+      await adminAPI.updateJobCategory(categoryId, {
+        ...editingJobCategoryData,
+        sub_category: editingJobCategoryData.sub_category || null,
+        posted_job: parseInt(editingJobCategoryData.posted_job, 10) || 0,
+      });
+      setSuccessMessage('Job category updated successfully');
+      setEditingJobCategoryId(null);
+      setEditingJobCategoryData(null);
+      fetchJobCategories();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update job category: ' + (err.response?.data?.message || err.message));
+      console.error('Error updating job category:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleCancelEditJobCategory = () => {
+    setEditingJobCategoryId(null);
+    setEditingJobCategoryData(null);
+  };
+
+  const handleDeleteJobCategory = async (categoryId) => {
+    if (!window.confirm('Are you sure you want to delete this job category?')) {
+      return;
+    }
+    try {
+      await adminAPI.deleteJobCategory(categoryId);
+      setSuccessMessage('Job category deleted successfully');
+      fetchJobCategories();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete job category: ' + (err.response?.data?.message || err.message));
+      console.error('Error deleting job category:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handlePostJobApplicantSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await adminAPI.createJobApplicant({
+        job_title: jobApplicantFormData.job_title,
+        posted_date: jobApplicantFormData.posted_date || null,
+        expected_salary: jobApplicantFormData.expected_salary ? parseFloat(jobApplicantFormData.expected_salary) : null,
+        applicant_name: jobApplicantFormData.applicant_name,
+        interview_date: jobApplicantFormData.interview_date || null,
+        job_progress: jobApplicantFormData.job_progress,
+      });
+      setSuccessMessage('Job applicant posted successfully');
+      setShowPostJobApplicantForm(false);
+      setJobApplicantFormData({
+        job_title: '',
+        posted_date: '',
+        expected_salary: '',
+        applicant_name: '',
+        interview_date: '',
+        job_progress: 'applied',
+      });
+      fetchJobApplicants();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to post job applicant: ' + (err.response?.data?.message || err.message));
+      console.error('Error posting job applicant:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleApplyJobSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await adminAPI.createJobApplicant({
+        job_title: applyJobFormData.job_title,
+        applicant_name: applyJobFormData.applicant_name,
+        expected_salary: applyJobFormData.expected_salary ? parseFloat(applyJobFormData.expected_salary) : null,
+        posted_date: applyJobFormData.posted_date || null,
+        interview_date: applyJobFormData.interview_date || null,
+        job_progress: applyJobFormData.job_progress,
+      });
+      setSuccessMessage('Job application submitted successfully');
+      setShowApplyJobForm(false);
+      setApplyJobFormData({
+        job_title: '',
+        applicant_name: '',
+        expected_salary: '',
+        posted_date: '',
+        interview_date: '',
+        job_progress: 'applied',
+      });
+      fetchJobApplicants();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to submit job application: ' + (err.response?.data?.message || err.message));
+      console.error('Error submitting job application:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleEditJobApplicant = (applicant) => {
+    setEditingJobApplicantId(applicant.id);
+    setEditingJobApplicantData({
+      job_title: applicant.job_title,
+      posted_date: applicant.posted_date || '',
+      expected_salary: applicant.expected_salary ?? '',
+      applicant_name: applicant.applicant_name,
+      interview_date: applicant.interview_date || '',
+      job_progress: applicant.job_progress,
+    });
+  };
+
+  const handleSaveJobApplicant = async (applicantId) => {
+    try {
+      await adminAPI.updateJobApplicant(applicantId, {
+        ...editingJobApplicantData,
+        expected_salary: editingJobApplicantData.expected_salary !== '' && editingJobApplicantData.expected_salary !== null
+          ? parseFloat(editingJobApplicantData.expected_salary)
+          : null,
+        posted_date: editingJobApplicantData.posted_date || null,
+        interview_date: editingJobApplicantData.interview_date || null,
+      });
+      setSuccessMessage('Job applicant updated successfully');
+      setEditingJobApplicantId(null);
+      setEditingJobApplicantData(null);
+      fetchJobApplicants();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update job applicant: ' + (err.response?.data?.message || err.message));
+      console.error('Error updating job applicant:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleCancelEditJobApplicant = () => {
+    setEditingJobApplicantId(null);
+    setEditingJobApplicantData(null);
+  };
+
+  const handleDeleteJobApplicant = async (applicantId) => {
+    if (!window.confirm('Are you sure you want to delete this job applicant?')) {
+      return;
+    }
+    try {
+      await adminAPI.deleteJobApplicant(applicantId);
+      setSuccessMessage('Job applicant deleted successfully');
+      fetchJobApplicants();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete job applicant: ' + (err.response?.data?.message || err.message));
+      console.error('Error deleting job applicant:', err);
+      setTimeout(() => setError(null), 5000);
     }
   };
 
@@ -1232,7 +1497,7 @@ function AdminPanel() {
     { id: 'change-password', label: 'Change Password' },
     { id: 'delivery-management', label: 'Delivery Management' },
     { id: 'email-subscriber', label: 'Email Subscriber List' },
-    { id: 'job', label: 'Job' },
+    { id: 'job-management', label: 'Job Management' },
     { id: 'live-chat', label: 'Live Chat' },
     { id: 'location-address', label: 'Location/Address' },
     { id: 'offer-discount', label: 'Offer/Discount' },
@@ -2258,6 +2523,497 @@ function AdminPanel() {
                                 </td>
                               </tr>
                             ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'job-management' && (
+            <section className="space-y-6">
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Job Categories</h3>
+                      <p className="text-sm text-[hsl(var(--muted-foreground))]">Manage available job categories.</p>
+                    </div>
+                    <Button onClick={() => setShowAddJobCategoryForm(!showAddJobCategoryForm)}>
+                      {showAddJobCategoryForm ? 'Close Job Category Form' : 'Add Job Category'}
+                    </Button>
+                  </div>
+
+                  {showAddJobCategoryForm && (
+                    <div className="border border-[hsl(var(--border))] rounded-md p-4 bg-[hsl(var(--secondary))]/20">
+                      <form onSubmit={handleAddJobCategorySubmit} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category *</label>
+                            <Input
+                              value={jobCategoryFormData.category}
+                              onChange={(e) => setJobCategoryFormData({ ...jobCategoryFormData, category: e.target.value })}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Sub Category</label>
+                            <Input
+                              value={jobCategoryFormData.sub_category}
+                              onChange={(e) => setJobCategoryFormData({ ...jobCategoryFormData, sub_category: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Posted Jobs</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={jobCategoryFormData.posted_job}
+                              onChange={(e) => setJobCategoryFormData({ ...jobCategoryFormData, posted_job: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Job Status *</label>
+                            <select
+                              value={jobCategoryFormData.job_status}
+                              onChange={(e) => setJobCategoryFormData({ ...jobCategoryFormData, job_status: e.target.value })}
+                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                              required
+                            >
+                              <option value="draft">Draft</option>
+                              <option value="active">Active</option>
+                              <option value="closed">Closed</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                              setShowAddJobCategoryForm(false);
+                              setJobCategoryFormData({
+                                category: '',
+                                sub_category: '',
+                                posted_job: 0,
+                                job_status: 'draft',
+                              });
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit">Save</Button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Category</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Sub Category</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Posted Jobs</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Status</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {jobCategoriesLoading ? (
+                          <tr>
+                            <td colSpan="6" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading job categories...</td>
+                          </tr>
+                        ) : jobCategories.length === 0 ? (
+                          <tr>
+                            <td colSpan="6" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No job categories found.</td>
+                          </tr>
+                        ) : (
+                          jobCategories.map((category, index) => (
+                            <tr key={category.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingJobCategoryId === category.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                              <td className="p-3 text-sm">
+                                {editingJobCategoryId === category.id ? (
+                                  <Input
+                                    value={editingJobCategoryData.category}
+                                    onChange={(e) => setEditingJobCategoryData({ ...editingJobCategoryData, category: e.target.value })}
+                                  />
+                                ) : (
+                                  <span className="font-medium">{category.category}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingJobCategoryId === category.id ? (
+                                  <Input
+                                    value={editingJobCategoryData.sub_category}
+                                    onChange={(e) => setEditingJobCategoryData({ ...editingJobCategoryData, sub_category: e.target.value })}
+                                  />
+                                ) : (
+                                  <span className="text-[hsl(var(--muted-foreground))]">{category.sub_category || '-'}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">
+                                {editingJobCategoryId === category.id ? (
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={editingJobCategoryData.posted_job}
+                                    onChange={(e) => setEditingJobCategoryData({ ...editingJobCategoryData, posted_job: e.target.value })}
+                                  />
+                                ) : (
+                                  category.posted_job
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingJobCategoryId === category.id ? (
+                                  <select
+                                    value={editingJobCategoryData.job_status}
+                                    onChange={(e) => setEditingJobCategoryData({ ...editingJobCategoryData, job_status: e.target.value })}
+                                    className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                                  >
+                                    <option value="draft">Draft</option>
+                                    <option value="active">Active</option>
+                                    <option value="closed">Closed</option>
+                                  </select>
+                                ) : (
+                                  <span className="capitalize">{category.job_status}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingJobCategoryId === category.id ? (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveJobCategory(category.id)}>Save</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditJobCategory}>Cancel</Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditJobCategory(category)}>Edit</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteJobCategory(category.id)}>Delete</Button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4 space-y-6">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Job Applicants</h3>
+                        <p className="text-sm text-[hsl(var(--muted-foreground))]">Post new openings or apply on behalf of candidates.</p>
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        <Button variant="outline" onClick={() => setShowPostJobApplicantForm(!showPostJobApplicantForm)}>
+                          {showPostJobApplicantForm ? 'Close Post Job Form' : 'Post Job'}
+                        </Button>
+                        <Button onClick={() => setShowApplyJobForm(!showApplyJobForm)}>
+                          {showApplyJobForm ? 'Close Apply Form' : 'Apply Job'}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {showPostJobApplicantForm && (
+                      <div className="border border-[hsl(var(--border))] rounded-md p-4 bg-[hsl(var(--secondary))]/20">
+                        <h4 className="text-sm font-semibold mb-3 text-[hsl(var(--foreground))]">Post New Job</h4>
+                        <form onSubmit={handlePostJobApplicantSubmit} className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Job Title *</label>
+                              <Input
+                                value={jobApplicantFormData.job_title}
+                                onChange={(e) => setJobApplicantFormData({ ...jobApplicantFormData, job_title: e.target.value })}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Applicant Name *</label>
+                              <Input
+                                value={jobApplicantFormData.applicant_name}
+                                onChange={(e) => setJobApplicantFormData({ ...jobApplicantFormData, applicant_name: e.target.value })}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Posted Date</label>
+                              <Input
+                                type="date"
+                                value={jobApplicantFormData.posted_date}
+                                onChange={(e) => setJobApplicantFormData({ ...jobApplicantFormData, posted_date: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Expected Salary</label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={jobApplicantFormData.expected_salary}
+                                onChange={(e) => setJobApplicantFormData({ ...jobApplicantFormData, expected_salary: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Interview Date</label>
+                              <Input
+                                type="date"
+                                value={jobApplicantFormData.interview_date}
+                                onChange={(e) => setJobApplicantFormData({ ...jobApplicantFormData, interview_date: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Job Progress *</label>
+                              <select
+                                value={jobApplicantFormData.job_progress}
+                                onChange={(e) => setJobApplicantFormData({ ...jobApplicantFormData, job_progress: e.target.value })}
+                                className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                required
+                              >
+                                <option value="applied">Applied</option>
+                                <option value="screening">Screening</option>
+                                <option value="interview">Interview</option>
+                                <option value="offer">Offer</option>
+                                <option value="hired">Hired</option>
+                                <option value="rejected">Rejected</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => {
+                                setShowPostJobApplicantForm(false);
+                                setJobApplicantFormData({
+                                  job_title: '',
+                                  posted_date: '',
+                                  expected_salary: '',
+                                  applicant_name: '',
+                                  interview_date: '',
+                                  job_progress: 'applied',
+                                });
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button type="submit">Submit</Button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
+
+                    {showApplyJobForm && (
+                      <div className="border border-[hsl(var(--border))] rounded-md p-4 bg-[hsl(var(--secondary))]/20">
+                        <h4 className="text-sm font-semibold mb-3 text-[hsl(var(--foreground))]">Apply for Job (Admin)</h4>
+                        <form onSubmit={handleApplyJobSubmit} className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Job Title *</label>
+                              <Input
+                                value={applyJobFormData.job_title}
+                                onChange={(e) => setApplyJobFormData({ ...applyJobFormData, job_title: e.target.value })}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Applicant Name *</label>
+                              <Input
+                                value={applyJobFormData.applicant_name}
+                                onChange={(e) => setApplyJobFormData({ ...applyJobFormData, applicant_name: e.target.value })}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Expected Salary</label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={applyJobFormData.expected_salary}
+                                onChange={(e) => setApplyJobFormData({ ...applyJobFormData, expected_salary: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Application Date</label>
+                              <Input
+                                type="date"
+                                value={applyJobFormData.posted_date}
+                                onChange={(e) => setApplyJobFormData({ ...applyJobFormData, posted_date: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Interview Date</label>
+                              <Input
+                                type="date"
+                                value={applyJobFormData.interview_date}
+                                onChange={(e) => setApplyJobFormData({ ...applyJobFormData, interview_date: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Job Progress *</label>
+                              <select
+                                value={applyJobFormData.job_progress}
+                                onChange={(e) => setApplyJobFormData({ ...applyJobFormData, job_progress: e.target.value })}
+                                className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                required
+                              >
+                                <option value="applied">Applied</option>
+                                <option value="screening">Screening</option>
+                                <option value="interview">Interview</option>
+                                <option value="offer">Offer</option>
+                                <option value="hired">Hired</option>
+                                <option value="rejected">Rejected</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => {
+                                setShowApplyJobForm(false);
+                                setApplyJobFormData({
+                                  job_title: '',
+                                  applicant_name: '',
+                                  expected_salary: '',
+                                  posted_date: '',
+                                  interview_date: '',
+                                  job_progress: 'applied',
+                                });
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button type="submit">Apply</Button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Job Title</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Applicant</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Posted Date</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Expected Salary</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Interview Date</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Progress</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {jobApplicantsLoading ? (
+                          <tr>
+                            <td colSpan="8" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading job applicants...</td>
+                          </tr>
+                        ) : jobApplicants.length === 0 ? (
+                          <tr>
+                            <td colSpan="8" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No job applicants found.</td>
+                          </tr>
+                        ) : (
+                          jobApplicants.map((applicant, index) => (
+                            <tr key={applicant.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingJobApplicantId === applicant.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                              <td className="p-3 text-sm">
+                                {editingJobApplicantId === applicant.id ? (
+                                  <Input
+                                    value={editingJobApplicantData.job_title}
+                                    onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, job_title: e.target.value })}
+                                  />
+                                ) : (
+                                  <span className="font-medium">{applicant.job_title}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingJobApplicantId === applicant.id ? (
+                                  <Input
+                                    value={editingJobApplicantData.applicant_name}
+                                    onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, applicant_name: e.target.value })}
+                                  />
+                                ) : (
+                                  <span className="text-[hsl(var(--muted-foreground))]">{applicant.applicant_name}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">
+                                {editingJobApplicantId === applicant.id ? (
+                                  <Input
+                                    type="date"
+                                    value={editingJobApplicantData.posted_date || ''}
+                                    onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, posted_date: e.target.value })}
+                                  />
+                                ) : (
+                                  applicant.posted_date ? new Date(applicant.posted_date).toLocaleDateString() : 'N/A'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">
+                                {editingJobApplicantId === applicant.id ? (
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={editingJobApplicantData.expected_salary ?? ''}
+                                    onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, expected_salary: e.target.value })}
+                                  />
+                                ) : (
+                                  applicant.expected_salary ? `Rs. ${Number(applicant.expected_salary).toLocaleString()}` : '-'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">
+                                {editingJobApplicantId === applicant.id ? (
+                                  <Input
+                                    type="date"
+                                    value={editingJobApplicantData.interview_date || ''}
+                                    onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, interview_date: e.target.value })}
+                                  />
+                                ) : (
+                                  applicant.interview_date ? new Date(applicant.interview_date).toLocaleDateString() : '-'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingJobApplicantId === applicant.id ? (
+                                  <select
+                                    value={editingJobApplicantData.job_progress}
+                                    onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, job_progress: e.target.value })}
+                                    className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                                  >
+                                    <option value="applied">Applied</option>
+                                    <option value="screening">Screening</option>
+                                    <option value="interview">Interview</option>
+                                    <option value="offer">Offer</option>
+                                    <option value="hired">Hired</option>
+                                    <option value="rejected">Rejected</option>
+                                  </select>
+                                ) : (
+                                  <span className="capitalize">{applicant.job_progress}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingJobApplicantId === applicant.id ? (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveJobApplicant(applicant.id)}>Save</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditJobApplicant}>Cancel</Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditJobApplicant(applicant)}>Edit</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteJobApplicant(applicant.id)}>Delete</Button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))
                         )}
                       </tbody>
                     </table>

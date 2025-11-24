@@ -79,5 +79,17 @@ export const adminAPI = {
   createCategory: (data) => axios.post(`${API_BASE}/categories`, data),
   updateCategory: (id, data) => axios.put(`${API_BASE}/categories/${id}`, data),
   deleteCategory: (id) => axios.delete(`${API_BASE}/categories/${id}`),
+
+  // Job Categories
+  getJobCategories: () => axios.get(`${API_BASE}/job-categories`),
+  createJobCategory: (data) => axios.post(`${API_BASE}/job-categories`, data),
+  updateJobCategory: (id, data) => axios.put(`${API_BASE}/job-categories/${id}`, data),
+  deleteJobCategory: (id) => axios.delete(`${API_BASE}/job-categories/${id}`),
+
+  // Job Applicants
+  getJobApplicants: () => axios.get(`${API_BASE}/job-applicants`),
+  createJobApplicant: (data) => axios.post(`${API_BASE}/job-applicants`, data),
+  updateJobApplicant: (id, data) => axios.put(`${API_BASE}/job-applicants/${id}`, data),
+  deleteJobApplicant: (id) => axios.delete(`${API_BASE}/job-applicants/${id}`),
 };
 

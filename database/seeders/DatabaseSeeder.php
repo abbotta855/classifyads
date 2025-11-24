@@ -26,6 +26,8 @@ class DatabaseSeeder extends Seeder
             CategorySeeder::class,
             LocationSeeder::class,
             AdminDataSeeder::class,
+            JobCategorySeeder::class,
+            JobApplicantSeeder::class,
         ]);
     }
 }

@@ -13,6 +13,8 @@ use App\Http\Controllers\Admin\BiddingTrackingController;
 use App\Http\Controllers\Admin\LocationController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
+use App\Http\Controllers\Admin\JobCategoryController;
+use App\Http\Controllers\Admin\JobApplicantController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -63,5 +65,9 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Categories management
     Route::apiResource('categories', AdminCategoryController::class);
+
+    // Job management
+    Route::apiResource('job-categories', JobCategoryController::class);
+    Route::apiResource('job-applicants', JobApplicantController::class);
   });
 });
