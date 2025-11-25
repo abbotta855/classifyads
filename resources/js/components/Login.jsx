@@ -25,10 +25,14 @@ function Login() {
     if (!result.success) {
       setErrors(result.errors);
     } else {
-      // Redirect based on role - admins and regular users both go to dashboard
-      // Admin panel is accessible from dashboard
-      const redirectPath = location.state?.from?.pathname || '/dashboard';
-      navigate(redirectPath, { replace: true });
+      // Redirect based on role
+      let redirectPath = '/dashboard';
+      if (result.user?.role === 'super_admin') {
+        redirectPath = '/super_admin';
+      } else if (result.user?.role === 'admin') {
+        redirectPath = '/admin';
+      }
+      navigate(location.state?.from?.pathname || redirectPath, { replace: true });
     }
 
     setLoading(false);

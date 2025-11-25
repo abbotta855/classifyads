@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import Layout from './Layout';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -12,9 +12,24 @@ function AdminPanel() {
   const { user } = useAuth();
   const { section, subsection } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const activeSection = section || null; // No section selected when on /admin
   const activeSubsection = subsection || null;
-  const [selectedRole, setSelectedRole] = useState('admin'); // 'super-admin' or 'admin'
+  
+  // Set selectedRole based on current route and user role
+  const isSuperAdminRoute = location.pathname.startsWith('/super_admin');
+  const [selectedRole, setSelectedRole] = useState(
+    (user?.role === 'super_admin' && isSuperAdminRoute) ? 'super-admin' : 'admin'
+  );
+  
+  // Update selectedRole when route or user changes
+  useEffect(() => {
+    if (user?.role === 'super_admin' && isSuperAdminRoute) {
+      setSelectedRole('super-admin');
+    } else if (location.pathname.startsWith('/admin')) {
+      setSelectedRole('admin');
+    }
+  }, [location.pathname, user?.role, isSuperAdminRoute]);
   const [showAuctionForm, setShowAuctionForm] = useState(false);
   const [showPostAdForm, setShowPostAdForm] = useState(false);
   const [showAddLocationForm, setShowAddLocationForm] = useState(false);

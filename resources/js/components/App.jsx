@@ -33,7 +33,16 @@ function AdminRoute({ children }) {
   const location = useLocation();
   if (loading) return <LoadingCard />;
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
-  if (user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  if (user.role !== 'admin' && user.role !== 'super_admin') return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
+function SuperAdminRoute({ children }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return <LoadingCard />;
+  if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
+  if (user.role !== 'super_admin') return <Navigate to="/dashboard" replace />;
   return children;
 }
 
@@ -42,7 +51,12 @@ function GuestRoute({ children }) {
   const location = useLocation();
   if (loading) return <LoadingCard />;
   if (user) {
-    const redirectPath = user.role === 'admin' ? '/admin' : '/dashboard';
+    let redirectPath = '/dashboard';
+    if (user.role === 'super_admin') {
+      redirectPath = '/super_admin';
+    } else if (user.role === 'admin') {
+      redirectPath = '/admin';
+    }
     return <Navigate to={location.state?.from?.pathname || redirectPath} replace />;
   }
   return children;
@@ -50,6 +64,9 @@ function GuestRoute({ children }) {
 
 function DashboardRedirect() {
   const { user } = useAuth();
+  if (user?.role === 'super_admin') {
+    return <Navigate to="/super_admin" replace />;
+  }
   if (user?.role === 'admin') {
     return <Navigate to="/admin" replace />;
   }
@@ -93,6 +110,14 @@ function AppRoutes() {
           <AdminRoute>
             <AdminPanel />
           </AdminRoute>
+        }
+      />
+      <Route
+        path="/super_admin/:section?/:subsection?"
+        element={
+          <SuperAdminRoute>
+            <AdminPanel />
+          </SuperAdminRoute>
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />
