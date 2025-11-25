@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->call([
+            SuperAdminSeeder::class,
             CategorySeeder::class,
             LocationSeeder::class,
             AdminDataSeeder::class,
