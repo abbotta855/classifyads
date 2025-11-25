@@ -175,6 +175,21 @@ function AdminPanel() {
   const [liveChats, setLiveChats] = useState([]);
   const [liveChatsLoading, setLiveChatsLoading] = useState(false);
   const [selectedLiveChat, setSelectedLiveChat] = useState(null);
+
+  // Offers/Discounts data
+  const [offers, setOffers] = useState([]);
+  const [offersLoading, setOffersLoading] = useState(false);
+  const [editingOfferId, setEditingOfferId] = useState(null);
+  const [editingOfferData, setEditingOfferData] = useState(null);
+  const [showPostDiscountForm, setShowPostDiscountForm] = useState(false);
+  const [offerFormData, setOfferFormData] = useState({
+    item_name: '',
+    vendor_id: '',
+    offer_percentage: '',
+    created_date: '',
+    valid_until: '',
+    status: 'pending',
+  });
   const [chatMessages, setChatMessages] = useState([]);
   const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
   const [newChatMessage, setNewChatMessage] = useState('');
@@ -190,6 +205,14 @@ function AdminPanel() {
   // Fetch users and categories for auction form
   useEffect(() => {
     if (activeSection === 'auction-management') {
+      fetchUsers();
+    }
+  }, [activeSection]);
+
+  // Fetch offers data
+  useEffect(() => {
+    if (activeSection === 'offer-discount') {
+      fetchOffers();
       fetchUsers();
     }
   }, [activeSection]);
@@ -245,6 +268,21 @@ function AdminPanel() {
       setTimeout(() => setError(null), 5000);
     } finally {
       setJobApplicantsLoading(false);
+    }
+  };
+
+  const fetchOffers = async () => {
+    setOffersLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getOffers();
+      setOffers(response.data || []);
+    } catch (err) {
+      setError('Failed to fetch offers: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching offers:', err);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setOffersLoading(false);
     }
   };
 
@@ -435,6 +473,101 @@ function AdminPanel() {
     } catch (err) {
       setError('Failed to delete job applicant: ' + (err.response?.data?.message || err.message));
       console.error('Error deleting job applicant:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handlePostDiscountSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await adminAPI.createOffer({
+        item_name: offerFormData.item_name,
+        vendor_id: parseInt(offerFormData.vendor_id, 10),
+        offer_percentage: parseFloat(offerFormData.offer_percentage),
+        created_date: offerFormData.created_date,
+        valid_until: offerFormData.valid_until,
+        status: offerFormData.status,
+      });
+      setSuccessMessage('Discount/Coupon created successfully');
+      setShowPostDiscountForm(false);
+      setOfferFormData({
+        item_name: '',
+        vendor_id: '',
+        offer_percentage: '',
+        created_date: '',
+        valid_until: '',
+        status: 'pending',
+      });
+      fetchOffers();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to create discount/coupon: ' + (err.response?.data?.message || err.message));
+      console.error('Error creating discount/coupon:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleEditOffer = (offer) => {
+    setEditingOfferId(offer.id);
+    setEditingOfferData({
+      item_name: offer.item_name,
+      vendor_id: offer.vendor_id.toString(),
+      offer_percentage: offer.offer_percentage.toString(),
+      created_date: offer.created_date,
+      valid_until: offer.valid_until,
+      status: offer.status,
+    });
+  };
+
+  const handleSaveOffer = async (offerId) => {
+    try {
+      await adminAPI.updateOffer(offerId, {
+        ...editingOfferData,
+        vendor_id: parseInt(editingOfferData.vendor_id, 10),
+        offer_percentage: parseFloat(editingOfferData.offer_percentage),
+      });
+      setSuccessMessage('Offer updated successfully');
+      setEditingOfferId(null);
+      setEditingOfferData(null);
+      fetchOffers();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update offer: ' + (err.response?.data?.message || err.message));
+      console.error('Error updating offer:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleCancelEditOffer = () => {
+    setEditingOfferId(null);
+    setEditingOfferData(null);
+  };
+
+  const handleDeleteOffer = async (offerId) => {
+    if (!window.confirm('Are you sure you want to delete this offer?')) {
+      return;
+    }
+    try {
+      await adminAPI.deleteOffer(offerId);
+      setSuccessMessage('Offer deleted successfully');
+      fetchOffers();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete offer: ' + (err.response?.data?.message || err.message));
+      console.error('Error deleting offer:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleApproveOffer = async (offerId) => {
+    try {
+      await adminAPI.approveOffer(offerId);
+      setSuccessMessage('Offer approved successfully');
+      fetchOffers();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to approve offer: ' + (err.response?.data?.message || err.message));
+      console.error('Error approving offer:', err);
       setTimeout(() => setError(null), 5000);
     }
   };
@@ -3253,6 +3386,261 @@ function AdminPanel() {
                         )}
                       </div>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'offer-discount' && (
+            <section className="space-y-6">
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Offer/Discount Management</h3>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowPostDiscountForm(!showPostDiscountForm)}
+                      className="border-black"
+                    >
+                      Post discount/coupon
+                    </Button>
+                  </div>
+
+                  {/* Post Discount/Coupon Form */}
+                  {showPostDiscountForm && (
+                    <div className="border border-[hsl(var(--border))] rounded-md p-4 bg-[hsl(var(--secondary))]/20">
+                      <h4 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Post Discount/Coupon</h4>
+                      <form onSubmit={handlePostDiscountSubmit} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Item Name *</label>
+                            <Input
+                              value={offerFormData.item_name}
+                              onChange={(e) => setOfferFormData({...offerFormData, item_name: e.target.value})}
+                              className="w-full"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Vendor *</label>
+                            <select
+                              value={offerFormData.vendor_id}
+                              onChange={(e) => setOfferFormData({...offerFormData, vendor_id: e.target.value})}
+                              className="w-full px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                              required
+                            >
+                              <option value="">Select Vendor</option>
+                              {users.filter(u => u.role === 'user' || u.role === 'vendor').map((user) => (
+                                <option key={user.id} value={user.id}>{user.name} ({user.email})</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Offer % *</label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="100"
+                              value={offerFormData.offer_percentage}
+                              onChange={(e) => setOfferFormData({...offerFormData, offer_percentage: e.target.value})}
+                              className="w-full"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Created Date *</label>
+                            <Input
+                              type="date"
+                              value={offerFormData.created_date}
+                              onChange={(e) => setOfferFormData({...offerFormData, created_date: e.target.value})}
+                              className="w-full"
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Valid Until *</label>
+                            <Input
+                              type="date"
+                              value={offerFormData.valid_until}
+                              onChange={(e) => setOfferFormData({...offerFormData, valid_until: e.target.value})}
+                              className="w-full"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Status</label>
+                            <select
+                              value={offerFormData.status}
+                              onChange={(e) => setOfferFormData({...offerFormData, status: e.target.value})}
+                              className="w-full px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="approved">Approved</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button type="submit">Submit</Button>
+                          <Button type="button" variant="outline" onClick={() => {
+                            setShowPostDiscountForm(false);
+                            setOfferFormData({
+                              item_name: '',
+                              vendor_id: '',
+                              offer_percentage: '',
+                              created_date: '',
+                              valid_until: '',
+                              status: 'pending',
+                            });
+                          }}>Cancel</Button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Item Name</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Vendor</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Offer %</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Created Date</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Valid until</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Status</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete/Approve</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {offersLoading ? (
+                          <tr>
+                            <td colSpan="8" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading offers...</td>
+                          </tr>
+                        ) : offers.length === 0 ? (
+                          <tr>
+                            <td colSpan="8" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No offers found.</td>
+                          </tr>
+                        ) : (
+                          offers.map((offer, index) => (
+                            <tr key={offer.id} className="border-b border-[hsl(var(--border))]">
+                              <td className="p-3 text-sm">{index + 1}</td>
+                              <td className="p-3 text-sm">
+                                {editingOfferId === offer.id ? (
+                                  <Input
+                                    value={editingOfferData.item_name}
+                                    onChange={(e) => setEditingOfferData({...editingOfferData, item_name: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  offer.item_name
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingOfferId === offer.id ? (
+                                  <select
+                                    value={editingOfferData.vendor_id}
+                                    onChange={(e) => setEditingOfferData({...editingOfferData, vendor_id: e.target.value})}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                  >
+                                    {users.filter(u => u.role === 'user' || u.role === 'vendor').map((user) => (
+                                      <option key={user.id} value={user.id}>{user.name}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  offer.vendor?.name || 'N/A'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingOfferId === offer.id ? (
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    max="100"
+                                    value={editingOfferData.offer_percentage}
+                                    onChange={(e) => setEditingOfferData({...editingOfferData, offer_percentage: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  `${offer.offer_percentage}%`
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingOfferId === offer.id ? (
+                                  <Input
+                                    type="date"
+                                    value={editingOfferData.created_date}
+                                    onChange={(e) => setEditingOfferData({...editingOfferData, created_date: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  offer.created_date ? new Date(offer.created_date).toLocaleDateString() : 'N/A'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingOfferId === offer.id ? (
+                                  <Input
+                                    type="date"
+                                    value={editingOfferData.valid_until}
+                                    onChange={(e) => setEditingOfferData({...editingOfferData, valid_until: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  offer.valid_until ? new Date(offer.valid_until).toLocaleDateString() : 'N/A'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingOfferId === offer.id ? (
+                                  <select
+                                    value={editingOfferData.status}
+                                    onChange={(e) => setEditingOfferData({...editingOfferData, status: e.target.value})}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                  >
+                                    <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
+                                  </select>
+                                ) : (
+                                  <span className={`px-2 py-1 rounded text-xs ${
+                                    offer.status === 'approved' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : 'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    {offer.status === 'approved' ? 'Approved' : 'Pending'}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingOfferId === offer.id ? (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveOffer(offer.id)}>Save</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditOffer}>Cancel</Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditOffer(offer)}>Edit</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteOffer(offer.id)}>Delete</Button>
+                                    {offer.status === 'pending' && (
+                                      <Button variant="default" size="sm" className="h-7 px-2 text-xs bg-green-600 hover:bg-green-700" onClick={() => handleApproveOffer(offer.id)}>Approve</Button>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-4">
+                    <a href="#" className="text-sm text-[hsl(var(--primary))] hover:underline">Download report</a>
                   </div>
                 </CardContent>
               </Card>

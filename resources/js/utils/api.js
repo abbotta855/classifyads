@@ -98,5 +98,13 @@ export const adminAPI = {
   getLiveChatMessages: (id) => axios.get(`${API_BASE}/live-chats/${id}/messages`),
   sendLiveChatMessage: (id, data) => axios.post(`${API_BASE}/live-chats/${id}/messages`, data),
   markLiveChatRead: (id) => axios.post(`${API_BASE}/live-chats/${id}/mark-read`),
+
+  // Offers/Discounts
+  getOffers: () => axios.get(`${API_BASE}/offers`),
+  getOffer: (id) => axios.get(`${API_BASE}/offers/${id}`),
+  createOffer: (data) => axios.post(`${API_BASE}/offers`, data),
+  updateOffer: (id, data) => axios.put(`${API_BASE}/offers/${id}`, data),
+  deleteOffer: (id) => axios.delete(`${API_BASE}/offers/${id}`),
+  approveOffer: (id) => axios.post(`${API_BASE}/offers/${id}/approve`),
 };
 

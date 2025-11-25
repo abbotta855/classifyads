@@ -30,6 +30,7 @@ class DatabaseSeeder extends Seeder
             JobCategorySeeder::class,
             JobApplicantSeeder::class,
             LiveChatSeeder::class,
+            OfferSeeder::class,
         ]);
     }
 }
