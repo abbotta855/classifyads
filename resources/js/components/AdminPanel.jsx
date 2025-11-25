@@ -229,6 +229,42 @@ function AdminPanel() {
     end_date: '',
     subscription_type: '',
   });
+
+  // Support Management data
+  const [supportManagement, setSupportManagement] = useState([]);
+  const [unsolvedIssues, setUnsolvedIssues] = useState([]);
+  const [supportManagementLoading, setSupportManagementLoading] = useState(false);
+  const [editingSupportId, setEditingSupportId] = useState(null);
+  const [editingSupportData, setEditingSupportData] = useState(null);
+  const [showAddSupportForm, setShowAddSupportForm] = useState(false);
+  const [addSupportFormData, setAddSupportFormData] = useState({
+    issue_error: '',
+    issue_reporter_id: '',
+    date: '',
+    assign_to_id: '',
+    assign_date: '',
+    error_status: 'pending',
+    note_solution: '',
+  });
+
+  // Transaction Management data
+  const [transactionManagement, setTransactionManagement] = useState([]);
+  const [earningSummary, setEarningSummary] = useState(null);
+  const [transactionManagementLoading, setTransactionManagementLoading] = useState(false);
+  const [editingTransactionId, setEditingTransactionId] = useState(null);
+  const [editingTransactionData, setEditingTransactionData] = useState(null);
+  const [showPostAdTransactionForm, setShowPostAdTransactionForm] = useState(false);
+  const [postAdTransactionFormData, setPostAdTransactionFormData] = useState({
+    vendor_id: '',
+    num_of_posted_ad: '',
+    category_id: '',
+    amount: '',
+    payment_method: 'Credit Card',
+    start_date: '',
+    end_date: '',
+    email: '',
+    status: 'active',
+  });
   const [chatMessages, setChatMessages] = useState([]);
   const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
   const [newChatMessage, setNewChatMessage] = useState('');
@@ -286,6 +322,23 @@ function AdminPanel() {
     if (activeSection === 'email-subscriber') {
       fetchEmailSubscribers();
       fetchUsers();
+    }
+  }, [activeSection]);
+
+  // Fetch support management data
+  useEffect(() => {
+    if (activeSection === 'support-management') {
+      fetchSupportManagement();
+      fetchUsers();
+    }
+  }, [activeSection]);
+
+  // Fetch transaction management data
+  useEffect(() => {
+    if (activeSection === 'transaction-management') {
+      fetchTransactionManagement();
+      fetchUsers();
+      fetchCategories();
     }
   }, [activeSection]);
 
@@ -435,6 +488,38 @@ function AdminPanel() {
       setTimeout(() => setError(null), 5000);
     } finally {
       setEmailSubscribersLoading(false);
+    }
+  };
+
+  const fetchSupportManagement = async () => {
+    setSupportManagementLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getSupportManagement();
+      setSupportManagement(response.data.supports || []);
+      setUnsolvedIssues(response.data.unsolved_issues || []);
+    } catch (err) {
+      setError('Failed to fetch support management: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching support management:', err);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setSupportManagementLoading(false);
+    }
+  };
+
+  const fetchTransactionManagement = async () => {
+    setTransactionManagementLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getTransactionManagement();
+      setTransactionManagement(response.data.transactions || []);
+      setEarningSummary(response.data.earning_summary || null);
+    } catch (err) {
+      setError('Failed to fetch transaction management: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching transaction management:', err);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setTransactionManagementLoading(false);
     }
   };
 
@@ -1138,6 +1223,180 @@ function AdminPanel() {
     } catch (err) {
       setError('Failed to delete email subscriber: ' + (err.response?.data?.message || err.message));
       console.error('Error deleting email subscriber:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleAddSupportSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await adminAPI.createSupportItem({
+        ...addSupportFormData,
+        issue_reporter_id: addSupportFormData.issue_reporter_id ? parseInt(addSupportFormData.issue_reporter_id, 10) : null,
+        assign_to_id: addSupportFormData.assign_to_id ? parseInt(addSupportFormData.assign_to_id, 10) : null,
+      });
+      setSuccessMessage('Support issue added successfully');
+      setShowAddSupportForm(false);
+      setAddSupportFormData({
+        issue_error: '',
+        issue_reporter_id: '',
+        date: '',
+        assign_to_id: '',
+        assign_date: '',
+        error_status: 'pending',
+        note_solution: '',
+      });
+      fetchSupportManagement();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to add support issue: ' + (err.response?.data?.message || err.message));
+      console.error('Error adding support issue:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleEditSupport = (support) => {
+    setEditingSupportId(support.id);
+    setEditingSupportData({
+      issue_error: support.issue_error || '',
+      issue_reporter_id: support.issue_reporter_id?.toString() || '',
+      date: support.date || '',
+      assign_to_id: support.assign_to_id?.toString() || '',
+      assign_date: support.assign_date || '',
+      error_status: support.error_status || 'pending',
+      note_solution: support.note_solution || '',
+    });
+  };
+
+  const handleSaveSupport = async (supportId) => {
+    if (!editingSupportData) return;
+    
+    try {
+      await adminAPI.updateSupportItem(supportId, {
+        ...editingSupportData,
+        issue_reporter_id: editingSupportData.issue_reporter_id ? parseInt(editingSupportData.issue_reporter_id, 10) : null,
+        assign_to_id: editingSupportData.assign_to_id ? parseInt(editingSupportData.assign_to_id, 10) : null,
+      });
+      setSuccessMessage('Support issue updated successfully');
+      setEditingSupportId(null);
+      setEditingSupportData(null);
+      fetchSupportManagement();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update support issue: ' + (err.response?.data?.message || err.message));
+      console.error('Error updating support issue:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleCancelEditSupport = () => {
+    setEditingSupportId(null);
+    setEditingSupportData(null);
+  };
+
+  const handleDeleteSupport = async (supportId) => {
+    if (!window.confirm('Are you sure you want to delete this support issue?')) {
+      return;
+    }
+    try {
+      await adminAPI.deleteSupportItem(supportId);
+      setSuccessMessage('Support issue deleted successfully');
+      fetchSupportManagement();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete support issue: ' + (err.response?.data?.message || err.message));
+      console.error('Error deleting support issue:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handlePostAdTransactionSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await adminAPI.createTransactionItem({
+        ...postAdTransactionFormData,
+        vendor_id: parseInt(postAdTransactionFormData.vendor_id, 10),
+        num_of_posted_ad: parseInt(postAdTransactionFormData.num_of_posted_ad, 10),
+        category_id: postAdTransactionFormData.category_id ? parseInt(postAdTransactionFormData.category_id, 10) : null,
+        amount: parseFloat(postAdTransactionFormData.amount),
+      });
+      setSuccessMessage('Ad post transaction created successfully');
+      setShowPostAdTransactionForm(false);
+      setPostAdTransactionFormData({
+        vendor_id: '',
+        num_of_posted_ad: '',
+        category_id: '',
+        amount: '',
+        payment_method: 'Credit Card',
+        start_date: '',
+        end_date: '',
+        email: '',
+        status: 'active',
+      });
+      fetchTransactionManagement();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to create transaction: ' + (err.response?.data?.message || err.message));
+      console.error('Error creating transaction:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleEditTransaction = (transaction) => {
+    setEditingTransactionId(transaction.id);
+    setEditingTransactionData({
+      vendor_id: transaction.vendor_id?.toString() || '',
+      num_of_posted_ad: transaction.num_of_posted_ad?.toString() || '0',
+      category_id: transaction.category_id?.toString() || '',
+      amount: transaction.amount?.toString() || '0',
+      payment_method: transaction.payment_method || 'Credit Card',
+      start_date: transaction.start_date || '',
+      end_date: transaction.end_date || '',
+      email: transaction.email || '',
+      status: transaction.status || 'active',
+    });
+  };
+
+  const handleSaveTransaction = async (transactionId) => {
+    if (!editingTransactionData) return;
+    
+    try {
+      await adminAPI.updateTransactionItem(transactionId, {
+        ...editingTransactionData,
+        vendor_id: parseInt(editingTransactionData.vendor_id, 10),
+        num_of_posted_ad: parseInt(editingTransactionData.num_of_posted_ad, 10),
+        category_id: editingTransactionData.category_id ? parseInt(editingTransactionData.category_id, 10) : null,
+        amount: parseFloat(editingTransactionData.amount),
+      });
+      setSuccessMessage('Transaction updated successfully');
+      setEditingTransactionId(null);
+      setEditingTransactionData(null);
+      fetchTransactionManagement();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update transaction: ' + (err.response?.data?.message || err.message));
+      console.error('Error updating transaction:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleCancelEditTransaction = () => {
+    setEditingTransactionId(null);
+    setEditingTransactionData(null);
+  };
+
+  const handleDeleteTransaction = async (transactionId) => {
+    if (!window.confirm('Are you sure you want to delete this transaction?')) {
+      return;
+    }
+    try {
+      await adminAPI.deleteTransactionItem(transactionId);
+      setSuccessMessage('Transaction deleted successfully');
+      fetchTransactionManagement();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete transaction: ' + (err.response?.data?.message || err.message));
+      console.error('Error deleting transaction:', err);
       setTimeout(() => setError(null), 5000);
     }
   };
@@ -4941,6 +5200,669 @@ function AdminPanel() {
                                   <div className="flex gap-2">
                                     <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditEmailSubscriber(subscriber)}>Edit</Button>
                                     <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteEmailSubscriber(subscriber.id)}>Delete</Button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'support-management' && (
+            <section className="space-y-6">
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Report or support Management</h3>
+                    <Button variant="outline" onClick={() => setShowAddSupportForm(!showAddSupportForm)}>
+                      {showAddSupportForm ? 'Close Form' : 'Add Error/Issue'}
+                    </Button>
+                  </div>
+
+                  {/* Add Support Form */}
+                  {showAddSupportForm && (
+                    <Card className="bg-[hsl(var(--accent))]/50">
+                      <CardContent className="p-6">
+                        <h4 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Add Error/Issue</h4>
+                        <form onSubmit={handleAddSupportSubmit} className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Issue/Error *</label>
+                            <Input
+                              value={addSupportFormData.issue_error}
+                              onChange={(e) => setAddSupportFormData({...addSupportFormData, issue_error: e.target.value})}
+                              required
+                              placeholder="Enter issue or error description"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Issue Reporter (Optional)</label>
+                              <select
+                                value={addSupportFormData.issue_reporter_id}
+                                onChange={(e) => setAddSupportFormData({...addSupportFormData, issue_reporter_id: e.target.value})}
+                                className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                              >
+                                <option value="">Select User</option>
+                                {users.map((user) => (
+                                  <option key={user.id} value={user.id}>{user.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Date *</label>
+                              <Input
+                                type="date"
+                                value={addSupportFormData.date}
+                                onChange={(e) => setAddSupportFormData({...addSupportFormData, date: e.target.value})}
+                                required
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Assign To (Optional)</label>
+                              <select
+                                value={addSupportFormData.assign_to_id}
+                                onChange={(e) => setAddSupportFormData({...addSupportFormData, assign_to_id: e.target.value})}
+                                className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                              >
+                                <option value="">Select User</option>
+                                {users.map((user) => (
+                                  <option key={user.id} value={user.id}>{user.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Assign Date (Optional)</label>
+                              <Input
+                                type="date"
+                                value={addSupportFormData.assign_date}
+                                onChange={(e) => setAddSupportFormData({...addSupportFormData, assign_date: e.target.value})}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Error Status</label>
+                            <select
+                              value={addSupportFormData.error_status}
+                              onChange={(e) => setAddSupportFormData({...addSupportFormData, error_status: e.target.value})}
+                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                            >
+                              <option value="pending">Pending</option>
+                              <option value="in_progress">In Progress</option>
+                              <option value="resolved">Resolved</option>
+                              <option value="closed">Closed</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Note Solution (Optional)</label>
+                            <textarea
+                              value={addSupportFormData.note_solution}
+                              onChange={(e) => setAddSupportFormData({...addSupportFormData, note_solution: e.target.value})}
+                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] min-h-[100px]"
+                              placeholder="Enter solution notes"
+                            />
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => {
+                                setShowAddSupportForm(false);
+                                setAddSupportFormData({
+                                  issue_error: '',
+                                  issue_reporter_id: '',
+                                  date: '',
+                                  assign_to_id: '',
+                                  assign_date: '',
+                                  error_status: 'pending',
+                                  note_solution: '',
+                                });
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button type="submit">Add Issue</Button>
+                          </div>
+                        </form>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Issue/Error</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Issue reporter</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Date</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Assign to</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Assign date</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Error status</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Note Solution</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {supportManagementLoading ? (
+                          <tr>
+                            <td colSpan="9" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading support issues...</td>
+                          </tr>
+                        ) : supportManagement.length === 0 ? (
+                          <tr>
+                            <td colSpan="9" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No support issues found.</td>
+                          </tr>
+                        ) : (
+                          supportManagement.map((support, index) => (
+                            <tr key={support.id} className="border-b border-[hsl(var(--border))]">
+                              <td className="p-3 text-sm">{index + 1}</td>
+                              <td className="p-3 text-sm">
+                                {editingSupportId === support.id && editingSupportData ? (
+                                  <Input
+                                    value={editingSupportData.issue_error}
+                                    onChange={(e) => setEditingSupportData({...editingSupportData, issue_error: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  support.issue_error
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingSupportId === support.id && editingSupportData ? (
+                                  <select
+                                    value={editingSupportData.issue_reporter_id}
+                                    onChange={(e) => setEditingSupportData({...editingSupportData, issue_reporter_id: e.target.value})}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                  >
+                                    <option value="">Select User</option>
+                                    {users.map((user) => (
+                                      <option key={user.id} value={user.id}>{user.name}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  support.issue_reporter_name || 'N/A'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingSupportId === support.id && editingSupportData ? (
+                                  <Input
+                                    type="date"
+                                    value={editingSupportData.date}
+                                    onChange={(e) => setEditingSupportData({...editingSupportData, date: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  formatDate(support.date)
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingSupportId === support.id && editingSupportData ? (
+                                  <select
+                                    value={editingSupportData.assign_to_id}
+                                    onChange={(e) => setEditingSupportData({...editingSupportData, assign_to_id: e.target.value})}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                  >
+                                    <option value="">Select User</option>
+                                    {users.map((user) => (
+                                      <option key={user.id} value={user.id}>{user.name}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  support.assign_to_name || 'N/A'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingSupportId === support.id && editingSupportData ? (
+                                  <Input
+                                    type="date"
+                                    value={editingSupportData.assign_date || ''}
+                                    onChange={(e) => setEditingSupportData({...editingSupportData, assign_date: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  support.assign_date ? formatDate(support.assign_date) : 'N/A'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingSupportId === support.id && editingSupportData ? (
+                                  <select
+                                    value={editingSupportData.error_status}
+                                    onChange={(e) => setEditingSupportData({...editingSupportData, error_status: e.target.value})}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                  >
+                                    <option value="pending">Pending</option>
+                                    <option value="in_progress">In Progress</option>
+                                    <option value="resolved">Resolved</option>
+                                    <option value="closed">Closed</option>
+                                  </select>
+                                ) : (
+                                  <span className={`px-2 py-1 rounded text-xs ${
+                                    support.error_status === 'resolved' || support.error_status === 'closed' 
+                                      ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                                      : support.error_status === 'in_progress'
+                                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+                                      : 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400'
+                                  }`}>
+                                    {support.error_status?.replace('_', ' ').toUpperCase() || 'PENDING'}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingSupportId === support.id && editingSupportData ? (
+                                  <textarea
+                                    value={editingSupportData.note_solution || ''}
+                                    onChange={(e) => setEditingSupportData({...editingSupportData, note_solution: e.target.value})}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm min-h-[60px]"
+                                  />
+                                ) : (
+                                  <div className="max-w-xs truncate" title={support.note_solution || 'N/A'}>
+                                    {support.note_solution || 'N/A'}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingSupportId === support.id && editingSupportData ? (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveSupport(support.id)}>Save</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditSupport}>Cancel</Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditSupport(support)}>Edit</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteSupport(support.id)}>Delete</Button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* List of Unsolved Issues */}
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">List of unsolved issues</h3>
+                  {unsolvedIssues.length === 0 ? (
+                    <p className="text-sm text-[hsl(var(--muted-foreground))]">No unsolved issues.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {unsolvedIssues.map((issue, index) => (
+                        <div key={issue.id} className="p-3 border border-dashed border-[hsl(var(--border))] rounded-md">
+                          <div className="flex items-start gap-2">
+                            <span className="font-semibold text-[hsl(var(--foreground))]">{index + 1}.</span>
+                            <div className="flex-1">
+                              <div className="font-medium text-[hsl(var(--foreground))]">{issue.issue_error}</div>
+                              <div className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                                Reported by: {issue.issue_reporter_name} | Date: {formatDate(issue.date)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'transaction-management' && (
+            <section className="space-y-6">
+              {/* Earning Summary */}
+              <Card>
+                <CardContent className="p-4 space-y-2">
+                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Earning Summary</h3>
+                  <div className="space-y-1 text-sm">
+                    <div className="text-red-600 dark:text-red-400">
+                      Total earning from Ad post: Rs {earningSummary?.total?.toLocaleString() || '0.00'}
+                    </div>
+                    <div className="text-red-600 dark:text-red-400">
+                      Total earning from Ad post Weekly: Rs {earningSummary?.weekly?.toLocaleString() || '0.00'}
+                    </div>
+                    <div className="text-red-600 dark:text-red-400">
+                      Total earning from Ad post Monthly: Rs {earningSummary?.monthly?.toLocaleString() || '0.00'}
+                    </div>
+                    <div className="text-red-600 dark:text-red-400">
+                      Total earning from Ad post Yearly: Rs {earningSummary?.yearly?.toLocaleString() || '0.00'}
+                    </div>
+                    <div className="text-red-600 dark:text-red-400">
+                      Total earning from Ad post major category wise:
+                      {earningSummary?.category_wise && earningSummary.category_wise.length > 0 ? (
+                        <ul className="ml-4 mt-1 list-disc">
+                          {earningSummary.category_wise.map((cat, idx) => (
+                            <li key={idx}>
+                              {cat.category}: Rs {Number(cat.total).toLocaleString()}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="ml-2">No category data</span>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Transaction Management</h3>
+                    <Button variant="outline" onClick={() => setShowPostAdTransactionForm(!showPostAdTransactionForm)}>
+                      {showPostAdTransactionForm ? 'Close Form' : 'Post Ad'}
+                    </Button>
+                  </div>
+
+                  {/* Post Ad Form */}
+                  {showPostAdTransactionForm && (
+                    <Card className="bg-[hsl(var(--accent))]/50">
+                      <CardContent className="p-6">
+                        <h4 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Post Ad Transaction</h4>
+                        <form onSubmit={handlePostAdTransactionSubmit} className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Vendor *</label>
+                              <select
+                                value={postAdTransactionFormData.vendor_id}
+                                onChange={(e) => {
+                                  const selectedUser = users.find(u => u.id.toString() === e.target.value);
+                                  setPostAdTransactionFormData({
+                                    ...postAdTransactionFormData,
+                                    vendor_id: e.target.value,
+                                    email: selectedUser?.email || '',
+                                  });
+                                }}
+                                className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                                required
+                              >
+                                <option value="">Select Vendor</option>
+                                {users.map((user) => (
+                                  <option key={user.id} value={user.id}>{user.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Num. of Posted Ad *</label>
+                              <Input
+                                type="number"
+                                min="0"
+                                value={postAdTransactionFormData.num_of_posted_ad}
+                                onChange={(e) => setPostAdTransactionFormData({...postAdTransactionFormData, num_of_posted_ad: e.target.value})}
+                                required
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Category/Subcategory (Optional)</label>
+                              <select
+                                value={postAdTransactionFormData.category_id}
+                                onChange={(e) => setPostAdTransactionFormData({...postAdTransactionFormData, category_id: e.target.value})}
+                                className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                              >
+                                <option value="">Select Category</option>
+                                {flattenedCategories.map((cat) => (
+                                  <option key={cat.id} value={cat.id}>
+                                    {cat.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Amount *</label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={postAdTransactionFormData.amount}
+                                onChange={(e) => setPostAdTransactionFormData({...postAdTransactionFormData, amount: e.target.value})}
+                                required
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Payment Method *</label>
+                              <select
+                                value={postAdTransactionFormData.payment_method}
+                                onChange={(e) => setPostAdTransactionFormData({...postAdTransactionFormData, payment_method: e.target.value})}
+                                className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                                required
+                              >
+                                <option value="Credit Card">Credit Card</option>
+                                <option value="PayPal">PayPal</option>
+                                <option value="Bank Transfer">Bank Transfer</option>
+                                <option value="Wallet">Wallet</option>
+                                <option value="Stripe">Stripe</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Email</label>
+                              <Input
+                                type="email"
+                                value={postAdTransactionFormData.email}
+                                onChange={(e) => setPostAdTransactionFormData({...postAdTransactionFormData, email: e.target.value})}
+                                placeholder="Email address"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Start Date *</label>
+                              <Input
+                                type="date"
+                                value={postAdTransactionFormData.start_date}
+                                onChange={(e) => setPostAdTransactionFormData({...postAdTransactionFormData, start_date: e.target.value})}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">End Date *</label>
+                              <Input
+                                type="date"
+                                value={postAdTransactionFormData.end_date}
+                                onChange={(e) => setPostAdTransactionFormData({...postAdTransactionFormData, end_date: e.target.value})}
+                                required
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 mt-6">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => {
+                                setShowPostAdTransactionForm(false);
+                                setPostAdTransactionFormData({
+                                  vendor_id: '',
+                                  num_of_posted_ad: '',
+                                  category_id: '',
+                                  amount: '',
+                                  payment_method: 'Credit Card',
+                                  start_date: '',
+                                  end_date: '',
+                                  email: '',
+                                  status: 'active',
+                                });
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button type="submit">Post Ad</Button>
+                          </div>
+                        </form>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Vendor name</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Num. of posted ad</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Category/Subcategory</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Amount</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Payment method</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Start</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">End</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Email</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {transactionManagementLoading ? (
+                          <tr>
+                            <td colSpan="10" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading transactions...</td>
+                          </tr>
+                        ) : transactionManagement.length === 0 ? (
+                          <tr>
+                            <td colSpan="10" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No transactions found.</td>
+                          </tr>
+                        ) : (
+                          transactionManagement.map((transaction, index) => (
+                            <tr key={transaction.id} className="border-b border-[hsl(var(--border))]">
+                              <td className="p-3 text-sm">{index + 1}</td>
+                              <td className="p-3 text-sm">
+                                {editingTransactionId === transaction.id && editingTransactionData ? (
+                                  <select
+                                    value={editingTransactionData.vendor_id}
+                                    onChange={(e) => {
+                                      const selectedUser = users.find(u => u.id.toString() === e.target.value);
+                                      setEditingTransactionData({
+                                        ...editingTransactionData,
+                                        vendor_id: e.target.value,
+                                        email: selectedUser?.email || editingTransactionData.email,
+                                      });
+                                    }}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                  >
+                                    {users.map((user) => (
+                                      <option key={user.id} value={user.id}>{user.name}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  transaction.vendor_name || 'N/A'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingTransactionId === transaction.id && editingTransactionData ? (
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={editingTransactionData.num_of_posted_ad}
+                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, num_of_posted_ad: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  transaction.num_of_posted_ad || 0
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingTransactionId === transaction.id && editingTransactionData ? (
+                                  <select
+                                    value={editingTransactionData.category_id}
+                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, category_id: e.target.value})}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                  >
+                                    <option value="">Select Category</option>
+                                    {flattenedCategories.map((cat) => (
+                                      <option key={cat.id} value={cat.id}>
+                                        {cat.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  `${transaction.category_name || 'N/A'}${transaction.subcategory_name ? ` / ${transaction.subcategory_name}` : ''}`
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingTransactionId === transaction.id && editingTransactionData ? (
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={editingTransactionData.amount}
+                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, amount: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  `Rs ${Number(transaction.amount || 0).toLocaleString()}`
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingTransactionId === transaction.id && editingTransactionData ? (
+                                  <select
+                                    value={editingTransactionData.payment_method}
+                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, payment_method: e.target.value})}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                  >
+                                    <option value="Credit Card">Credit Card</option>
+                                    <option value="PayPal">PayPal</option>
+                                    <option value="Bank Transfer">Bank Transfer</option>
+                                    <option value="Wallet">Wallet</option>
+                                    <option value="Stripe">Stripe</option>
+                                  </select>
+                                ) : (
+                                  transaction.payment_method || 'N/A'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingTransactionId === transaction.id && editingTransactionData ? (
+                                  <Input
+                                    type="date"
+                                    value={editingTransactionData.start_date}
+                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, start_date: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  formatDate(transaction.start_date)
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingTransactionId === transaction.id && editingTransactionData ? (
+                                  <Input
+                                    type="date"
+                                    value={editingTransactionData.end_date}
+                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, end_date: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  formatDate(transaction.end_date)
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingTransactionId === transaction.id && editingTransactionData ? (
+                                  <Input
+                                    type="email"
+                                    value={editingTransactionData.email}
+                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, email: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  transaction.email || 'N/A'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingTransactionId === transaction.id && editingTransactionData ? (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveTransaction(transaction.id)}>Save</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditTransaction}>Cancel</Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditTransaction(transaction)}>Edit</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteTransaction(transaction.id)}>Delete</Button>
                                   </div>
                                 )}
                               </td>

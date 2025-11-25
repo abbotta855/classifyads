@@ -36,6 +36,8 @@ class DatabaseSeeder extends Seeder
             SalesReportSeeder::class,
             StockManagementSeeder::class,
             EmailSubscriberSeeder::class,
+            SupportManagementSeeder::class,
+            AdPostTransactionSeeder::class,
         ]);
     }
 }

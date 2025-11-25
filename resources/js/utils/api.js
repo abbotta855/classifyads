@@ -134,5 +134,19 @@ export const adminAPI = {
   createEmailSubscriber: (data) => axios.post(`${API_BASE}/email-subscribers`, data),
   updateEmailSubscriber: (id, data) => axios.put(`${API_BASE}/email-subscribers/${id}`, data),
   deleteEmailSubscriber: (id) => axios.delete(`${API_BASE}/email-subscribers/${id}`),
+
+  // Support Management
+  getSupportManagement: () => axios.get(`${API_BASE}/support-management`),
+  getSupportItem: (id) => axios.get(`${API_BASE}/support-management/${id}`),
+  createSupportItem: (data) => axios.post(`${API_BASE}/support-management`, data),
+  updateSupportItem: (id, data) => axios.put(`${API_BASE}/support-management/${id}`, data),
+  deleteSupportItem: (id) => axios.delete(`${API_BASE}/support-management/${id}`),
+
+  // Transaction Management
+  getTransactionManagement: () => axios.get(`${API_BASE}/transaction-management`),
+  getTransactionItem: (id) => axios.get(`${API_BASE}/transaction-management/${id}`),
+  createTransactionItem: (data) => axios.post(`${API_BASE}/transaction-management`, data),
+  updateTransactionItem: (id, data) => axios.put(`${API_BASE}/transaction-management/${id}`, data),
+  deleteTransactionItem: (id) => axios.delete(`${API_BASE}/transaction-management/${id}`),
 };
 

@@ -22,6 +22,8 @@ use App\Http\Controllers\Admin\RatingController;
 use App\Http\Controllers\Admin\SalesReportController;
 use App\Http\Controllers\Admin\StockManagementController;
 use App\Http\Controllers\Admin\EmailSubscriberController;
+use App\Http\Controllers\Admin\SupportManagementController;
+use App\Http\Controllers\Admin\TransactionManagementController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -99,5 +101,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Email Subscribers
     Route::apiResource('email-subscribers', EmailSubscriberController::class);
+
+    // Support Management
+    Route::apiResource('support-management', SupportManagementController::class);
+
+    // Transaction Management
+    Route::apiResource('transaction-management', TransactionManagementController::class);
   });
 });
