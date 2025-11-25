@@ -64,4 +64,20 @@ class User extends Authenticatable
     {
         return $this->role === 'user';
     }
+
+    /**
+     * Get all ads created by this user
+     */
+    public function ads()
+    {
+        return $this->hasMany(Ad::class);
+    }
+
+    /**
+     * Get all transactions for this user
+     */
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class);
+    }
 }

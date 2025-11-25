@@ -113,5 +113,12 @@ export const adminAPI = {
   createRating: (data) => axios.post(`${API_BASE}/ratings`, data),
   updateRating: (id, data) => axios.put(`${API_BASE}/ratings/${id}`, data),
   deleteRating: (id) => axios.delete(`${API_BASE}/ratings/${id}`),
+
+  // Sales Report
+  getSalesReport: () => axios.get(`${API_BASE}/sales-report`),
+  getSalesReportItem: (id) => axios.get(`${API_BASE}/sales-report/${id}`),
+  createSalesReport: (data) => axios.post(`${API_BASE}/sales-report`, data),
+  updateSalesReport: (id, data) => axios.put(`${API_BASE}/sales-report/${id}`, data),
+  deleteSalesReport: (id) => axios.delete(`${API_BASE}/sales-report/${id}`),
 };
 

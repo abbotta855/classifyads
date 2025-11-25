@@ -196,6 +196,12 @@ function AdminPanel() {
   const [ratingsLoading, setRatingsLoading] = useState(false);
   const [editingRatingId, setEditingRatingId] = useState(null);
   const [editingRatingData, setEditingRatingData] = useState(null);
+
+  // Sales Report data
+  const [salesReport, setSalesReport] = useState(null);
+  const [salesReportLoading, setSalesReportLoading] = useState(false);
+  const [editingSalesReportId, setEditingSalesReportId] = useState(null);
+  const [editingSalesReportData, setEditingSalesReportData] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
   const [newChatMessage, setNewChatMessage] = useState('');
@@ -227,6 +233,14 @@ function AdminPanel() {
   useEffect(() => {
     if (activeSection === 'rating-review') {
       fetchRatings();
+      fetchUsers();
+    }
+  }, [activeSection]);
+
+  // Fetch sales report data
+  useEffect(() => {
+    if (activeSection === 'sales-report') {
+      fetchSalesReport();
       fetchUsers();
     }
   }, [activeSection]);
@@ -312,6 +326,21 @@ function AdminPanel() {
       setTimeout(() => setError(null), 5000);
     } finally {
       setRatingsLoading(false);
+    }
+  };
+
+  const fetchSalesReport = async () => {
+    setSalesReportLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getSalesReport();
+      setSalesReport(response.data);
+    } catch (err) {
+      setError('Failed to fetch sales report: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching sales report:', err);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setSalesReportLoading(false);
     }
   };
 
@@ -648,6 +677,60 @@ function AdminPanel() {
     } catch (err) {
       setError('Failed to delete rating: ' + (err.response?.data?.message || err.message));
       console.error('Error deleting rating:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleEditSalesReport = (report) => {
+    setEditingSalesReportId(report.id);
+    setEditingSalesReportData({
+      user_id: report.user_id.toString(),
+      listed_items: report.listed_items.toString(),
+      sold_items: report.sold_items.toString(),
+      earning: report.earning.toString(),
+      total_earning: report.total_earning.toString(),
+    });
+  };
+
+  const handleSaveSalesReport = async (reportId) => {
+    try {
+      await adminAPI.updateSalesReport(reportId, {
+        ...editingSalesReportData,
+        user_id: parseInt(editingSalesReportData.user_id, 10),
+        listed_items: parseInt(editingSalesReportData.listed_items, 10),
+        sold_items: parseInt(editingSalesReportData.sold_items, 10),
+        earning: parseFloat(editingSalesReportData.earning),
+        total_earning: parseFloat(editingSalesReportData.total_earning),
+      });
+      setSuccessMessage('Sales report updated successfully');
+      setEditingSalesReportId(null);
+      setEditingSalesReportData(null);
+      fetchSalesReport();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update sales report: ' + (err.response?.data?.message || err.message));
+      console.error('Error updating sales report:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleCancelEditSalesReport = () => {
+    setEditingSalesReportId(null);
+    setEditingSalesReportData(null);
+  };
+
+  const handleDeleteSalesReport = async (reportId) => {
+    if (!window.confirm('Are you sure you want to delete this sales report?')) {
+      return;
+    }
+    try {
+      await adminAPI.deleteSalesReport(reportId);
+      setSuccessMessage('Sales report deleted successfully');
+      fetchSalesReport();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete sales report: ' + (err.response?.data?.message || err.message));
+      console.error('Error deleting sales report:', err);
       setTimeout(() => setError(null), 5000);
     }
   };
@@ -3847,6 +3930,150 @@ function AdminPanel() {
                         )}
                       </tbody>
                     </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'sales-report' && (
+            <section className="space-y-6">
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Sales report</h3>
+                    </div>
+                  </div>
+
+                  {/* Earnings Summary */}
+                  <div className="space-y-2 mb-4">
+                    <div className="text-sm text-[hsl(var(--foreground))]">
+                      Vendor wise total earning: Rs {salesReport?.vendor_wise_total_earning?.toLocaleString() || '0.00'}
+                    </div>
+                    <div className="text-sm text-[hsl(var(--foreground))]">
+                      User wise total earning: Rs {salesReport?.user_wise_total_earning?.toLocaleString() || '0.00'}
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Vendor/User name</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Listed Item</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Sold Item</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Earning</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Email</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Total Earning</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {salesReportLoading ? (
+                          <tr>
+                            <td colSpan="8" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading sales report...</td>
+                          </tr>
+                        ) : !salesReport?.sales_report || salesReport.sales_report.length === 0 ? (
+                          <tr>
+                            <td colSpan="8" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No sales data found.</td>
+                          </tr>
+                        ) : (
+                          salesReport.sales_report.map((item, index) => (
+                            <tr key={item.id} className="border-b border-[hsl(var(--border))]">
+                              <td className="p-3 text-sm">{index + 1}</td>
+                              <td className="p-3 text-sm">
+                                {editingSalesReportId === item.id ? (
+                                  <select
+                                    value={editingSalesReportData.user_id}
+                                    onChange={(e) => setEditingSalesReportData({...editingSalesReportData, user_id: e.target.value})}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                  >
+                                    {users.map((user) => (
+                                      <option key={user.id} value={user.id}>{user.name}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  item.name || 'N/A'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingSalesReportId === item.id ? (
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={editingSalesReportData.listed_items}
+                                    onChange={(e) => setEditingSalesReportData({...editingSalesReportData, listed_items: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  item.listed_items || 0
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingSalesReportId === item.id ? (
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={editingSalesReportData.sold_items}
+                                    onChange={(e) => setEditingSalesReportData({...editingSalesReportData, sold_items: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  item.sold_items || 0
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingSalesReportId === item.id ? (
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={editingSalesReportData.earning}
+                                    onChange={(e) => setEditingSalesReportData({...editingSalesReportData, earning: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  `Rs ${item.earning?.toLocaleString() || '0.00'}`
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">{item.email || 'N/A'}</td>
+                              <td className="p-3 text-sm">
+                                {editingSalesReportId === item.id ? (
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={editingSalesReportData.total_earning}
+                                    onChange={(e) => setEditingSalesReportData({...editingSalesReportData, total_earning: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  <span className="font-semibold">Rs {item.total_earning?.toLocaleString() || '0.00'}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingSalesReportId === item.id ? (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveSalesReport(item.id)}>Save</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditSalesReport}>Cancel</Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditSalesReport(item)}>Edit</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteSalesReport(item.id)}>Delete</Button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-4">
+                    <a href="#" className="text-sm text-[hsl(var(--primary))] hover:underline">Download report</a>
                   </div>
                 </CardContent>
               </Card>
