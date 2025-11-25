@@ -190,6 +190,12 @@ function AdminPanel() {
     valid_until: '',
     status: 'pending',
   });
+
+  // Ratings/Reviews data
+  const [ratings, setRatings] = useState([]);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
+  const [editingRatingId, setEditingRatingId] = useState(null);
+  const [editingRatingData, setEditingRatingData] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
   const [newChatMessage, setNewChatMessage] = useState('');
@@ -213,6 +219,14 @@ function AdminPanel() {
   useEffect(() => {
     if (activeSection === 'offer-discount') {
       fetchOffers();
+      fetchUsers();
+    }
+  }, [activeSection]);
+
+  // Fetch ratings data
+  useEffect(() => {
+    if (activeSection === 'rating-review') {
+      fetchRatings();
       fetchUsers();
     }
   }, [activeSection]);
@@ -283,6 +297,21 @@ function AdminPanel() {
       setTimeout(() => setError(null), 5000);
     } finally {
       setOffersLoading(false);
+    }
+  };
+
+  const fetchRatings = async () => {
+    setRatingsLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getRatings();
+      setRatings(response.data || []);
+    } catch (err) {
+      setError('Failed to fetch ratings: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching ratings:', err);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setRatingsLoading(false);
     }
   };
 
@@ -568,6 +597,57 @@ function AdminPanel() {
     } catch (err) {
       setError('Failed to approve offer: ' + (err.response?.data?.message || err.message));
       console.error('Error approving offer:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleEditRating = (rating) => {
+    setEditingRatingId(rating.id);
+    setEditingRatingData({
+      user_id: rating.user_id.toString(),
+      seller_id: rating.seller_id.toString(),
+      rating: rating.rating.toString(),
+      comment: rating.comment || '',
+    });
+  };
+
+  const handleSaveRating = async (ratingId) => {
+    try {
+      await adminAPI.updateRating(ratingId, {
+        ...editingRatingData,
+        user_id: parseInt(editingRatingData.user_id, 10),
+        seller_id: parseInt(editingRatingData.seller_id, 10),
+        rating: parseInt(editingRatingData.rating, 10),
+      });
+      setSuccessMessage('Rating updated successfully');
+      setEditingRatingId(null);
+      setEditingRatingData(null);
+      fetchRatings();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update rating: ' + (err.response?.data?.message || err.message));
+      console.error('Error updating rating:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleCancelEditRating = () => {
+    setEditingRatingId(null);
+    setEditingRatingData(null);
+  };
+
+  const handleDeleteRating = async (ratingId) => {
+    if (!window.confirm('Are you sure you want to delete this rating?')) {
+      return;
+    }
+    try {
+      await adminAPI.deleteRating(ratingId);
+      setSuccessMessage('Rating deleted successfully');
+      fetchRatings();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete rating: ' + (err.response?.data?.message || err.message));
+      console.error('Error deleting rating:', err);
       setTimeout(() => setError(null), 5000);
     }
   };
@@ -3641,6 +3721,132 @@ function AdminPanel() {
                   </div>
                   <div className="mt-4">
                     <a href="#" className="text-sm text-[hsl(var(--primary))] hover:underline">Download report</a>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'rating-review' && (
+            <section className="space-y-6">
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Rating Review Management</h3>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User Name</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Rating</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Rating as Seller</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Rating as Buyer</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Overall rating</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ratingsLoading ? (
+                          <tr>
+                            <td colSpan="7" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading ratings...</td>
+                          </tr>
+                        ) : ratings.length === 0 ? (
+                          <tr>
+                            <td colSpan="7" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No ratings found.</td>
+                          </tr>
+                        ) : (
+                          ratings.map((rating, index) => (
+                            <tr key={rating.id} className="border-b border-[hsl(var(--border))]">
+                              <td className="p-3 text-sm">{index + 1}</td>
+                              <td className="p-3 text-sm">
+                                {editingRatingId === rating.id ? (
+                                  <select
+                                    value={editingRatingData.user_id}
+                                    onChange={(e) => setEditingRatingData({...editingRatingData, user_id: e.target.value})}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                  >
+                                    {users.map((user) => (
+                                      <option key={user.id} value={user.id}>{user.name}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  rating.user_name || 'N/A'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingRatingId === rating.id ? (
+                                  <select
+                                    value={editingRatingData.rating}
+                                    onChange={(e) => setEditingRatingData({...editingRatingData, rating: e.target.value})}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                  >
+                                    <option value="1">1 Star</option>
+                                    <option value="2">2 Stars</option>
+                                    <option value="3">3 Stars</option>
+                                    <option value="4">4 Stars</option>
+                                    <option value="5">5 Stars</option>
+                                  </select>
+                                ) : (
+                                  <div className="flex items-center gap-1">
+                                    <span>{rating.rating}</span>
+                                    <span className="text-yellow-500">★</span>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingRatingId === rating.id ? (
+                                  <select
+                                    value={editingRatingData.seller_id}
+                                    onChange={(e) => setEditingRatingData({...editingRatingData, seller_id: e.target.value})}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                  >
+                                    {users.map((user) => (
+                                      <option key={user.id} value={user.id}>{user.name}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <div className="flex items-center gap-1">
+                                    <span>{rating.rating_as_seller}</span>
+                                    <span className="text-yellow-500">★</span>
+                                    <span className="text-xs text-[hsl(var(--muted-foreground))] ml-1">({rating.seller_name})</span>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                <div className="flex items-center gap-1">
+                                  <span>{rating.rating_as_buyer}</span>
+                                  <span className="text-yellow-500">★</span>
+                                </div>
+                              </td>
+                              <td className="p-3 text-sm">
+                                <div className="flex items-center gap-1">
+                                  <span className="font-semibold">{rating.overall_rating}</span>
+                                  <span className="text-yellow-500">★</span>
+                                </div>
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingRatingId === rating.id ? (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveRating(rating.id)}>Save</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditRating}>Cancel</Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditRating(rating)}>Edit</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteRating(rating.id)}>Delete</Button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </CardContent>
               </Card>

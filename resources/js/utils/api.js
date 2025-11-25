@@ -106,5 +106,12 @@ export const adminAPI = {
   updateOffer: (id, data) => axios.put(`${API_BASE}/offers/${id}`, data),
   deleteOffer: (id) => axios.delete(`${API_BASE}/offers/${id}`),
   approveOffer: (id) => axios.post(`${API_BASE}/offers/${id}/approve`),
+
+  // Ratings/Reviews
+  getRatings: () => axios.get(`${API_BASE}/ratings`),
+  getRating: (id) => axios.get(`${API_BASE}/ratings/${id}`),
+  createRating: (data) => axios.post(`${API_BASE}/ratings`, data),
+  updateRating: (id, data) => axios.put(`${API_BASE}/ratings/${id}`, data),
+  deleteRating: (id) => axios.delete(`${API_BASE}/ratings/${id}`),
 };
 
