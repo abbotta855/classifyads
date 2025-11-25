@@ -71,6 +71,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Users management
     Route::apiResource('users', UserController::class);
+    Route::post('users/{user}/comment', [UserController::class, 'addComment']);
     
     // Categories management
     Route::apiResource('categories', AdminCategoryController::class);

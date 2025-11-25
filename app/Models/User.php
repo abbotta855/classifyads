@@ -24,6 +24,7 @@ class User extends Authenticatable
         'password',
         'role',
         'location',
+        'comment',
     ];
 
     /**
@@ -79,5 +80,13 @@ class User extends Authenticatable
     public function transactions()
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    /**
+     * Get all notifications for this user
+     */
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class);
     }
 }

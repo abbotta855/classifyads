@@ -265,9 +265,20 @@ function AdminPanel() {
     email: '',
     status: 'active',
   });
+  const [showCategoryWiseDropdown, setShowCategoryWiseDropdown] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
   const [newChatMessage, setNewChatMessage] = useState('');
+
+  // User Management data
+  const [userManagementData, setUserManagementData] = useState([]);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalVendors, setTotalVendors] = useState(0);
+  const [userManagementLoading, setUserManagementLoading] = useState(false);
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [editingUserData, setEditingUserData] = useState(null);
+  const [commentingUserId, setCommentingUserId] = useState(null);
+  const [userComment, setUserComment] = useState('');
 
   // Fetch ads data
   useEffect(() => {
@@ -339,6 +350,13 @@ function AdminPanel() {
       fetchTransactionManagement();
       fetchUsers();
       fetchCategories();
+    }
+  }, [activeSection]);
+
+  // Fetch user management data
+  useEffect(() => {
+    if (activeSection === 'user-management') {
+      fetchUserManagement();
     }
   }, [activeSection]);
 
@@ -520,6 +538,23 @@ function AdminPanel() {
       setTimeout(() => setError(null), 5000);
     } finally {
       setTransactionManagementLoading(false);
+    }
+  };
+
+  const fetchUserManagement = async () => {
+    setUserManagementLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getUsers();
+      setUserManagementData(response.data.users || []);
+      setTotalUsers(response.data.total_users || 0);
+      setTotalVendors(response.data.total_vendors || 0);
+    } catch (err) {
+      setError('Failed to fetch user management: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching user management:', err);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setUserManagementLoading(false);
     }
   };
 
@@ -1383,6 +1418,99 @@ function AdminPanel() {
   const handleCancelEditTransaction = () => {
     setEditingTransactionId(null);
     setEditingTransactionData(null);
+  };
+
+  const handleEditUser = (user) => {
+    // Prevent editing super_admin users
+    if (user.role === 'super_admin') {
+      setError('Super admin users cannot be edited through this interface.');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+    setEditingUserId(user.id);
+    setEditingUserData({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      location: user.location || '',
+      comment: user.comment || '',
+    });
+  };
+
+  const handleSaveUser = async (userId) => {
+    try {
+      await adminAPI.updateUser(userId, editingUserData);
+      setSuccessMessage('User updated successfully');
+      setEditingUserId(null);
+      setEditingUserData(null);
+      fetchUserManagement();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update user: ' + (err.response?.data?.message || err.message));
+      console.error('Error updating user:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleCancelEditUser = () => {
+    setEditingUserId(null);
+    setEditingUserData(null);
+  };
+
+  const handleDeleteUser = async (userId) => {
+    const user = userManagementData.find(u => u.id === userId);
+    
+    // Prevent deleting super_admin users
+    if (user && user.role === 'super_admin') {
+      setError('Super admin users cannot be deleted.');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to delete this user?')) {
+      return;
+    }
+    try {
+      await adminAPI.deleteUser(userId);
+      setSuccessMessage('User deleted successfully');
+      fetchUserManagement();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete user: ' + (err.response?.data?.message || err.message));
+      console.error('Error deleting user:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleAddComment = (userId) => {
+    setCommentingUserId(userId);
+    const user = userManagementData.find(u => u.id === userId);
+    setUserComment(user?.comment || '');
+  };
+
+  const handleSaveComment = async (userId) => {
+    if (!userComment.trim()) {
+      setError('Comment cannot be empty');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+    try {
+      await adminAPI.addUserComment(userId, { comment: userComment });
+      setSuccessMessage('Comment added successfully and notification sent to user');
+      setCommentingUserId(null);
+      setUserComment('');
+      fetchUserManagement();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to add comment: ' + (err.response?.data?.message || err.message));
+      console.error('Error adding comment:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleCancelComment = () => {
+    setCommentingUserId(null);
+    setUserComment('');
   };
 
   const handleDeleteTransaction = async (transactionId) => {
@@ -2468,21 +2596,51 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getCategories();
-      const categoriesData = response.data || [];
       
-      // Transform to match expected format
-      const transformedCategories = categoriesData.map(item => ({
-        id: item.subcategoryId || item.categoryId,
-        categoryId: item.categoryId,
-        categoryName: item.categoryName,
-        subcategoryId: item.subcategoryId,
-        subcategoryName: item.subcategoryName || ''
-      }));
+      // Handle different response structures - ensure we get an array
+      let categoriesData = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        categoriesData = response.data;
+      } 
+      // Check if response itself is an array (shouldn't happen with axios, but just in case)
+      else if (Array.isArray(response)) {
+        categoriesData = response;
+      } 
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        categoriesData = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        categoriesData = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        categoriesData = [];
+      }
+      
+      // Transform to match expected format - only if we have valid data
+      const transformedCategories = Array.isArray(categoriesData) 
+        ? categoriesData.map(item => ({
+            id: item.subcategoryId || item.categoryId || item.id,
+            categoryId: item.categoryId || item.id,
+            categoryName: item.categoryName || item.category || '',
+            subcategoryId: item.subcategoryId || null,
+            subcategoryName: item.subcategoryName || item.sub_category || ''
+          }))
+        : [];
       
       setCategoryManagementData(transformedCategories);
     } catch (err) {
-      setError('Failed to fetch categories: ' + (err.response?.data?.message || err.message));
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to fetch categories: ' + errorMessage);
       console.error('Error fetching categories:', err);
+      console.error('Error response:', err.response);
+      setCategoryManagementData([]); // Set empty array on error
     } finally {
       setCategoryManagementLoading(false);
     }
@@ -5522,32 +5680,40 @@ function AdminPanel() {
               {/* Earning Summary */}
               <Card>
                 <CardContent className="p-4 space-y-2">
-                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Earning Summary</h3>
-                  <div className="space-y-1 text-sm">
-                    <div className="text-red-600 dark:text-red-400">
+                  <h3 className="text-lg font-semibold mb-4" style={{ color: '#000000' }}>Earning Summary</h3>
+                  <div className="space-y-1 text-sm" style={{ color: '#000000' }}>
+                    <div>
                       Total earning from Ad post: Rs {earningSummary?.total?.toLocaleString() || '0.00'}
                     </div>
-                    <div className="text-red-600 dark:text-red-400">
+                    <div>
                       Total earning from Ad post Weekly: Rs {earningSummary?.weekly?.toLocaleString() || '0.00'}
                     </div>
-                    <div className="text-red-600 dark:text-red-400">
+                    <div>
                       Total earning from Ad post Monthly: Rs {earningSummary?.monthly?.toLocaleString() || '0.00'}
                     </div>
-                    <div className="text-red-600 dark:text-red-400">
+                    <div>
                       Total earning from Ad post Yearly: Rs {earningSummary?.yearly?.toLocaleString() || '0.00'}
                     </div>
-                    <div className="text-red-600 dark:text-red-400">
-                      Total earning from Ad post major category wise:
-                      {earningSummary?.category_wise && earningSummary.category_wise.length > 0 ? (
-                        <ul className="ml-4 mt-1 list-disc">
+                    <div>
+                      <div 
+                        className="cursor-pointer flex items-center gap-2 hover:underline"
+                        onClick={() => setShowCategoryWiseDropdown(!showCategoryWiseDropdown)}
+                        style={{ color: '#000000' }}
+                      >
+                        <span>Total earning from Ad post major category wise:</span>
+                        <span className="text-xs">{showCategoryWiseDropdown ? '▼' : '▶'}</span>
+                      </div>
+                      {showCategoryWiseDropdown && earningSummary?.category_wise && earningSummary.category_wise.length > 0 && (
+                        <ul className="ml-4 mt-1 list-disc" style={{ color: '#000000' }}>
                           {earningSummary.category_wise.map((cat, idx) => (
-                            <li key={idx}>
+                            <li key={idx} style={{ color: '#000000' }}>
                               {cat.category}: Rs {Number(cat.total).toLocaleString()}
                             </li>
                           ))}
                         </ul>
-                      ) : (
-                        <span className="ml-2">No category data</span>
+                      )}
+                      {showCategoryWiseDropdown && (!earningSummary?.category_wise || earningSummary.category_wise.length === 0) && (
+                        <span className="ml-2" style={{ color: '#000000' }}>No category data</span>
                       )}
                     </div>
                   </div>
@@ -5865,6 +6031,230 @@ function AdminPanel() {
                                     <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteTransaction(transaction.id)}>Delete</Button>
                                   </div>
                                 )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'user-management' && (
+            <section className="space-y-6">
+              {userManagementLoading && (
+                <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading users...
+                </div>
+              )}
+
+              {/* Summary Statistics */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex gap-6">
+                    <div>
+                      <span className="text-sm font-medium text-[hsl(var(--foreground))]">Total user: </span>
+                      <span className="text-sm font-semibold text-[hsl(var(--foreground))]">{totalUsers}</span>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-[hsl(var(--foreground))]">Total vendor: </span>
+                      <span className="text-sm font-semibold text-[hsl(var(--foreground))]">{totalVendors}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* User Management Table */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">User management</h2>
+                    <Button variant="outline" onClick={() => {}}>Post Ad</Button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User Name</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Joined Date</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Email</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Address</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User/Vendor</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Status</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Comment</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {userManagementLoading ? (
+                          <tr>
+                            <td colSpan="9" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading users...</td>
+                          </tr>
+                        ) : userManagementData.length === 0 ? (
+                          <tr>
+                            <td colSpan="9" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No users found</td>
+                          </tr>
+                        ) : (
+                          userManagementData.map((user, index) => (
+                            <tr key={user.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingUserId === user.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                              <td className="p-3 text-sm">
+                                {editingUserId === user.id ? (
+                                  <Input
+                                    value={editingUserData.name}
+                                    onChange={(e) => setEditingUserData({...editingUserData, name: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span>{user.name}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">
+                                {new Date(user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingUserId === user.id ? (
+                                  <Input
+                                    type="email"
+                                    value={editingUserData.email}
+                                    onChange={(e) => setEditingUserData({...editingUserData, email: e.target.value})}
+                                    className="w-full text-sm"
+                                  />
+                                ) : (
+                                  <span>{user.email}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingUserId === user.id ? (
+                                  <Input
+                                    value={editingUserData.location || ''}
+                                    onChange={(e) => setEditingUserData({...editingUserData, location: e.target.value})}
+                                    className="w-full text-sm"
+                                    placeholder="Address"
+                                  />
+                                ) : (
+                                  <span>{user.location || '-'}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingUserId === user.id ? (
+                                  <select
+                                    value={editingUserData.role}
+                                    onChange={(e) => setEditingUserData({...editingUserData, role: e.target.value})}
+                                    className="px-2 py-1 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                  >
+                                    <option value="user">User</option>
+                                    <option value="vendor">Vendor</option>
+                                    <option value="admin">Admin</option>
+                                  </select>
+                                ) : (
+                                  <span className="capitalize">{user.role === 'super_admin' ? 'Super Admin' : user.role}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                  Active
+                                </span>
+                              </td>
+                              <td className="p-3 text-sm">
+                                {commentingUserId === user.id ? (
+                                  <div className="space-y-2">
+                                    <textarea
+                                      value={userComment}
+                                      onChange={(e) => setUserComment(e.target.value)}
+                                      className="w-full text-sm p-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                      rows="2"
+                                      placeholder="Enter comment..."
+                                    />
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleSaveComment(user.id)}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs"
+                                        onClick={handleCancelComment}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1">
+                                    <span className="text-[hsl(var(--foreground))]">{user.comment || '-'}</span>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-xs"
+                                      onClick={() => handleAddComment(user.id)}
+                                    >
+                                      {user.comment ? 'Edit Comment' : 'Add Comment'}
+                                    </Button>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                <div className="flex gap-2">
+                                  {editingUserId === user.id ? (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleSaveUser(user.id)}
+                                      >
+                                        Save
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs"
+                                        onClick={handleCancelEditUser}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      {user.role !== 'super_admin' && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 px-2 text-xs"
+                                          onClick={() => handleEditUser(user)}
+                                        >
+                                          Edit
+                                        </Button>
+                                      )}
+                                      {user.role !== 'super_admin' && (
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          className="h-7 px-2 text-xs"
+                                          onClick={() => handleDeleteUser(user.id)}
+                                        >
+                                          Delete
+                                        </Button>
+                                      )}
+                                      {user.role === 'super_admin' && (
+                                        <span className="text-xs text-[hsl(var(--muted-foreground))] italic">
+                                          Protected
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))
