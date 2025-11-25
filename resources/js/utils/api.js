@@ -120,5 +120,13 @@ export const adminAPI = {
   createSalesReport: (data) => axios.post(`${API_BASE}/sales-report`, data),
   updateSalesReport: (id, data) => axios.put(`${API_BASE}/sales-report/${id}`, data),
   deleteSalesReport: (id) => axios.delete(`${API_BASE}/sales-report/${id}`),
+
+  // Stock Management
+  getStockManagement: () => axios.get(`${API_BASE}/stock-management`),
+  getStockItem: (id) => axios.get(`${API_BASE}/stock-management/${id}`),
+  createStockItem: (data) => axios.post(`${API_BASE}/stock-management`, data),
+  updateStockItem: (id, data) => axios.put(`${API_BASE}/stock-management/${id}`, data),
+  deleteStockItem: (id) => axios.delete(`${API_BASE}/stock-management/${id}`),
+  markStockAlertRead: (id) => axios.post(`${API_BASE}/stock-management/${id}/mark-alert-read`),
 };
 

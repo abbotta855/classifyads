@@ -20,6 +20,7 @@ use App\Http\Controllers\Admin\LiveChatMessageController;
 use App\Http\Controllers\Admin\OfferController;
 use App\Http\Controllers\Admin\RatingController;
 use App\Http\Controllers\Admin\SalesReportController;
+use App\Http\Controllers\Admin\StockManagementController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -90,5 +91,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Sales Report
     Route::apiResource('sales-report', SalesReportController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
+
+    // Stock Management
+    Route::apiResource('stock-management', StockManagementController::class);
+    Route::post('stock-management/{stock}/mark-alert-read', [StockManagementController::class, 'markAlertAsRead']);
   });
 });

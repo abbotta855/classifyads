@@ -202,6 +202,16 @@ function AdminPanel() {
   const [salesReportLoading, setSalesReportLoading] = useState(false);
   const [editingSalesReportId, setEditingSalesReportId] = useState(null);
   const [editingSalesReportData, setEditingSalesReportData] = useState(null);
+
+  // Stock Management data
+  const [stockManagement, setStockManagement] = useState([]);
+  const [stockManagementLoading, setStockManagementLoading] = useState(false);
+  const [lowStockAlerts, setLowStockAlerts] = useState([]);
+  const [editingStockId, setEditingStockId] = useState(null);
+  const [editingStockData, setEditingStockData] = useState(null);
+  const [showStockAlert, setShowStockAlert] = useState(false);
+  const [stockManagementCategories, setStockManagementCategories] = useState([]); // All categories grouped by main category
+  const [stockManagementMainCategories, setStockManagementMainCategories] = useState([]); // Unique main categories
   const [chatMessages, setChatMessages] = useState([]);
   const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
   const [newChatMessage, setNewChatMessage] = useState('');
@@ -243,6 +253,26 @@ function AdminPanel() {
       fetchSalesReport();
       fetchUsers();
     }
+  }, [activeSection]);
+
+  // Fetch stock management data
+  useEffect(() => {
+    if (activeSection === 'stock-management') {
+      fetchStockManagement();
+      fetchUsers();
+      fetchStockManagementCategories();
+    }
+  }, [activeSection]);
+
+  // Check for low stock alerts periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (activeSection === 'stock-management') {
+        fetchStockManagement();
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(interval);
   }, [activeSection]);
 
   // Fetch job management data
@@ -341,6 +371,30 @@ function AdminPanel() {
       setTimeout(() => setError(null), 5000);
     } finally {
       setSalesReportLoading(false);
+    }
+  };
+
+  const fetchStockManagement = async () => {
+    setStockManagementLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getStockManagement();
+      setStockManagement(response.data.stocks || []);
+      
+      // Show alert if there are low stock items
+      if (response.data.low_stock_alerts && response.data.low_stock_alerts.length > 0) {
+        setLowStockAlerts(response.data.low_stock_alerts);
+        setShowStockAlert(true);
+      } else {
+        setLowStockAlerts([]);
+        setShowStockAlert(false);
+      }
+    } catch (err) {
+      setError('Failed to fetch stock management: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching stock management:', err);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setStockManagementLoading(false);
     }
   };
 
@@ -733,6 +787,215 @@ function AdminPanel() {
       console.error('Error deleting sales report:', err);
       setTimeout(() => setError(null), 5000);
     }
+  };
+
+  const fetchStockManagementCategories = async () => {
+    try {
+      const response = await adminAPI.getCategories();
+      const allCategories = response.data || [];
+      
+      // Get unique main categories (unique category names)
+      const mainCategoriesMap = new Map();
+      const categoriesByMain = new Map();
+      
+      // First, collect all unique category names and their first ID
+      const uniqueCategoryNames = new Set();
+      allCategories.forEach((cat) => {
+        const categoryName = cat.categoryName || cat.category || '';
+        if (categoryName) {
+          uniqueCategoryNames.add(categoryName);
+        }
+      });
+      
+      // For each unique category name, find the first entry to use as main category ID
+      uniqueCategoryNames.forEach((categoryName) => {
+        // Find first category entry for this category name
+        const firstCat = allCategories.find(c => {
+          const catName = c.categoryName || c.category || '';
+          return catName === categoryName;
+        });
+        
+        if (firstCat) {
+          // Use categoryId if it exists, otherwise use id
+          const mainCategoryId = firstCat.categoryId || firstCat.id;
+          mainCategoriesMap.set(categoryName, {
+            id: mainCategoryId,
+            name: categoryName,
+          });
+          categoriesByMain.set(categoryName, []);
+        }
+      });
+      
+      // Now collect all subcategories grouped by category name
+      allCategories.forEach((cat) => {
+        const categoryName = cat.categoryName || cat.category || '';
+        
+        if (!categoryName) return;
+        
+        // If it has a subcategoryId, it's a subcategory
+        if (cat.subcategoryId && cat.subcategoryId !== null) {
+          if (!categoriesByMain.has(categoryName)) {
+            categoriesByMain.set(categoryName, []);
+          }
+          categoriesByMain.get(categoryName).push({
+            id: cat.subcategoryId || cat.id,
+            name: cat.subcategoryName || cat.sub_category || '',
+          });
+        }
+      });
+      
+      // Sort main categories alphabetically
+      const sortedMainCategories = Array.from(mainCategoriesMap.values()).sort((a, b) => 
+        a.name.localeCompare(b.name)
+      );
+      
+      // Sort subcategories within each main category
+      categoriesByMain.forEach((subcats, categoryName) => {
+        subcats.sort((a, b) => a.name.localeCompare(b.name));
+      });
+      
+      setStockManagementMainCategories(sortedMainCategories);
+      setStockManagementCategories(categoriesByMain);
+    } catch (err) {
+      console.error('Error fetching categories for stock management:', err);
+      setError('Failed to load categories: ' + (err.message || 'Unknown error'));
+    }
+  };
+
+  const handleEditStock = async (stock) => {
+    if (!stock) return;
+    
+    try {
+      setEditingStockId(stock.id);
+      
+      // Fetch categories if not already loaded
+      if (stockManagementMainCategories.length === 0) {
+        await fetchStockManagementCategories();
+      }
+      
+      // Wait a bit to ensure categories are loaded
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Find the main category for this stock item by matching category_name
+      let selectedMainCategory = null;
+      if (stock.category_name) {
+        selectedMainCategory = stockManagementMainCategories.find(
+          cat => cat.name === stock.category_name
+        );
+      }
+      
+      // If still not found, use the first main category as default
+      if (!selectedMainCategory && stockManagementMainCategories.length > 0) {
+        selectedMainCategory = stockManagementMainCategories[0];
+      }
+      
+      const selectedMainCategoryId = selectedMainCategory?.id || stock.category_id;
+      
+      // Determine the final category_id
+      // If subcategory_name exists, use the current category_id (which is the subcategory_id)
+      // Otherwise, use the main category_id
+      const finalCategoryId = (stock.subcategory_name && stock.subcategory_name.trim() !== '') 
+        ? stock.category_id.toString() 
+        : selectedMainCategoryId.toString();
+      
+      setEditingStockData({
+        item_name: stock.item_name || '',
+        vendor_seller_id: stock.vendor_seller_id?.toString() || '',
+        main_category_id: selectedMainCategoryId.toString(),
+        category_id: finalCategoryId, // This will be the final category_id (subcategory if exists, main if not)
+        quantity: stock.quantity?.toString() || '0',
+        sold_item_qty: stock.sold_item_qty?.toString() || '0',
+        low_stock_threshold: stock.low_stock_threshold?.toString() || '10',
+      });
+    } catch (err) {
+      console.error('Error setting up edit stock:', err);
+      setError('Failed to initialize edit mode: ' + (err.message || 'Unknown error'));
+      setEditingStockId(null);
+      setEditingStockData(null);
+    }
+  };
+
+  const handleSaveStock = async (stockId) => {
+    if (!editingStockData) return;
+    
+    try {
+      // category_id is already set correctly (either subcategory_id or main_category_id)
+      await adminAPI.updateStockItem(stockId, {
+        item_name: editingStockData.item_name || '',
+        vendor_seller_id: parseInt(editingStockData.vendor_seller_id, 10),
+        category_id: parseInt(editingStockData.category_id, 10), // Final category_id (subcategory if selected, main if not)
+        quantity: parseInt(editingStockData.quantity, 10),
+        sold_item_qty: parseInt(editingStockData.sold_item_qty, 10),
+        low_stock_threshold: parseInt(editingStockData.low_stock_threshold, 10),
+      });
+      setSuccessMessage('Stock item updated successfully');
+      setEditingStockId(null);
+      setEditingStockData(null);
+      fetchStockManagement();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update stock item: ' + (err.response?.data?.message || err.message));
+      console.error('Error updating stock item:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleMainCategoryChange = (mainCategoryId) => {
+    const mainCategory = stockManagementMainCategories.find(cat => cat.id.toString() === mainCategoryId);
+    const mainCategoryName = mainCategory?.name || '';
+    
+    // Reset subcategory selection when main category changes
+    setEditingStockData({
+      ...editingStockData,
+      main_category_id: mainCategoryId,
+      category_id: mainCategoryId, // Default to main category, user can select subcategory
+    });
+  };
+
+  const handleSubcategoryChange = (subcategoryId) => {
+    // If subcategory is selected, use it; otherwise use main category
+    const finalCategoryId = subcategoryId || editingStockData.main_category_id;
+    setEditingStockData({
+      ...editingStockData,
+      category_id: finalCategoryId,
+    });
+  };
+
+  const handleCancelEditStock = () => {
+    setEditingStockId(null);
+    setEditingStockData(null);
+  };
+
+  const handleDeleteStock = async (stockId) => {
+    if (!window.confirm('Are you sure you want to delete this stock item?')) {
+      return;
+    }
+    try {
+      await adminAPI.deleteStockItem(stockId);
+      setSuccessMessage('Stock item deleted successfully');
+      fetchStockManagement();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete stock item: ' + (err.response?.data?.message || err.message));
+      console.error('Error deleting stock item:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleDismissStockAlert = async (alertId) => {
+    try {
+      await adminAPI.markStockAlertRead(alertId);
+      fetchStockManagement();
+    } catch (err) {
+      console.error('Error marking alert as read:', err);
+    }
+  };
+
+  const handleDismissAllAlerts = () => {
+    lowStockAlerts.forEach(alert => {
+      handleDismissStockAlert(alert.id);
+    });
+    setShowStockAlert(false);
   };
 
   const fetchLiveChats = async () => {
@@ -4074,6 +4337,219 @@ function AdminPanel() {
                   </div>
                   <div className="mt-4">
                     <a href="#" className="text-sm text-[hsl(var(--primary))] hover:underline">Download report</a>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'stock-management' && (
+            <section className="space-y-6">
+              {/* Low Stock Alert Banner */}
+              {showStockAlert && lowStockAlerts.length > 0 && (
+                <Card className="border-orange-500 bg-orange-50 dark:bg-orange-900/20">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="text-2xl">⚠️</div>
+                        <div>
+                          <h3 className="font-semibold text-orange-800 dark:text-orange-200">Low Stock Alert!</h3>
+                          <p className="text-sm text-orange-700 dark:text-orange-300">
+                            {lowStockAlerts.length} item{lowStockAlerts.length > 1 ? 's' : ''} {lowStockAlerts.length > 1 ? 'are' : 'is'} running low on stock.
+                          </p>
+                          <ul className="mt-2 text-sm text-orange-700 dark:text-orange-300">
+                            {lowStockAlerts.map((alert) => (
+                              <li key={alert.id}>
+                                • {alert.item_name} (Vendor: {alert.vendor_seller_name}) - Only {alert.quantity} left (Threshold: {alert.threshold})
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDismissAllAlerts}
+                          className="text-orange-800 border-orange-300 hover:bg-orange-100 dark:text-orange-200 dark:border-orange-700 dark:hover:bg-orange-900/40"
+                        >
+                          Dismiss All
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowStockAlert(false)}
+                          className="text-orange-800 hover:bg-orange-100 dark:text-orange-200 dark:hover:bg-orange-900/40"
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Stock Management</h3>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Item Name</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Vendor/Seller</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Category/Subcategory</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Quantity</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Sold Item Qty</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stockManagementLoading ? (
+                          <tr>
+                            <td colSpan="7" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading stock management...</td>
+                          </tr>
+                        ) : stockManagement.length === 0 ? (
+                          <tr>
+                            <td colSpan="7" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No stock items found.</td>
+                          </tr>
+                        ) : (
+                          stockManagement.map((stock, index) => (
+                            <tr 
+                              key={stock.id} 
+                              className={`border-b border-[hsl(var(--border))] ${
+                                stock.is_low_stock ? 'bg-orange-50 dark:bg-orange-900/10' : ''
+                              }`}
+                            >
+                              <td className="p-3 text-sm">{index + 1}</td>
+                              <td className="p-3 text-sm">
+                                {editingStockId === stock.id && editingStockData ? (
+                                  <Input
+                                    value={editingStockData.item_name || ''}
+                                    onChange={(e) => setEditingStockData({...editingStockData, item_name: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  <span className={stock.is_low_stock ? 'font-semibold text-orange-600 dark:text-orange-400' : ''}>
+                                    {stock.item_name}
+                                    {stock.is_low_stock && ' ⚠️'}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingStockId === stock.id && editingStockData ? (
+                                  <select
+                                    value={editingStockData.vendor_seller_id || ''}
+                                    onChange={(e) => setEditingStockData({...editingStockData, vendor_seller_id: e.target.value})}
+                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                  >
+                                    {users.map((user) => (
+                                      <option key={user.id} value={user.id}>{user.name}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  stock.vendor_seller_name || 'N/A'
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingStockId === stock.id && editingStockData ? (
+                                  <div className="flex gap-2">
+                                    {/* Main Category Dropdown */}
+                                    <select
+                                      value={editingStockData.main_category_id || ''}
+                                      onChange={(e) => handleMainCategoryChange(e.target.value)}
+                                      className="flex-1 px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                    >
+                                      <option value="">Select Category</option>
+                                      {stockManagementMainCategories.map((cat) => (
+                                        <option key={cat.id} value={cat.id}>
+                                          {cat.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {/* Subcategory Dropdown */}
+                                    <select
+                                      value={editingStockData.category_id === editingStockData.main_category_id ? '' : (editingStockData.category_id || '')}
+                                      onChange={(e) => handleSubcategoryChange(e.target.value)}
+                                      className="flex-1 px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                      disabled={!editingStockData.main_category_id}
+                                    >
+                                      <option value="">Select Subcategory (Optional)</option>
+                                      {editingStockData.main_category_id && (() => {
+                                        const selectedMainCategory = stockManagementMainCategories.find(
+                                          c => c.id.toString() === editingStockData.main_category_id
+                                        );
+                                        if (!selectedMainCategory) return null;
+                                        
+                                        // Get all subcategories for the selected main category
+                                        const subcategories = stockManagementCategories.get(selectedMainCategory.name) || [];
+                                        
+                                        return subcategories.length > 0 ? (
+                                          subcategories.map((subcat) => (
+                                            <option key={subcat.id} value={subcat.id}>
+                                              {subcat.name}
+                                            </option>
+                                          ))
+                                        ) : (
+                                          <option value="" disabled>No subcategories available</option>
+                                        );
+                                      })()}
+                                    </select>
+                                  </div>
+                                ) : (
+                                  `${stock.category_name || 'N/A'}${stock.subcategory_name ? ` / ${stock.subcategory_name}` : ''}`
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingStockId === stock.id && editingStockData ? (
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={editingStockData.quantity || ''}
+                                    onChange={(e) => setEditingStockData({...editingStockData, quantity: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  <span className={stock.is_low_stock ? 'font-semibold text-orange-600 dark:text-orange-400' : ''}>
+                                    {stock.quantity}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingStockId === stock.id && editingStockData ? (
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={editingStockData.sold_item_qty || ''}
+                                    onChange={(e) => setEditingStockData({...editingStockData, sold_item_qty: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  stock.sold_item_qty || 0
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingStockId === stock.id && editingStockData ? (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveStock(stock.id)}>Save</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditStock}>Cancel</Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditStock(stock)}>Edit</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteStock(stock.id)}>Delete</Button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </CardContent>
               </Card>

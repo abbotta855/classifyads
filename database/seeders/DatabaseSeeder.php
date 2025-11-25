@@ -34,6 +34,7 @@ class DatabaseSeeder extends Seeder
             RatingSeeder::class,
             TransactionSeeder::class,
             SalesReportSeeder::class,
+            StockManagementSeeder::class,
         ]);
     }
 }
