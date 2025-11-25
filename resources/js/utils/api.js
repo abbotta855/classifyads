@@ -128,5 +128,11 @@ export const adminAPI = {
   updateStockItem: (id, data) => axios.put(`${API_BASE}/stock-management/${id}`, data),
   deleteStockItem: (id) => axios.delete(`${API_BASE}/stock-management/${id}`),
   markStockAlertRead: (id) => axios.post(`${API_BASE}/stock-management/${id}/mark-alert-read`),
+
+  // Email Subscribers
+  getEmailSubscribers: () => axios.get(`${API_BASE}/email-subscribers`),
+  createEmailSubscriber: (data) => axios.post(`${API_BASE}/email-subscribers`, data),
+  updateEmailSubscriber: (id, data) => axios.put(`${API_BASE}/email-subscribers/${id}`, data),
+  deleteEmailSubscriber: (id) => axios.delete(`${API_BASE}/email-subscribers/${id}`),
 };
 

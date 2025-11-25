@@ -212,6 +212,23 @@ function AdminPanel() {
   const [showStockAlert, setShowStockAlert] = useState(false);
   const [stockManagementCategories, setStockManagementCategories] = useState([]); // All categories grouped by main category
   const [stockManagementMainCategories, setStockManagementMainCategories] = useState([]); // Unique main categories
+
+  // Email Subscriber List data
+  const [emailSubscribers, setEmailSubscribers] = useState([]);
+  const [emailSubscribersLoading, setEmailSubscribersLoading] = useState(false);
+  const [editingEmailSubscriberId, setEditingEmailSubscriberId] = useState(null);
+  const [editingEmailSubscriberData, setEditingEmailSubscriberData] = useState(null);
+  const [showAddEmailSubscriberForm, setShowAddEmailSubscriberForm] = useState(false);
+  const [addEmailSubscriberFormData, setAddEmailSubscriberFormData] = useState({
+    user_id: '',
+    username: '',
+    email: '',
+    subscribe_volume: '',
+    amount: '',
+    start_date: '',
+    end_date: '',
+    subscription_type: '',
+  });
   const [chatMessages, setChatMessages] = useState([]);
   const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
   const [newChatMessage, setNewChatMessage] = useState('');
@@ -261,6 +278,14 @@ function AdminPanel() {
       fetchStockManagement();
       fetchUsers();
       fetchStockManagementCategories();
+    }
+  }, [activeSection]);
+
+  // Fetch email subscriber data
+  useEffect(() => {
+    if (activeSection === 'email-subscriber') {
+      fetchEmailSubscribers();
+      fetchUsers();
     }
   }, [activeSection]);
 
@@ -395,6 +420,21 @@ function AdminPanel() {
       setTimeout(() => setError(null), 5000);
     } finally {
       setStockManagementLoading(false);
+    }
+  };
+
+  const fetchEmailSubscribers = async () => {
+    setEmailSubscribersLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getEmailSubscribers();
+      setEmailSubscribers(response.data || []);
+    } catch (err) {
+      setError('Failed to fetch email subscribers: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching email subscribers:', err);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setEmailSubscribersLoading(false);
     }
   };
 
@@ -996,6 +1036,110 @@ function AdminPanel() {
       handleDismissStockAlert(alert.id);
     });
     setShowStockAlert(false);
+  };
+
+  const handleAddEmailSubscriberUserChange = (userId) => {
+    const selectedUser = users.find((user) => user.id.toString() === userId);
+    setAddEmailSubscriberFormData((prev) => ({
+      ...prev,
+      user_id: userId,
+      username: selectedUser ? selectedUser.name : '',
+      email: selectedUser ? selectedUser.email : '',
+    }));
+  };
+
+  const handleAddEmailSubscriberSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await adminAPI.createEmailSubscriber({
+        user_id: addEmailSubscriberFormData.user_id ? parseInt(addEmailSubscriberFormData.user_id, 10) : null,
+        username: addEmailSubscriberFormData.username,
+        email: addEmailSubscriberFormData.email,
+        subscribe_volume: parseInt(addEmailSubscriberFormData.subscribe_volume || '0', 10),
+        amount: parseFloat(addEmailSubscriberFormData.amount || '0'),
+        start_date: addEmailSubscriberFormData.start_date,
+        end_date: addEmailSubscriberFormData.end_date,
+        subscription_type: addEmailSubscriberFormData.subscription_type,
+      });
+      setSuccessMessage('Email subscriber added successfully');
+      setShowAddEmailSubscriberForm(false);
+      setAddEmailSubscriberFormData({
+        user_id: '',
+        username: '',
+        email: '',
+        subscribe_volume: '',
+        amount: '',
+        start_date: '',
+        end_date: '',
+        subscription_type: '',
+      });
+      fetchEmailSubscribers();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to add email subscriber: ' + (err.response?.data?.message || err.message));
+      console.error('Error adding email subscriber:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleEditEmailSubscriber = (subscriber) => {
+    setEditingEmailSubscriberId(subscriber.id);
+    setEditingEmailSubscriberData({
+      user_id: subscriber.user_id?.toString() || '',
+      username: subscriber.username || '',
+      email: subscriber.email || '',
+      subscribe_volume: subscriber.subscribe_volume?.toString() || '0',
+      amount: subscriber.amount?.toString() || '0',
+      start_date: subscriber.start_date || '',
+      end_date: subscriber.end_date || '',
+      subscription_type: subscriber.subscription_type || '',
+    });
+  };
+
+  const handleSaveEmailSubscriber = async (subscriberId) => {
+    if (!editingEmailSubscriberData) return;
+    try {
+      await adminAPI.updateEmailSubscriber(subscriberId, {
+        user_id: editingEmailSubscriberData.user_id ? parseInt(editingEmailSubscriberData.user_id, 10) : null,
+        username: editingEmailSubscriberData.username,
+        email: editingEmailSubscriberData.email,
+        subscribe_volume: parseInt(editingEmailSubscriberData.subscribe_volume || '0', 10),
+        amount: parseFloat(editingEmailSubscriberData.amount || '0'),
+        start_date: editingEmailSubscriberData.start_date,
+        end_date: editingEmailSubscriberData.end_date,
+        subscription_type: editingEmailSubscriberData.subscription_type,
+      });
+      setSuccessMessage('Email subscriber updated successfully');
+      setEditingEmailSubscriberId(null);
+      setEditingEmailSubscriberData(null);
+      fetchEmailSubscribers();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update email subscriber: ' + (err.response?.data?.message || err.message));
+      console.error('Error updating email subscriber:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleCancelEditEmailSubscriber = () => {
+    setEditingEmailSubscriberId(null);
+    setEditingEmailSubscriberData(null);
+  };
+
+  const handleDeleteEmailSubscriber = async (subscriberId) => {
+    if (!window.confirm('Are you sure you want to delete this subscriber?')) {
+      return;
+    }
+    try {
+      await adminAPI.deleteEmailSubscriber(subscriberId);
+      setSuccessMessage('Email subscriber deleted successfully');
+      fetchEmailSubscribers();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete email subscriber: ' + (err.response?.data?.message || err.message));
+      console.error('Error deleting email subscriber:', err);
+      setTimeout(() => setError(null), 5000);
+    }
   };
 
   const fetchLiveChats = async () => {
@@ -1981,6 +2125,13 @@ function AdminPanel() {
       }
     }
     return parts.length > 0 ? parts.join(', ') : '';
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleDateString();
   };
 
   // Mock subcategories for each category
@@ -4542,6 +4693,254 @@ function AdminPanel() {
                                   <div className="flex gap-2">
                                     <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditStock(stock)}>Edit</Button>
                                     <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteStock(stock.id)}>Delete</Button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'email-subscriber' && (
+            <section className="space-y-6">
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Subscription Management</h3>
+                    <Button variant="outline" onClick={() => setShowAddEmailSubscriberForm(!showAddEmailSubscriberForm)}>
+                      {showAddEmailSubscriberForm ? 'Close Form' : 'Add Subscriber'}
+                    </Button>
+                  </div>
+
+                  {/* Add Subscriber Form */}
+                  {showAddEmailSubscriberForm && (
+                    <Card className="bg-[hsl(var(--accent))]/50">
+                      <CardContent className="p-6">
+                        <h4 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Add Subscriber</h4>
+                        <form onSubmit={handleAddEmailSubscriberSubmit} className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Select User (Optional)</label>
+                              <select
+                                value={addEmailSubscriberFormData.user_id}
+                                onChange={(e) => handleAddEmailSubscriberUserChange(e.target.value)}
+                                className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                              >
+                                <option value="">Choose user</option>
+                                {users.map((user) => (
+                                  <option key={user.id} value={user.id}>{user.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Username *</label>
+                              <Input
+                                value={addEmailSubscriberFormData.username}
+                                onChange={(e) => setAddEmailSubscriberFormData({...addEmailSubscriberFormData, username: e.target.value})}
+                                required
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Email</label>
+                              <Input
+                                type="email"
+                                value={addEmailSubscriberFormData.email}
+                                onChange={(e) => setAddEmailSubscriberFormData({...addEmailSubscriberFormData, email: e.target.value})}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Subscription Type</label>
+                              <Input
+                                value={addEmailSubscriberFormData.subscription_type}
+                                onChange={(e) => setAddEmailSubscriberFormData({...addEmailSubscriberFormData, subscription_type: e.target.value})}
+                                placeholder="e.g., Premium"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Subscribe Volume *</label>
+                              <Input
+                                type="number"
+                                min="0"
+                                value={addEmailSubscriberFormData.subscribe_volume}
+                                onChange={(e) => setAddEmailSubscriberFormData({...addEmailSubscriberFormData, subscribe_volume: e.target.value})}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Amount (Rs) *</label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={addEmailSubscriberFormData.amount}
+                                onChange={(e) => setAddEmailSubscriberFormData({...addEmailSubscriberFormData, amount: e.target.value})}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Start Date *</label>
+                              <Input
+                                type="date"
+                                value={addEmailSubscriberFormData.start_date}
+                                onChange={(e) => setAddEmailSubscriberFormData({...addEmailSubscriberFormData, start_date: e.target.value})}
+                                required
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">End Date</label>
+                              <Input
+                                type="date"
+                                value={addEmailSubscriberFormData.end_date}
+                                onChange={(e) => setAddEmailSubscriberFormData({...addEmailSubscriberFormData, end_date: e.target.value})}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button type="button" variant="ghost" onClick={() => setShowAddEmailSubscriberForm(false)}>Cancel</Button>
+                            <Button type="submit">Save Subscriber</Button>
+                          </div>
+                        </form>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Username</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Subscribe volume</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Amount</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Date</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">End Date</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {emailSubscribersLoading ? (
+                          <tr>
+                            <td colSpan="7" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading subscribers...</td>
+                          </tr>
+                        ) : emailSubscribers.length === 0 ? (
+                          <tr>
+                            <td colSpan="7" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No subscribers found.</td>
+                          </tr>
+                        ) : (
+                          emailSubscribers.map((subscriber, index) => (
+                            <tr key={subscriber.id} className="border-b border-[hsl(var(--border))]">
+                              <td className="p-3 text-sm">{index + 1}</td>
+                              <td className="p-3 text-sm">
+                                {editingEmailSubscriberId === subscriber.id && editingEmailSubscriberData ? (
+                                  <div className="space-y-2">
+                                    <select
+                                      value={editingEmailSubscriberData.user_id || ''}
+                                      onChange={(e) => {
+                                        const selectedUser = users.find((user) => user.id.toString() === e.target.value);
+                                        setEditingEmailSubscriberData({
+                                          ...editingEmailSubscriberData,
+                                          user_id: e.target.value,
+                                          username: selectedUser ? selectedUser.name : editingEmailSubscriberData.username,
+                                          email: selectedUser ? selectedUser.email : editingEmailSubscriberData.email,
+                                        });
+                                      }}
+                                      className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                    >
+                                      <option value="">Select User</option>
+                                      {users.map((user) => (
+                                        <option key={user.id} value={user.id}>{user.name}</option>
+                                      ))}
+                                    </select>
+                                    <Input
+                                      value={editingEmailSubscriberData.username}
+                                      onChange={(e) => setEditingEmailSubscriberData({...editingEmailSubscriberData, username: e.target.value})}
+                                      placeholder="Username"
+                                    />
+                                    <Input
+                                      type="email"
+                                      value={editingEmailSubscriberData.email}
+                                      onChange={(e) => setEditingEmailSubscriberData({...editingEmailSubscriberData, email: e.target.value})}
+                                      placeholder="Email"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1">
+                                    <div className="font-medium text-[hsl(var(--foreground))]">{subscriber.username || 'N/A'}</div>
+                                    <div className="text-xs text-[hsl(var(--muted-foreground))]">{subscriber.email || 'No email'}</div>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingEmailSubscriberId === subscriber.id && editingEmailSubscriberData ? (
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={editingEmailSubscriberData.subscribe_volume}
+                                    onChange={(e) => setEditingEmailSubscriberData({...editingEmailSubscriberData, subscribe_volume: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  subscriber.subscribe_volume || 0
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingEmailSubscriberId === subscriber.id && editingEmailSubscriberData ? (
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={editingEmailSubscriberData.amount}
+                                    onChange={(e) => setEditingEmailSubscriberData({...editingEmailSubscriberData, amount: e.target.value})}
+                                    className="w-full"
+                                  />
+                                ) : (
+                                  `Rs ${Number(subscriber.amount || 0).toLocaleString()}`
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingEmailSubscriberId === subscriber.id && editingEmailSubscriberData ? (
+                                  <Input
+                                    type="date"
+                                    value={editingEmailSubscriberData.start_date}
+                                    onChange={(e) => setEditingEmailSubscriberData({...editingEmailSubscriberData, start_date: e.target.value})}
+                                  />
+                                ) : (
+                                  formatDate(subscriber.start_date)
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingEmailSubscriberId === subscriber.id && editingEmailSubscriberData ? (
+                                  <Input
+                                    type="date"
+                                    value={editingEmailSubscriberData.end_date}
+                                    onChange={(e) => setEditingEmailSubscriberData({...editingEmailSubscriberData, end_date: e.target.value})}
+                                  />
+                                ) : (
+                                  formatDate(subscriber.end_date)
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingEmailSubscriberId === subscriber.id && editingEmailSubscriberData ? (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveEmailSubscriber(subscriber.id)}>Save</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditEmailSubscriber}>Cancel</Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditEmailSubscriber(subscriber)}>Edit</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteEmailSubscriber(subscriber.id)}>Delete</Button>
                                   </div>
                                 )}
                               </td>
