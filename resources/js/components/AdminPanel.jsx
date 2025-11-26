@@ -490,10 +490,40 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getOffers();
-      setOffers(response.data || []);
+      
+      // Handle different response structures - ensure we get an array
+      let offersData = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        offersData = response.data;
+      } 
+      // Check if response itself is an array
+      else if (Array.isArray(response)) {
+        offersData = response;
+      }
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        offersData = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        offersData = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        offersData = [];
+      }
+      
+      setOffers(offersData);
     } catch (err) {
-      setError('Failed to fetch offers: ' + (err.response?.data?.message || err.message));
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to fetch offers: ' + errorMessage);
       console.error('Error fetching offers:', err);
+      console.error('Error response:', err.response);
+      setOffers([]); // Set empty array on error
       setTimeout(() => setError(null), 5000);
     } finally {
       setOffersLoading(false);
@@ -505,10 +535,40 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getRatings();
-      setRatings(response.data || []);
+      
+      // Handle different response structures - ensure we get an array
+      let ratingsData = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        ratingsData = response.data;
+      } 
+      // Check if response itself is an array
+      else if (Array.isArray(response)) {
+        ratingsData = response;
+      }
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        ratingsData = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        ratingsData = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        ratingsData = [];
+      }
+      
+      setRatings(ratingsData);
     } catch (err) {
-      setError('Failed to fetch ratings: ' + (err.response?.data?.message || err.message));
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to fetch ratings: ' + errorMessage);
       console.error('Error fetching ratings:', err);
+      console.error('Error response:', err.response);
+      setRatings([]); // Set empty array on error
       setTimeout(() => setError(null), 5000);
     } finally {
       setRatingsLoading(false);
@@ -559,10 +619,40 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getEmailSubscribers();
-      setEmailSubscribers(response.data || []);
+      
+      // Handle different response structures - ensure we get an array
+      let emailSubscribersData = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        emailSubscribersData = response.data;
+      } 
+      // Check if response itself is an array
+      else if (Array.isArray(response)) {
+        emailSubscribersData = response;
+      }
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        emailSubscribersData = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        emailSubscribersData = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        emailSubscribersData = [];
+      }
+      
+      setEmailSubscribers(emailSubscribersData);
     } catch (err) {
-      setError('Failed to fetch email subscribers: ' + (err.response?.data?.message || err.message));
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to fetch email subscribers: ' + errorMessage);
       console.error('Error fetching email subscribers:', err);
+      console.error('Error response:', err.response);
+      setEmailSubscribers([]); // Set empty array on error
       setTimeout(() => setError(null), 5000);
     } finally {
       setEmailSubscribersLoading(false);
@@ -574,11 +664,44 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getSupportManagement();
-      setSupportManagement(response.data.supports || []);
-      setUnsolvedIssues(response.data.unsolved_issues || []);
+      
+      // Handle different response structures - ensure we get arrays
+      let supportsData = [];
+      let unsolvedIssuesData = [];
+      
+      // Check if response.data exists
+      if (response.data) {
+        // Check if response.data.supports is an array
+        if (Array.isArray(response.data.supports)) {
+          supportsData = response.data.supports;
+        } else if (response.data.supports) {
+          console.error('Unexpected response format - response.data.supports is not an array:', response.data.supports);
+          supportsData = [];
+        }
+        
+        // Check if response.data.unsolved_issues is an array
+        if (Array.isArray(response.data.unsolved_issues)) {
+          unsolvedIssuesData = response.data.unsolved_issues;
+        } else if (response.data.unsolved_issues) {
+          console.error('Unexpected response format - response.data.unsolved_issues is not an array:', response.data.unsolved_issues);
+          unsolvedIssuesData = [];
+        }
+      } else if (Array.isArray(response)) {
+        // If response itself is an array, treat it as supports
+        supportsData = response;
+      } else {
+        console.error('Unexpected response format:', response);
+      }
+      
+      setSupportManagement(supportsData);
+      setUnsolvedIssues(unsolvedIssuesData);
     } catch (err) {
-      setError('Failed to fetch support management: ' + (err.response?.data?.message || err.message));
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to fetch support management: ' + errorMessage);
       console.error('Error fetching support management:', err);
+      console.error('Error response:', err.response);
+      setSupportManagement([]); // Set empty array on error
+      setUnsolvedIssues([]); // Set empty array on error
       setTimeout(() => setError(null), 5000);
     } finally {
       setSupportManagementLoading(false);
