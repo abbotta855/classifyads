@@ -400,10 +400,40 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getJobCategories();
-      setJobCategories(response.data || []);
+      
+      // Handle different response structures - ensure we get an array
+      let jobCategoriesData = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        jobCategoriesData = response.data;
+      } 
+      // Check if response itself is an array
+      else if (Array.isArray(response)) {
+        jobCategoriesData = response;
+      }
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        jobCategoriesData = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        jobCategoriesData = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        jobCategoriesData = [];
+      }
+      
+      setJobCategories(jobCategoriesData);
     } catch (err) {
-      setError('Failed to fetch job categories: ' + (err.response?.data?.message || err.message));
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to fetch job categories: ' + errorMessage);
       console.error('Error fetching job categories:', err);
+      console.error('Error response:', err.response);
+      setJobCategories([]); // Set empty array on error
       setTimeout(() => setError(null), 5000);
     } finally {
       setJobCategoriesLoading(false);
@@ -415,10 +445,40 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getJobApplicants();
-      setJobApplicants(response.data || []);
+      
+      // Handle different response structures - ensure we get an array
+      let jobApplicantsData = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        jobApplicantsData = response.data;
+      } 
+      // Check if response itself is an array
+      else if (Array.isArray(response)) {
+        jobApplicantsData = response;
+      }
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        jobApplicantsData = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        jobApplicantsData = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        jobApplicantsData = [];
+      }
+      
+      setJobApplicants(jobApplicantsData);
     } catch (err) {
-      setError('Failed to fetch job applicants: ' + (err.response?.data?.message || err.message));
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to fetch job applicants: ' + errorMessage);
       console.error('Error fetching job applicants:', err);
+      console.error('Error response:', err.response);
+      setJobApplicants([]); // Set empty array on error
       setTimeout(() => setError(null), 5000);
     } finally {
       setJobApplicantsLoading(false);
@@ -1859,17 +1919,44 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getLocations();
-      const locationsData = response.data || [];
+      
+      // Handle different response structures - ensure we get an array
+      let locationsData = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        locationsData = response.data;
+      } 
+      // Check if response itself is an array
+      else if (Array.isArray(response)) {
+        locationsData = response;
+      }
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        locationsData = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        locationsData = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        locationsData = [];
+      }
       
       // Transform locations data to match the expected format
-      const transformedLocations = locationsData.map(location => ({
-        id: location.id,
-        province: location.province,
-        district: location.district,
-        localLevel: location.local_level,
-        localLevelType: location.local_level_type,
-        wardId: location.ward_id
-      }));
+      const transformedLocations = Array.isArray(locationsData)
+        ? locationsData.map(location => ({
+            id: location.id,
+            province: location.province,
+            district: location.district,
+            localLevel: location.local_level,
+            localLevelType: location.local_level_type,
+            wardId: location.ward_id
+          }))
+        : [];
       
       setLocations(transformedLocations);
     } catch (err) {
@@ -2165,22 +2252,53 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getBiddingHistory();
-      const biddingData = response.data || [];
       
-      const transformedBidding = biddingData.map(bid => ({
-        id: bid.id,
-        userName: bid.user?.name || 'N/A',
-        itemName: bid.item_name,
-        reservePrice: parseFloat(bid.reserve_price) || 0,
-        buyNowPrice: parseFloat(bid.buy_now_price) || 0,
-        paymentMethod: bid.payment_method,
-        startDateTime: bid.start_date_time
-      }));
+      // Handle different response structures - ensure we get an array
+      let biddingData = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        biddingData = response.data;
+      } 
+      // Check if response itself is an array
+      else if (Array.isArray(response)) {
+        biddingData = response;
+      }
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        biddingData = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        biddingData = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        biddingData = [];
+      }
+      
+      // Transform to match expected format - only if we have valid data
+      const transformedBidding = Array.isArray(biddingData)
+        ? biddingData.map(bid => ({
+            id: bid.id,
+            userName: bid.user?.name || 'N/A',
+            itemName: bid.item_name,
+            reservePrice: parseFloat(bid.reserve_price) || 0,
+            buyNowPrice: parseFloat(bid.buy_now_price) || 0,
+            paymentMethod: bid.payment_method,
+            startDateTime: bid.start_date_time
+          }))
+        : [];
       
       setBiddingHistoryData(transformedBidding);
     } catch (err) {
-      setError('Failed to fetch bidding history: ' + (err.response?.data?.message || err.message));
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to fetch bidding history: ' + errorMessage);
       console.error('Error fetching bidding history:', err);
+      console.error('Error response:', err.response);
+      setBiddingHistoryData([]); // Set empty array on error
     } finally {
       setBiddingHistoryLoading(false);
     }
@@ -2248,9 +2366,24 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getBidWinners();
-      const winnersData = response.data || [];
+      // Handle different response structures - ensure we get an array
+      let winnersData = [];
       
-      const transformedWinners = winnersData.map(winner => ({
+      if (Array.isArray(response.data)) {
+        winnersData = response.data;
+      } else if (Array.isArray(response)) {
+        winnersData = response;
+      } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        winnersData = response.data.data;
+      } else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        winnersData = [];
+      } else {
+        console.error('Unexpected response format:', response);
+        winnersData = [];
+      }
+      
+      const transformedWinners = Array.isArray(winnersData) ? winnersData.map(winner => ({
         id: winner.id,
         userName: winner.user?.name || 'N/A',
         biddingItem: winner.bidding_item,
@@ -2260,7 +2393,7 @@ function AdminPanel() {
         totalPayment: parseFloat(winner.total_payment) || 0,
         sellerName: winner.seller?.name || 'N/A',
         emailSent: winner.congratulation_email_sent ? 'Yes' : 'No'
-      }));
+      })) : [];
       
       setBidWinnerData(transformedWinners);
     } catch (err) {
@@ -2335,16 +2468,31 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getBlockedUsers();
-      const blockedData = response.data || [];
+      // Handle different response structures - ensure we get an array
+      let blockedData = [];
       
-      const transformedBlocked = blockedData.map(blocked => ({
+      if (Array.isArray(response.data)) {
+        blockedData = response.data;
+      } else if (Array.isArray(response)) {
+        blockedData = response;
+      } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        blockedData = response.data.data;
+      } else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        blockedData = [];
+      } else {
+        console.error('Unexpected response format:', response);
+        blockedData = [];
+      }
+      
+      const transformedBlocked = Array.isArray(blockedData) ? blockedData.map(blocked => ({
         id: blocked.id,
         userName: blocked.user?.name || 'N/A',
         email: blocked.email,
         address: blocked.address,
         dateToBlock: blocked.date_to_block,
         reasonToBlock: blocked.reason_to_block
-      }));
+      })) : [];
       
       setBlockedUserData(transformedBlocked);
     } catch (err) {
@@ -2415,9 +2563,24 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getBiddingTracking();
-      const trackingData = response.data || [];
+      // Handle different response structures - ensure we get an array
+      let trackingData = [];
       
-      const transformedTracking = trackingData.map(tracking => ({
+      if (Array.isArray(response.data)) {
+        trackingData = response.data;
+      } else if (Array.isArray(response)) {
+        trackingData = response;
+      } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        trackingData = response.data.data;
+      } else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        trackingData = [];
+      } else {
+        console.error('Unexpected response format:', response);
+        trackingData = [];
+      }
+      
+      const transformedTracking = Array.isArray(trackingData) ? trackingData.map(tracking => ({
         id: tracking.id,
         bidWinnerName: tracking.bid_winner_name,
         bidWonItemName: tracking.bid_won_item_name,
@@ -2425,7 +2588,7 @@ function AdminPanel() {
         pickupStatus: tracking.pickup_status,
         completeProcessDateTime: tracking.complete_process_date_time,
         alertSent: tracking.alert_sent ? 'Yes' : 'No'
-      }));
+      })) : [];
       
       setBiddingTrackingData(transformedTracking);
     } catch (err) {
@@ -2616,30 +2779,57 @@ function AdminPanel() {
   const fetchCategories = async () => {
     try {
       const response = await window.axios.get('/api/categories');
+      
+      // Handle different response structures - ensure we get an array
+      let categoriesData = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        categoriesData = response.data;
+      } 
+      // Check if response itself is an array (shouldn't happen with axios, but just in case)
+      else if (Array.isArray(response)) {
+        categoriesData = response;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        categoriesData = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        categoriesData = [];
+      }
+      
       // For search bar dropdown: show only unique main categories (from category column in database)
-      const uniqueMainCategories = response.data.map((category) => ({
-        id: category.id,
-        name: category.name, // Main category name from database
-      }));
+      const uniqueMainCategories = Array.isArray(categoriesData) 
+        ? categoriesData.map((category) => ({
+            id: category.id,
+            name: category.name, // Main category name from database
+          }))
+        : [];
       
       // For forms (Post Ad, Auction): flatten to include both main categories and subcategories
       const flattenedCategoriesForForms = [];
-      response.data.forEach((category) => {
-        // Add main category
-        flattenedCategoriesForForms.push({
-          id: category.id,
-          name: category.name,
-        });
-        // Add subcategories
-        if (category.subcategories && category.subcategories.length > 0) {
-          category.subcategories.forEach((subcategory) => {
-            flattenedCategoriesForForms.push({
-              id: subcategory.id,
-              name: `${category.name} - ${subcategory.name}`,
-            });
+      if (Array.isArray(categoriesData)) {
+        categoriesData.forEach((category) => {
+          // Add main category
+          flattenedCategoriesForForms.push({
+            id: category.id,
+            name: category.name,
           });
-        }
-      });
+          // Add subcategories
+          if (category.subcategories && Array.isArray(category.subcategories) && category.subcategories.length > 0) {
+            category.subcategories.forEach((subcategory) => {
+              flattenedCategoriesForForms.push({
+                id: subcategory.id,
+                name: `${category.name} - ${subcategory.name}`,
+              });
+            });
+          }
+        });
+      }
       
       // Set unique main categories for search bar
       setCategories(uniqueMainCategories);
@@ -2647,6 +2837,8 @@ function AdminPanel() {
       setFlattenedCategories(flattenedCategoriesForForms);
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setCategories([]);
+      setFlattenedCategories([]);
     } finally {
       setLoading(false);
     }
