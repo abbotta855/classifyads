@@ -1135,7 +1135,32 @@ function AdminPanel() {
   const fetchStockManagementCategories = async () => {
     try {
       const response = await adminAPI.getCategories();
-      const allCategories = response.data || [];
+      
+      // Handle different response structures - ensure we get an array
+      let allCategories = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        allCategories = response.data;
+      } 
+      // Check if response itself is an array
+      else if (Array.isArray(response)) {
+        allCategories = response;
+      }
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        allCategories = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        allCategories = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        allCategories = [];
+      }
       
       // Get unique main categories (unique category names)
       const mainCategoriesMap = new Map();
@@ -1143,12 +1168,14 @@ function AdminPanel() {
       
       // First, collect all unique category names and their first ID
       const uniqueCategoryNames = new Set();
-      allCategories.forEach((cat) => {
-        const categoryName = cat.categoryName || cat.category || '';
-        if (categoryName) {
-          uniqueCategoryNames.add(categoryName);
-        }
-      });
+      if (Array.isArray(allCategories)) {
+        allCategories.forEach((cat) => {
+          const categoryName = cat.categoryName || cat.category || '';
+          if (categoryName) {
+            uniqueCategoryNames.add(categoryName);
+          }
+        });
+      }
       
       // For each unique category name, find the first entry to use as main category ID
       uniqueCategoryNames.forEach((categoryName) => {
@@ -1170,22 +1197,24 @@ function AdminPanel() {
       });
       
       // Now collect all subcategories grouped by category name
-      allCategories.forEach((cat) => {
-        const categoryName = cat.categoryName || cat.category || '';
-        
-        if (!categoryName) return;
-        
-        // If it has a subcategoryId, it's a subcategory
-        if (cat.subcategoryId && cat.subcategoryId !== null) {
-          if (!categoriesByMain.has(categoryName)) {
-            categoriesByMain.set(categoryName, []);
+      if (Array.isArray(allCategories)) {
+        allCategories.forEach((cat) => {
+          const categoryName = cat.categoryName || cat.category || '';
+          
+          if (!categoryName) return;
+          
+          // If it has a subcategoryId, it's a subcategory
+          if (cat.subcategoryId && cat.subcategoryId !== null) {
+            if (!categoriesByMain.has(categoryName)) {
+              categoriesByMain.set(categoryName, []);
+            }
+            categoriesByMain.get(categoryName).push({
+              id: cat.subcategoryId || cat.id,
+              name: cat.subcategoryName || cat.sub_category || '',
+            });
           }
-          categoriesByMain.get(categoryName).push({
-            id: cat.subcategoryId || cat.id,
-            name: cat.subcategoryName || cat.sub_category || '',
-          });
-        }
-      });
+        });
+      }
       
       // Sort main categories alphabetically
       const sortedMainCategories = Array.from(mainCategoriesMap.values()).sort((a, b) => 
@@ -1194,14 +1223,20 @@ function AdminPanel() {
       
       // Sort subcategories within each main category
       categoriesByMain.forEach((subcats, categoryName) => {
-        subcats.sort((a, b) => a.name.localeCompare(b.name));
+        if (Array.isArray(subcats)) {
+          subcats.sort((a, b) => a.name.localeCompare(b.name));
+        }
       });
       
       setStockManagementMainCategories(sortedMainCategories);
       setStockManagementCategories(categoriesByMain);
     } catch (err) {
+      const errorMessage = err.message || 'Unknown error';
       console.error('Error fetching categories for stock management:', err);
-      setError('Failed to load categories: ' + (err.message || 'Unknown error'));
+      console.error('Error response:', err.response);
+      setError('Failed to load categories: ' + errorMessage);
+      setStockManagementMainCategories([]); // Set empty array on error
+      setStockManagementCategories(new Map()); // Set empty Map on error
     }
   };
 
