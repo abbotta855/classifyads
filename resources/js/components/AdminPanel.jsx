@@ -1717,18 +1717,49 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getLiveChats();
-      const chats = response.data || [];
+      
+      // Handle different response structures - ensure we get an array
+      let chats = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        chats = response.data;
+      } 
+      // Check if response itself is an array
+      else if (Array.isArray(response)) {
+        chats = response;
+      }
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        chats = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        chats = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        chats = [];
+      }
+      
       setLiveChats(chats);
       if (!selectedLiveChat && chats.length > 0) {
         const firstChat = chats[0];
-        setSelectedLiveChat(firstChat);
-        await fetchChatMessages(firstChat.id);
-        await markChatAsRead(firstChat.id);
-        setLiveChats((prev) =>
-          prev.map((chat) => (chat.id === firstChat.id ? { ...chat, unread_admin_count: 0 } : chat))
-        );
+        if (firstChat && firstChat.id) {
+          setSelectedLiveChat(firstChat);
+          await fetchChatMessages(firstChat.id);
+          await markChatAsRead(firstChat.id);
+          setLiveChats((prev) => {
+            if (Array.isArray(prev)) {
+              return prev.map((chat) => (chat.id === firstChat.id ? { ...chat, unread_admin_count: 0 } : chat));
+            }
+            return prev;
+          });
+        }
       } else if (selectedLiveChat) {
-        const updated = chats.find((chat) => chat.id === selectedLiveChat.id);
+        const updated = chats.find((chat) => chat && chat.id === selectedLiveChat.id);
         if (updated) {
           setSelectedLiveChat(updated);
         }
@@ -1737,8 +1768,11 @@ function AdminPanel() {
         setChatMessages([]);
       }
     } catch (err) {
-      setError('Failed to fetch live chats: ' + (err.response?.data?.message || err.message));
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to fetch live chats: ' + errorMessage);
       console.error('Error fetching live chats:', err);
+      console.error('Error response:', err.response);
+      setLiveChats([]); // Set empty array on error
       setTimeout(() => setError(null), 5000);
     } finally {
       setLiveChatsLoading(false);
@@ -1746,26 +1780,64 @@ function AdminPanel() {
   };
 
   const handleSelectLiveChat = async (chat) => {
-    if (!chat) return;
+    if (!chat || !chat.id) return;
     setSelectedLiveChat(chat);
     await fetchChatMessages(chat.id);
     await markChatAsRead(chat.id);
-    setLiveChats((prev) =>
-      prev.map((item) =>
-        item.id === chat.id ? { ...item, unread_admin_count: 0 } : item
-      )
-    );
+    setLiveChats((prev) => {
+      if (Array.isArray(prev)) {
+        return prev.map((item) =>
+          item.id === chat.id ? { ...item, unread_admin_count: 0 } : item
+        );
+      }
+      return prev;
+    });
   };
 
   const fetchChatMessages = async (chatId) => {
+    if (!chatId || chatId === 'undefined' || chatId === undefined) {
+      console.warn('Cannot fetch chat messages: invalid chatId', chatId);
+      setChatMessages([]);
+      return;
+    }
     setChatMessagesLoading(true);
     setError(null);
     try {
       const response = await adminAPI.getLiveChatMessages(chatId);
-      setChatMessages(response.data || []);
+      
+      // Handle different response structures - ensure we get an array
+      let messages = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        messages = response.data;
+      } 
+      // Check if response itself is an array
+      else if (Array.isArray(response)) {
+        messages = response;
+      }
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        messages = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        messages = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        messages = [];
+      }
+      
+      setChatMessages(messages);
     } catch (err) {
-      setError('Failed to fetch chat messages: ' + (err.response?.data?.message || err.message));
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to fetch chat messages: ' + errorMessage);
       console.error('Error fetching chat messages:', err);
+      console.error('Error response:', err.response);
+      setChatMessages([]); // Set empty array on error
       setTimeout(() => setError(null), 5000);
     } finally {
       setChatMessagesLoading(false);
@@ -1773,10 +1845,15 @@ function AdminPanel() {
   };
 
   const markChatAsRead = async (chatId) => {
+    if (!chatId || chatId === 'undefined' || chatId === undefined) {
+      console.warn('Cannot mark chat as read: invalid chatId', chatId);
+      return;
+    }
     try {
       await adminAPI.markLiveChatRead(chatId);
     } catch (err) {
       console.error('Error marking chat as read:', err);
+      // Don't show error to user for this, it's not critical
     }
   };
 
