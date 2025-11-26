@@ -1940,21 +1940,52 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getDeliveries();
-      const deliveriesData = response.data || [];
       
-      const transformedDeliveries = deliveriesData.map(delivery => ({
-        id: delivery.id,
-        sellerVendor: delivery.seller_vendor?.name || 'N/A',
-        item: delivery.item,
-        price: parseFloat(delivery.price) || 0,
-        deliveryStatus: delivery.delivery_status,
-        pickupDate: delivery.pickup_date
-      }));
+      // Handle different response structures - ensure we get an array
+      let deliveriesData = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        deliveriesData = response.data;
+      } 
+      // Check if response itself is an array (shouldn't happen with axios, but just in case)
+      else if (Array.isArray(response)) {
+        deliveriesData = response;
+      } 
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        deliveriesData = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        deliveriesData = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        deliveriesData = [];
+      }
+      
+      // Transform to match expected format - only if we have valid data
+      const transformedDeliveries = Array.isArray(deliveriesData) 
+        ? deliveriesData.map(delivery => ({
+            id: delivery.id,
+            sellerVendor: delivery.seller_vendor?.name || delivery.sellerVendor?.name || 'N/A',
+            item: delivery.item,
+            price: parseFloat(delivery.price) || 0,
+            deliveryStatus: delivery.delivery_status,
+            pickupDate: delivery.pickup_date
+          }))
+        : [];
       
       setDeliveryData(transformedDeliveries);
     } catch (err) {
-      setError('Failed to fetch deliveries: ' + (err.response?.data?.message || err.message));
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to fetch deliveries: ' + errorMessage);
       console.error('Error fetching deliveries:', err);
+      console.error('Error response:', err.response);
+      setDeliveryData([]); // Set empty array on error
     } finally {
       setDeliveryLoading(false);
     }
@@ -2020,22 +2051,53 @@ function AdminPanel() {
     setError(null);
     try {
       const response = await adminAPI.getPurchaseVerifications();
-      const purchaseData = response.data || [];
       
-      const transformedPurchases = purchaseData.map(purchase => ({
-        id: purchase.id,
-        buyerUser: purchase.buyer_user?.name || 'N/A',
-        item: purchase.item,
-        price: parseFloat(purchase.price) || 0,
-        purchaseDate: purchase.purchase_date,
-        verificationCode: purchase.verification_code,
-        deliveryStatus: purchase.delivery_status
-      }));
+      // Handle different response structures - ensure we get an array
+      let purchaseData = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        purchaseData = response.data;
+      } 
+      // Check if response itself is an array (shouldn't happen with axios, but just in case)
+      else if (Array.isArray(response)) {
+        purchaseData = response;
+      } 
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        purchaseData = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        purchaseData = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        purchaseData = [];
+      }
+      
+      // Transform to match expected format - only if we have valid data
+      const transformedPurchases = Array.isArray(purchaseData) 
+        ? purchaseData.map(purchase => ({
+            id: purchase.id,
+            buyerUser: purchase.buyer_user?.name || purchase.buyerUser?.name || 'N/A',
+            item: purchase.item,
+            price: parseFloat(purchase.price) || 0,
+            purchaseDate: purchase.purchase_date,
+            verificationCode: purchase.verification_code,
+            deliveryStatus: purchase.delivery_status
+          }))
+        : [];
       
       setPurchaseVerificationData(transformedPurchases);
     } catch (err) {
-      setError('Failed to fetch purchase verifications: ' + (err.response?.data?.message || err.message));
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to fetch purchase verifications: ' + errorMessage);
       console.error('Error fetching purchase verifications:', err);
+      console.error('Error response:', err.response);
+      setPurchaseVerificationData([]); // Set empty array on error
     } finally {
       setPurchaseVerificationLoading(false);
     }
