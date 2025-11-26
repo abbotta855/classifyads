@@ -389,9 +389,41 @@ function AdminPanel() {
   const fetchUsers = async () => {
     try {
       const response = await adminAPI.getUsers();
-      setUsers(response.data || []);
+      
+      // Handle different response structures - ensure we get an array
+      let usersData = [];
+      
+      // Check if response.data is an array
+      if (Array.isArray(response.data)) {
+        usersData = response.data;
+      }
+      // Check if response.data.users exists and is an array (for user management endpoint)
+      else if (response.data && response.data.users && Array.isArray(response.data.users)) {
+        usersData = response.data.users;
+      }
+      // Check if response itself is an array
+      else if (Array.isArray(response)) {
+        usersData = response;
+      }
+      // Check if response.data.data exists and is an array
+      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        usersData = response.data.data;
+      }
+      // If response.data exists but is not an array, log it for debugging
+      else if (response.data) {
+        console.error('Unexpected response format - response.data is not an array:', response.data);
+        usersData = [];
+      }
+      // Fallback to empty array
+      else {
+        console.error('Unexpected response format:', response);
+        usersData = [];
+      }
+      
+      setUsers(usersData);
     } catch (err) {
       console.error('Error fetching users:', err);
+      setUsers([]); // Set empty array on error
     }
   };
 
@@ -3519,7 +3551,7 @@ function AdminPanel() {
                               required
                             >
                               <option value="">Select Category</option>
-                              {flattenedCategories.map((category) => (
+                              {Array.isArray(flattenedCategories) && flattenedCategories.map((category) => (
                                 <option key={category.id} value={category.id}>
                                   {category.name}
                                 </option>
@@ -3535,7 +3567,7 @@ function AdminPanel() {
                               required
                             >
                               <option value="">Select User</option>
-                              {users.map((user) => (
+                              {Array.isArray(users) && users.map((user) => (
                                 <option key={user.id} value={user.id}>
                                   {user.name} ({user.email})
                                 </option>
@@ -3685,7 +3717,7 @@ function AdminPanel() {
                                 required
                               >
                                 <option value="">Select Category</option>
-                                {categories.map((category) => (
+                                {Array.isArray(categories) && categories.map((category) => (
                                   <option key={category.id} value={category.id}>
                                     {category.name}
                                   </option>
@@ -6266,7 +6298,7 @@ function AdminPanel() {
                                 className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
                               >
                                 <option value="">Select Category</option>
-                                {flattenedCategories.map((cat) => (
+                                {Array.isArray(flattenedCategories) && flattenedCategories.map((cat) => (
                                   <option key={cat.id} value={cat.id}>
                                     {cat.name}
                                   </option>
@@ -7019,7 +7051,7 @@ function AdminPanel() {
                               required
                             >
                               <option value="">Select User</option>
-                              {users.map((user) => (
+                              {Array.isArray(users) && users.map((user) => (
                                 <option key={user.id} value={user.id}>
                                   {user.name} ({user.email})
                                 </option>
@@ -7069,7 +7101,7 @@ function AdminPanel() {
                               required
                             >
                               <option value="">Select Category</option>
-                              {flattenedCategories.map((category) => (
+                              {Array.isArray(flattenedCategories) && flattenedCategories.map((category) => (
                                 <option key={category.id} value={category.id}>
                                   {category.name}
                                 </option>
