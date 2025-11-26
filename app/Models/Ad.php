@@ -17,6 +17,10 @@ class Ad extends Model
     'featured',
     'posted_by',
     'views',
+    'image1_url',
+    'image2_url',
+    'image3_url',
+    'image4_url',
   ];
 
   public function user(): BelongsTo
@@ -27,5 +31,10 @@ class Ad extends Model
   public function category(): BelongsTo
   {
     return $this->belongsTo(Category::class);
+  }
+
+  public function photos()
+  {
+    return $this->hasMany(Photo::class)->orderBy('photo_order');
   }
 }

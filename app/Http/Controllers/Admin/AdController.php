@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Ad;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class AdController extends Controller
 {
@@ -48,9 +49,44 @@ class AdController extends Controller
       'category_id' => 'required|exists:categories,id',
       'user_id' => 'required|exists:users,id',
       'posted_by' => 'required|in:user,vendor,admin',
+      'images' => 'required|array|min:1|max:4',
+      'images.*' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048', // Max 2MB per image
     ]);
 
-    $ad = Ad::create($validated);
+    // Handle image uploads first
+    $imageUrls = [null, null, null, null];
+    
+    if ($request->hasFile('images')) {
+      $images = $request->file('images');
+      
+      foreach ($images as $index => $image) {
+        if ($image && $image->isValid() && $index < 4) {
+          // Store the image in public storage
+          $path = $image->store('ads/photos', 'public');
+          
+          // Store the URL
+          $imageUrls[$index] = Storage::url($path);
+        }
+      }
+    }
+
+    // Create the ad with image URLs
+    $ad = Ad::create([
+      'title' => $validated['title'],
+      'description' => $validated['description'],
+      'price' => $validated['price'],
+      'category_id' => $validated['category_id'],
+      'user_id' => $validated['user_id'],
+      'posted_by' => $validated['posted_by'],
+      'status' => 'active',
+      'image1_url' => $imageUrls[0],
+      'image2_url' => $imageUrls[1],
+      'image3_url' => $imageUrls[2],
+      'image4_url' => $imageUrls[3],
+    ]);
+
+    // Load relationships
+    $ad->load(['category', 'user']);
 
     return response()->json($ad, 201);
   }

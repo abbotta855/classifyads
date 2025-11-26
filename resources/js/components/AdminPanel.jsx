@@ -52,6 +52,7 @@ function AdminPanel() {
     category_id: '',
     user_id: '',
   });
+  const [postAdImages, setPostAdImages] = useState([null, null, null, null]); // 4 image slots
   const [addLocationFormData, setAddLocationFormData] = useState({
     province: '',
     district: '',
@@ -2033,14 +2034,39 @@ function AdminPanel() {
   // Handle Post Ad form submission
   const handlePostAdSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate that at least one image is uploaded
+    const hasImages = postAdImages.some(img => img !== null);
+    if (!hasImages) {
+      setError('Please upload at least one image for the ad');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+    
     try {
-      await adminAPI.createAd({
-        title: postAdFormData.title,
-        description: postAdFormData.description,
-        price: parseFloat(postAdFormData.price),
-        category_id: parseInt(postAdFormData.category_id),
-        user_id: parseInt(postAdFormData.user_id),
-        posted_by: 'admin',
+      // Create FormData for file uploads
+      const formData = new FormData();
+      formData.append('title', postAdFormData.title);
+      formData.append('description', postAdFormData.description);
+      formData.append('price', parseFloat(postAdFormData.price));
+      formData.append('category_id', parseInt(postAdFormData.category_id));
+      formData.append('user_id', parseInt(postAdFormData.user_id));
+      formData.append('posted_by', 'admin');
+
+      // Append images (only non-null ones)
+      postAdImages.forEach((image, index) => {
+        if (image) {
+          formData.append(`images[${index}]`, image);
+        }
+      });
+
+      // Use axios directly for FormData
+      const token = localStorage.getItem('token');
+      await axios.post('/api/admin/ads', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`,
+        },
       });
       
       setSuccessMessage('Ad created successfully');
@@ -2052,12 +2078,32 @@ function AdminPanel() {
         category_id: '',
         user_id: '',
       });
+      setPostAdImages([null, null, null, null]); // Reset images
       fetchAds(); // Refresh the ads list
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       setError('Failed to create ad: ' + (err.response?.data?.message || err.message));
       setTimeout(() => setError(null), 5000);
     }
+  };
+
+  // Handle image file selection
+  const handleImageChange = (index, file) => {
+    if (file && file.type.startsWith('image/')) {
+      const newImages = [...postAdImages];
+      newImages[index] = file;
+      setPostAdImages(newImages);
+    } else {
+      setError('Please select a valid image file');
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
+  // Handle image removal
+  const handleImageRemove = (index) => {
+    const newImages = [...postAdImages];
+    newImages[index] = null;
+    setPostAdImages(newImages);
   };
 
   // Handle Add Location form submission
@@ -3254,7 +3300,7 @@ function AdminPanel() {
   }, [showLocationDropdown]);
 
   const menuItems = [
-    { id: 'ads-management', label: 'Ads management' },
+    { id: 'ads-management', label: 'Ads Management' },
     { id: 'auction-management', label: 'Auction Management' },
     { id: 'category-management', label: 'Category Management' },
     { id: 'change-password', label: 'Change Password' },
@@ -3575,6 +3621,58 @@ function AdminPanel() {
                             </select>
                           </div>
                         </div>
+                        
+                        {/* Image Upload Section - 4 images */}
+                        <div>
+                          <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-2">Images (Up to 4 images) *</label>
+                          <div className="grid grid-cols-2 gap-4">
+                            {[0, 1, 2, 3].map((index) => (
+                              <div key={index} className="space-y-2">
+                                <label className="block text-xs text-[hsl(var(--muted-foreground))]">
+                                  Image {index + 1} {index === 0 && '(Primary)'}
+                                </label>
+                                {postAdImages[index] ? (
+                                  <div className="relative">
+                                    <img
+                                      src={URL.createObjectURL(postAdImages[index])}
+                                      alt={`Preview ${index + 1}`}
+                                      className="w-full h-32 object-cover rounded-md border border-[hsl(var(--border))]"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleImageRemove(index)}
+                                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-[hsl(var(--border))] rounded-md cursor-pointer hover:bg-[hsl(var(--accent))] transition-colors">
+                                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                      <svg className="w-8 h-8 mb-2 text-[hsl(var(--muted-foreground))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                      </svg>
+                                      <p className="mb-2 text-xs text-[hsl(var(--muted-foreground))]">Click to upload</p>
+                                    </div>
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={(e) => {
+                                        const file = e.target.files[0];
+                                        if (file) handleImageChange(index, file);
+                                      }}
+                                    />
+                                  </label>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
+                            At least one image is required. Supported formats: JPEG, PNG, JPG, GIF (Max 2MB per image)
+                          </p>
+                        </div>
+                        
                         <div className="flex justify-end gap-2 mt-6">
                           <Button
                             type="button"
@@ -3588,6 +3686,7 @@ function AdminPanel() {
                                 category_id: '',
                                 user_id: '',
                               });
+                              setPostAdImages([null, null, null, null]); // Reset images
                             }}
                           >
                             Cancel
@@ -3733,7 +3832,7 @@ function AdminPanel() {
                                 required
                               >
                                 <option value="">Select User</option>
-                                {users.map((user) => (
+                                {Array.isArray(users) && users.map((user) => (
                                   <option key={user.id} value={user.id}>
                                     {user.name} ({user.email})
                                   </option>
@@ -3741,6 +3840,58 @@ function AdminPanel() {
                               </select>
                             </div>
                           </div>
+                          
+                          {/* Image Upload Section - 4 images */}
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-2">Images (Up to 4 images) *</label>
+                            <div className="grid grid-cols-2 gap-4">
+                              {[0, 1, 2, 3].map((index) => (
+                                <div key={index} className="space-y-2">
+                                  <label className="block text-xs text-[hsl(var(--muted-foreground))]">
+                                    Image {index + 1} {index === 0 && '(Primary)'}
+                                  </label>
+                                  {postAdImages[index] ? (
+                                    <div className="relative">
+                                      <img
+                                        src={URL.createObjectURL(postAdImages[index])}
+                                        alt={`Preview ${index + 1}`}
+                                        className="w-full h-32 object-cover rounded-md border border-[hsl(var(--border))]"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleImageRemove(index)}
+                                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-[hsl(var(--border))] rounded-md cursor-pointer hover:bg-[hsl(var(--accent))] transition-colors">
+                                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                        <svg className="w-8 h-8 mb-2 text-[hsl(var(--muted-foreground))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                        </svg>
+                                        <p className="mb-2 text-xs text-[hsl(var(--muted-foreground))]">Click to upload</p>
+                                      </div>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                          const file = e.target.files[0];
+                                          if (file) handleImageChange(index, file);
+                                        }}
+                                      />
+                                    </label>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
+                              At least one image is required. Supported formats: JPEG, PNG, JPG, GIF (Max 2MB per image)
+                            </p>
+                          </div>
+                          
                           <div className="flex justify-end gap-2 mt-6">
                             <Button
                               type="button"
@@ -3754,6 +3905,7 @@ function AdminPanel() {
                                   category_id: '',
                                   user_id: '',
                                 });
+                                setPostAdImages([null, null, null, null]); // Reset images
                               }}
                             >
                               Cancel
