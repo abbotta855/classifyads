@@ -11,6 +11,7 @@ class Location extends Model
     'district',
     'local_level',
     'local_level_type',
-    'ward_id',
+    'ward_number',
+    'local_address',
   ];
 }

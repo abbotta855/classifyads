@@ -58,6 +58,8 @@ function AdminPanel() {
     district: '',
     localLevel: '',
     localLevelType: 'Municipality',
+    wardNumber: '',
+    localAddress: '',
   });
   const [addCategoryFormData, setAddCategoryFormData] = useState({
     categoryName: '',
@@ -2115,7 +2117,8 @@ function AdminPanel() {
         district: addLocationFormData.district,
         local_level: addLocationFormData.localLevel,
         local_level_type: addLocationFormData.localLevelType,
-        // ward_id is automatically set by the backend to match id
+        ward_number: addLocationFormData.wardNumber ? parseInt(addLocationFormData.wardNumber) : null,
+        local_address: addLocationFormData.localAddress || null,
       });
       
       setSuccessMessage('Location created successfully');
@@ -2125,6 +2128,8 @@ function AdminPanel() {
         district: '',
         localLevel: '',
         localLevelType: 'Municipality',
+        wardNumber: '',
+        localAddress: '',
       });
       fetchLocations(); // Refresh the locations list
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -2267,7 +2272,8 @@ function AdminPanel() {
             district: location.district,
             localLevel: location.local_level,
             localLevelType: location.local_level_type,
-            wardId: location.ward_id
+            wardNumber: location.ward_number,
+            localAddress: location.local_address
           }))
         : [];
       
@@ -2305,6 +2311,8 @@ function AdminPanel() {
       district: location.district,
       localLevel: location.localLevel,
       localLevelType: location.localLevelType,
+      wardNumber: location.wardNumber || '',
+      localAddress: location.localAddress || '',
     });
   };
 
@@ -2316,6 +2324,8 @@ function AdminPanel() {
         district: editingLocationData.district,
         local_level: editingLocationData.localLevel,
         local_level_type: editingLocationData.localLevelType,
+        ward_number: editingLocationData.wardNumber ? parseInt(editingLocationData.wardNumber) : null,
+        local_address: editingLocationData.localAddress || null,
       });
       setSuccessMessage('Location updated successfully');
       setEditingLocationId(null);
@@ -7015,6 +7025,28 @@ function AdminPanel() {
                                 </select>
                               </div>
                             </div>
+                            <div className="grid grid-cols-2 gap-4 mt-4">
+                              <div>
+                                <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Ward Number</label>
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={addLocationFormData.wardNumber}
+                                  onChange={(e) => setAddLocationFormData({...addLocationFormData, wardNumber: e.target.value})}
+                                  className="w-full"
+                                  placeholder="Enter ward number (optional)"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Local Address</label>
+                                <Input
+                                  value={addLocationFormData.localAddress}
+                                  onChange={(e) => setAddLocationFormData({...addLocationFormData, localAddress: e.target.value})}
+                                  className="w-full"
+                                  placeholder="Enter local address (optional)"
+                                />
+                              </div>
+                            </div>
                             <div className="flex justify-end gap-2 mt-6">
                               <Button
                                 type="button"
@@ -7026,6 +7058,8 @@ function AdminPanel() {
                                     district: '',
                                     localLevel: '',
                                     localLevelType: 'Municipality',
+                                    wardNumber: '',
+                                    localAddress: '',
                                   });
                                 }}
                               >
@@ -7047,7 +7081,8 @@ function AdminPanel() {
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Province</th>
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">District</th>
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Local level (Municipality or Rural Municipality)</th>
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Ward_id</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Ward Number</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Local Address</th>
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
                         </tr>
                       </thead>
@@ -7101,7 +7136,32 @@ function AdminPanel() {
                                 <span>{location.localLevel} ({location.localLevelType === 'Municipality' ? 'M' : location.localLevelType === 'Rural Municipality' ? 'RM' : location.localLevelType === 'Metropolitan City' ? 'MC' : 'SMC'})</span>
                               )}
                             </td>
-                            <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                            <td className="p-3 text-sm">
+                              {editingLocationId === location.id ? (
+                                <Input
+                                  type="number"
+                                  min="1"
+                                  value={editingLocationData.wardNumber}
+                                  onChange={(e) => setEditingLocationData({...editingLocationData, wardNumber: e.target.value})}
+                                  className="w-full text-sm"
+                                  placeholder="Ward Number"
+                                />
+                              ) : (
+                                <span>{location.wardNumber || 'N/A'}</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-sm">
+                              {editingLocationId === location.id ? (
+                                <Input
+                                  value={editingLocationData.localAddress}
+                                  onChange={(e) => setEditingLocationData({...editingLocationData, localAddress: e.target.value})}
+                                  className="w-full text-sm"
+                                  placeholder="Local Address"
+                                />
+                              ) : (
+                                <span>{location.localAddress || 'N/A'}</span>
+                              )}
+                            </td>
                             <td className="p-3 text-sm">
                               <div className="flex gap-2">
                                 {editingLocationId === location.id ? (

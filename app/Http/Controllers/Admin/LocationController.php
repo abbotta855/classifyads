@@ -32,13 +32,11 @@ class LocationController extends Controller
       'district' => 'required|string|max:255',
       'local_level' => 'required|string|max:255',
       'local_level_type' => 'required|in:Metropolitan City,Sub-Metropolitan City,Municipality,Rural Municipality',
+      'ward_number' => 'nullable|integer|min:1',
+      'local_address' => 'nullable|string|max:500',
     ]);
 
     $location = Location::create($validated);
-    // ward_id is automatically set by database trigger to match id
-    
-    // Refresh to get the updated ward_id from the database
-    $location->refresh();
 
     return response()->json($location, 201);
   }
@@ -64,6 +62,8 @@ class LocationController extends Controller
       'district' => 'sometimes|string|max:255',
       'local_level' => 'sometimes|string|max:255',
       'local_level_type' => 'sometimes|in:Metropolitan City,Sub-Metropolitan City,Municipality,Rural Municipality',
+      'ward_number' => 'sometimes|nullable|integer|min:1',
+      'local_address' => 'sometimes|nullable|string|max:500',
     ]);
 
     $location->update($validated);
