@@ -16,20 +16,34 @@ function AdminPanel() {
   const activeSection = section || null; // No section selected when on /admin
   const activeSubsection = subsection || null;
   
-  // Set selectedRole based on current route and user role
+  // Set selectedRole based on user role - super_admin always uses super-admin role
+  const isSuperAdmin = user?.role === 'super_admin';
   const isSuperAdminRoute = location.pathname.startsWith('/super_admin');
   const [selectedRole, setSelectedRole] = useState(
-    (user?.role === 'super_admin' && isSuperAdminRoute) ? 'super-admin' : 'admin'
+    isSuperAdmin ? 'super-admin' : 'admin'
   );
   
-  // Update selectedRole when route or user changes
+  // Update selectedRole when user changes - super_admin always uses super-admin
   useEffect(() => {
-    if (user?.role === 'super_admin' && isSuperAdminRoute) {
+    if (!user) return;
+    
+    if (isSuperAdmin) {
       setSelectedRole('super-admin');
-    } else if (location.pathname.startsWith('/admin')) {
+      // Redirect to super_admin route if on admin route
+      if (location.pathname.startsWith('/admin')) {
+        const path = location.pathname.replace('/admin', '/super_admin');
+        navigate(path, { replace: true });
+      }
+    } else if (user.role === 'admin') {
       setSelectedRole('admin');
+      // Redirect to admin route if on super_admin route (only for regular admins)
+      if (location.pathname.startsWith('/super_admin')) {
+        const path = location.pathname.replace('/super_admin', '/admin');
+        navigate(path, { replace: true });
+      }
     }
-  }, [location.pathname, user?.role, isSuperAdminRoute]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]); // Only depend on user role to avoid loops
   const [showAuctionForm, setShowAuctionForm] = useState(false);
   const [showPostAdForm, setShowPostAdForm] = useState(false);
   const [showAddLocationForm, setShowAddLocationForm] = useState(false);
@@ -3505,44 +3519,61 @@ function AdminPanel() {
             <CardContent className="p-4">
               <h2 className="text-lg font-bold text-[hsl(var(--foreground))] mb-4">Admin Dashboard</h2>
               
-              {/* Role Selection */}
-              <div className="mb-4 space-y-1">
-                <button
-                  onClick={() => setSelectedRole('super-admin')}
-                  className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
-                    selectedRole === 'super-admin'
-                      ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium'
-                      : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
-                  }`}
-                >
-                  Super Admin
-                </button>
-                <button
-                  onClick={() => setSelectedRole('admin')}
-                  className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
-                    selectedRole === 'admin'
-                      ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium'
-                      : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
-                  }`}
-                >
-                  Admin
-                </button>
-              </div>
-
-              <nav className="space-y-1">
-                {menuItems.map((item) => (
-                  <Link
-                    key={item.id}
-                    to={`/admin/${item.id}`}
-                    className={`block w-full text-left px-3 py-2 text-sm rounded transition-colors ${
-                      activeSection === item.id
+              {/* Role Selection - Only show if user is admin (super_admin always sees Super Admin) */}
+              {!isSuperAdmin ? (
+                <div className="mb-4 space-y-1">
+                  <button
+                    onClick={() => {
+                      setSelectedRole('super-admin');
+                      navigate('/super_admin');
+                    }}
+                    className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                      selectedRole === 'super-admin'
                         ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium'
                         : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
                     }`}
                   >
-                    {item.label}
-                  </Link>
-                ))}
+                    Super Admin
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedRole('admin');
+                      navigate('/admin');
+                    }}
+                    className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                      selectedRole === 'admin'
+                        ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium'
+                        : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
+                    }`}
+                  >
+                    Admin
+                  </button>
+                </div>
+              ) : (
+                <div className="mb-4">
+                  <div className="w-full text-left px-3 py-2 text-sm rounded bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium">
+                    Super Admin
+                  </div>
+                </div>
+              )}
+
+              <nav className="space-y-1">
+                {menuItems.map((item) => {
+                  const basePath = isSuperAdmin ? '/super_admin' : '/admin';
+                  return (
+                    <Link
+                      key={item.id}
+                      to={`${basePath}/${item.id}`}
+                      className={`block w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                        activeSection === item.id
+                          ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium'
+                          : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
+                      }`}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
               </nav>
             </CardContent>
           </Card>
@@ -3907,19 +3938,19 @@ function AdminPanel() {
                       <div className="space-y-2 flex-1">
                         <p 
                           className="text-sm text-[hsl(var(--foreground))] cursor-pointer hover:text-[hsl(var(--primary))] transition-colors"
-                          onClick={() => navigate('/admin/ads-management/user-posted-ads')}
+                          onClick={() => navigate(`${isSuperAdmin ? '/super_admin' : '/admin'}/ads-management/user-posted-ads`)}
                         >
                           User posted ad total: <span className="font-semibold">{adTotals.userPosted}</span>
                         </p>
                         <p 
                           className="text-sm text-[hsl(var(--foreground))] cursor-pointer hover:text-[hsl(var(--primary))] transition-colors"
-                          onClick={() => navigate('/admin/ads-management/vendor-posted-ads')}
+                          onClick={() => navigate(`${isSuperAdmin ? '/super_admin' : '/admin'}/ads-management/vendor-posted-ads`)}
                         >
                           Vendor posted ad total: <span className="font-semibold">{adTotals.vendorPosted}</span>
                         </p>
                         <p 
                           className="text-sm text-[hsl(var(--foreground))] cursor-pointer hover:text-[hsl(var(--primary))] transition-colors"
-                          onClick={() => navigate('/admin/ads-management/admin-posted-ads')}
+                          onClick={() => navigate(`${isSuperAdmin ? '/super_admin' : '/admin'}/ads-management/admin-posted-ads`)}
                         >
                           Admin posted ad total: <span className="font-semibold">{adTotals.adminPosted}</span>
                         </p>
