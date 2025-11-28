@@ -89,8 +89,45 @@ export const adminAPI = {
 
   // Job Applicants
   getJobApplicants: () => axios.get(`${API_BASE}/job-applicants`),
-  createJobApplicant: (data) => axios.post(`${API_BASE}/job-applicants`, data),
-  updateJobApplicant: (id, data) => axios.put(`${API_BASE}/job-applicants/${id}`, data),
+  createJobApplicant: (data) => {
+    const formData = data instanceof FormData ? data : new FormData();
+    if (!(data instanceof FormData)) {
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          if (data[key] instanceof File) {
+            formData.append(key, data[key]);
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+    }
+    return axios.post(`${API_BASE}/job-applicants`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  updateJobApplicant: (id, data) => {
+    const formData = data instanceof FormData ? data : new FormData();
+    if (!(data instanceof FormData)) {
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          if (data[key] instanceof File) {
+            formData.append(key, data[key]);
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+    }
+    return axios.post(`${API_BASE}/job-applicants/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      params: { _method: 'PUT' },
+    });
+  },
   deleteJobApplicant: (id) => axios.delete(`${API_BASE}/job-applicants/${id}`),
 
   // Live Chats
@@ -111,6 +148,10 @@ export const adminAPI = {
   // Ratings/Reviews
   getRatings: () => axios.get(`${API_BASE}/ratings`),
   getRating: (id) => axios.get(`${API_BASE}/ratings/${id}`),
+  getRatingCriteria: () => axios.get(`${API_BASE}/rating-criteria`),
+  createRatingCriteria: (data) => axios.post(`${API_BASE}/rating-criteria`, data),
+  updateRatingCriteria: (id, data) => axios.put(`${API_BASE}/rating-criteria/${id}`, data),
+  deleteRatingCriteria: (id) => axios.delete(`${API_BASE}/rating-criteria/${id}`),
   createRating: (data) => axios.post(`${API_BASE}/ratings`, data),
   updateRating: (id, data) => axios.put(`${API_BASE}/ratings/${id}`, data),
   deleteRating: (id) => axios.delete(`${API_BASE}/ratings/${id}`),

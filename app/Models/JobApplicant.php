@@ -11,6 +11,9 @@ class JobApplicant extends Model
         'posted_date',
         'expected_salary',
         'applicant_name',
+        'cv_file_url',
+        'cover_letter_file_url',
+        'reference_letter_file_url',
         'interview_date',
         'job_progress',
     ];

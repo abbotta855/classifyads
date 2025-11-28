@@ -92,6 +92,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Ratings/Reviews management
     Route::apiResource('ratings', RatingController::class);
+    Route::apiResource('rating-criteria', App\Http\Controllers\Admin\RatingCriteriaController::class);
 
     // Sales Report
     Route::apiResource('sales-report', SalesReportController::class)->only(['index', 'show', 'store', 'update', 'destroy']);

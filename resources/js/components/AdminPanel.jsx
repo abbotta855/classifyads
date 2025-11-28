@@ -173,6 +173,16 @@ function AdminPanel() {
     interview_date: '',
     job_progress: 'applied',
   });
+  const [jobApplicantFiles, setJobApplicantFiles] = useState({
+    cv_file: null,
+    cover_letter_file: null,
+    reference_letter_file: null,
+  });
+  const [applyJobFiles, setApplyJobFiles] = useState({
+    cv_file: null,
+    cover_letter_file: null,
+    reference_letter_file: null,
+  });
 
   // Live chat data
   const [liveChats, setLiveChats] = useState([]);
@@ -199,6 +209,19 @@ function AdminPanel() {
   const [ratingsLoading, setRatingsLoading] = useState(false);
   const [editingRatingId, setEditingRatingId] = useState(null);
   const [editingRatingData, setEditingRatingData] = useState(null);
+  
+  // Rating Criteria data
+  const [ratingCriteria, setRatingCriteria] = useState([]);
+  const [ratingCriteriaLoading, setRatingCriteriaLoading] = useState(false);
+  const [editingCriteriaId, setEditingCriteriaId] = useState(null);
+  const [editingCriteriaData, setEditingCriteriaData] = useState(null);
+  const [showAddCriteriaForm, setShowAddCriteriaForm] = useState(false);
+  const [criteriaFormData, setCriteriaFormData] = useState({
+    name: '',
+    description: '',
+    sort_order: 0,
+    is_active: true,
+  });
 
   // Sales Report data
   const [salesReport, setSalesReport] = useState(null);
@@ -311,6 +334,7 @@ function AdminPanel() {
     if (activeSection === 'rating-review') {
       fetchRatings();
       fetchUsers();
+      fetchRatingCriteria();
     }
   }, [activeSection]);
 
@@ -610,6 +634,102 @@ function AdminPanel() {
     }
   };
 
+  const fetchRatingCriteria = async () => {
+    setRatingCriteriaLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getRatingCriteria();
+      let criteriaData = [];
+      
+      if (Array.isArray(response.data)) {
+        criteriaData = response.data;
+      } else if (Array.isArray(response)) {
+        criteriaData = response;
+      } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        criteriaData = response.data.data;
+      } else {
+        criteriaData = [];
+      }
+      
+      setRatingCriteria(criteriaData);
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to fetch rating criteria: ' + errorMessage);
+      console.error('Error fetching rating criteria:', err);
+      setRatingCriteria([]);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setRatingCriteriaLoading(false);
+    }
+  };
+
+  const handleAddCriteriaSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await adminAPI.createRatingCriteria(criteriaFormData);
+      setSuccessMessage('Rating criteria added successfully');
+      setShowAddCriteriaForm(false);
+      setCriteriaFormData({
+        name: '',
+        description: '',
+        sort_order: 0,
+        is_active: true,
+      });
+      fetchRatingCriteria();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to add rating criteria: ' + (err.response?.data?.message || err.message));
+      console.error('Error adding rating criteria:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleEditCriteria = (criteria) => {
+    setEditingCriteriaId(criteria.id);
+    setEditingCriteriaData({
+      name: criteria.name,
+      description: criteria.description || '',
+      sort_order: criteria.sort_order || 0,
+      is_active: criteria.is_active !== undefined ? criteria.is_active : true,
+    });
+  };
+
+  const handleSaveCriteria = async (criteriaId) => {
+    try {
+      await adminAPI.updateRatingCriteria(criteriaId, editingCriteriaData);
+      setSuccessMessage('Rating criteria updated successfully');
+      setEditingCriteriaId(null);
+      setEditingCriteriaData(null);
+      fetchRatingCriteria();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update rating criteria: ' + (err.response?.data?.message || err.message));
+      console.error('Error updating rating criteria:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleCancelEditCriteria = () => {
+    setEditingCriteriaId(null);
+    setEditingCriteriaData(null);
+  };
+
+  const handleDeleteCriteria = async (criteriaId) => {
+    if (!window.confirm('Are you sure you want to delete this rating criteria?')) {
+      return;
+    }
+    try {
+      await adminAPI.deleteRatingCriteria(criteriaId);
+      setSuccessMessage('Rating criteria deleted successfully');
+      fetchRatingCriteria();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete rating criteria: ' + (err.response?.data?.message || err.message));
+      console.error('Error deleting rating criteria:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
   const fetchSalesReport = async () => {
     setSalesReportLoading(true);
     setError(null);
@@ -855,14 +975,33 @@ function AdminPanel() {
   const handlePostJobApplicantSubmit = async (e) => {
     e.preventDefault();
     try {
-      await adminAPI.createJobApplicant({
-        job_title: jobApplicantFormData.job_title,
-        posted_date: jobApplicantFormData.posted_date || null,
-        expected_salary: jobApplicantFormData.expected_salary ? parseFloat(jobApplicantFormData.expected_salary) : null,
-        applicant_name: jobApplicantFormData.applicant_name,
-        interview_date: jobApplicantFormData.interview_date || null,
-        job_progress: jobApplicantFormData.job_progress,
-      });
+      const formData = new FormData();
+      formData.append('job_title', jobApplicantFormData.job_title);
+      formData.append('applicant_name', jobApplicantFormData.applicant_name);
+      formData.append('job_progress', jobApplicantFormData.job_progress);
+      
+      if (jobApplicantFormData.posted_date) {
+        formData.append('posted_date', jobApplicantFormData.posted_date);
+      }
+      if (jobApplicantFormData.expected_salary) {
+        formData.append('expected_salary', parseFloat(jobApplicantFormData.expected_salary));
+      }
+      if (jobApplicantFormData.interview_date) {
+        formData.append('interview_date', jobApplicantFormData.interview_date);
+      }
+      
+      // Add file uploads
+      if (jobApplicantFiles.cv_file) {
+        formData.append('cv_file', jobApplicantFiles.cv_file);
+      }
+      if (jobApplicantFiles.cover_letter_file) {
+        formData.append('cover_letter_file', jobApplicantFiles.cover_letter_file);
+      }
+      if (jobApplicantFiles.reference_letter_file) {
+        formData.append('reference_letter_file', jobApplicantFiles.reference_letter_file);
+      }
+
+      await adminAPI.createJobApplicant(formData);
       setSuccessMessage('Job applicant posted successfully');
       setShowPostJobApplicantForm(false);
       setJobApplicantFormData({
@@ -872,6 +1011,11 @@ function AdminPanel() {
         applicant_name: '',
         interview_date: '',
         job_progress: 'applied',
+      });
+      setJobApplicantFiles({
+        cv_file: null,
+        cover_letter_file: null,
+        reference_letter_file: null,
       });
       fetchJobApplicants();
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -885,14 +1029,33 @@ function AdminPanel() {
   const handleApplyJobSubmit = async (e) => {
     e.preventDefault();
     try {
-      await adminAPI.createJobApplicant({
-        job_title: applyJobFormData.job_title,
-        applicant_name: applyJobFormData.applicant_name,
-        expected_salary: applyJobFormData.expected_salary ? parseFloat(applyJobFormData.expected_salary) : null,
-        posted_date: applyJobFormData.posted_date || null,
-        interview_date: applyJobFormData.interview_date || null,
-        job_progress: applyJobFormData.job_progress,
-      });
+      const formData = new FormData();
+      formData.append('job_title', applyJobFormData.job_title);
+      formData.append('applicant_name', applyJobFormData.applicant_name);
+      formData.append('job_progress', applyJobFormData.job_progress);
+      
+      if (applyJobFormData.expected_salary) {
+        formData.append('expected_salary', parseFloat(applyJobFormData.expected_salary));
+      }
+      if (applyJobFormData.posted_date) {
+        formData.append('posted_date', applyJobFormData.posted_date);
+      }
+      if (applyJobFormData.interview_date) {
+        formData.append('interview_date', applyJobFormData.interview_date);
+      }
+      
+      // Add file uploads
+      if (applyJobFiles.cv_file) {
+        formData.append('cv_file', applyJobFiles.cv_file);
+      }
+      if (applyJobFiles.cover_letter_file) {
+        formData.append('cover_letter_file', applyJobFiles.cover_letter_file);
+      }
+      if (applyJobFiles.reference_letter_file) {
+        formData.append('reference_letter_file', applyJobFiles.reference_letter_file);
+      }
+
+      await adminAPI.createJobApplicant(formData);
       setSuccessMessage('Job application submitted successfully');
       setShowApplyJobForm(false);
       setApplyJobFormData({
@@ -902,6 +1065,11 @@ function AdminPanel() {
         posted_date: '',
         interview_date: '',
         job_progress: 'applied',
+      });
+      setApplyJobFiles({
+        cv_file: null,
+        cover_letter_file: null,
+        reference_letter_file: null,
       });
       fetchJobApplicants();
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -4711,6 +4879,48 @@ function AdminPanel() {
                               </select>
                             </div>
                           </div>
+                          <div className="space-y-4">
+                            <h5 className="text-sm font-semibold text-[hsl(var(--foreground))]">Documents (Optional)</h5>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">CV/Resume</label>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx"
+                                  onChange={(e) => setJobApplicantFiles({ ...jobApplicantFiles, cv_file: e.target.files[0] || null })}
+                                  className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                />
+                                {jobApplicantFiles.cv_file && (
+                                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{jobApplicantFiles.cv_file.name}</p>
+                                )}
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Cover Letter</label>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx"
+                                  onChange={(e) => setJobApplicantFiles({ ...jobApplicantFiles, cover_letter_file: e.target.files[0] || null })}
+                                  className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                />
+                                {jobApplicantFiles.cover_letter_file && (
+                                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{jobApplicantFiles.cover_letter_file.name}</p>
+                                )}
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Reference Letter</label>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx"
+                                  onChange={(e) => setJobApplicantFiles({ ...jobApplicantFiles, reference_letter_file: e.target.files[0] || null })}
+                                  className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                />
+                                {jobApplicantFiles.reference_letter_file && (
+                                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{jobApplicantFiles.reference_letter_file.name}</p>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-xs text-[hsl(var(--muted-foreground))]">Accepted formats: PDF, DOC, DOCX (Max 10MB each)</p>
+                          </div>
                           <div className="flex justify-end gap-2">
                             <Button
                               type="button"
@@ -4724,6 +4934,11 @@ function AdminPanel() {
                                   applicant_name: '',
                                   interview_date: '',
                                   job_progress: 'applied',
+                                });
+                                setJobApplicantFiles({
+                                  cv_file: null,
+                                  cover_letter_file: null,
+                                  reference_letter_file: null,
                                 });
                               }}
                             >
@@ -4799,6 +5014,48 @@ function AdminPanel() {
                               </select>
                             </div>
                           </div>
+                          <div className="space-y-4">
+                            <h5 className="text-sm font-semibold text-[hsl(var(--foreground))]">Documents (Optional)</h5>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">CV/Resume</label>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx"
+                                  onChange={(e) => setApplyJobFiles({ ...applyJobFiles, cv_file: e.target.files[0] || null })}
+                                  className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                />
+                                {applyJobFiles.cv_file && (
+                                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{applyJobFiles.cv_file.name}</p>
+                                )}
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Cover Letter</label>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx"
+                                  onChange={(e) => setApplyJobFiles({ ...applyJobFiles, cover_letter_file: e.target.files[0] || null })}
+                                  className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                />
+                                {applyJobFiles.cover_letter_file && (
+                                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{applyJobFiles.cover_letter_file.name}</p>
+                                )}
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Reference Letter</label>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx"
+                                  onChange={(e) => setApplyJobFiles({ ...applyJobFiles, reference_letter_file: e.target.files[0] || null })}
+                                  className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
+                                />
+                                {applyJobFiles.reference_letter_file && (
+                                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">{applyJobFiles.reference_letter_file.name}</p>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-xs text-[hsl(var(--muted-foreground))]">Accepted formats: PDF, DOC, DOCX (Max 10MB each)</p>
+                          </div>
                           <div className="flex justify-end gap-2">
                             <Button
                               type="button"
@@ -4812,6 +5069,11 @@ function AdminPanel() {
                                   posted_date: '',
                                   interview_date: '',
                                   job_progress: 'applied',
+                                });
+                                setApplyJobFiles({
+                                  cv_file: null,
+                                  cover_letter_file: null,
+                                  reference_letter_file: null,
                                 });
                               }}
                             >
@@ -4835,17 +5097,18 @@ function AdminPanel() {
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Expected Salary</th>
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Interview Date</th>
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Progress</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Documents</th>
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
                         </tr>
                       </thead>
                       <tbody>
                         {jobApplicantsLoading ? (
                           <tr>
-                            <td colSpan="8" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading job applicants...</td>
+                            <td colSpan="9" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading job applicants...</td>
                           </tr>
                         ) : jobApplicants.length === 0 ? (
                           <tr>
-                            <td colSpan="8" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No job applicants found.</td>
+                            <td colSpan="9" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No job applicants found.</td>
                           </tr>
                         ) : (
                           jobApplicants.map((applicant, index) => (
@@ -4923,6 +5186,28 @@ function AdminPanel() {
                                 ) : (
                                   <span className="capitalize">{applicant.job_progress}</span>
                                 )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                <div className="flex flex-col gap-1">
+                                  {applicant.cv_file_url && (
+                                    <a href={applicant.cv_file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-[hsl(var(--primary))] hover:underline">
+                                      📄 CV
+                                    </a>
+                                  )}
+                                  {applicant.cover_letter_file_url && (
+                                    <a href={applicant.cover_letter_file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-[hsl(var(--primary))] hover:underline">
+                                      📝 Cover Letter
+                                    </a>
+                                  )}
+                                  {applicant.reference_letter_file_url && (
+                                    <a href={applicant.reference_letter_file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-[hsl(var(--primary))] hover:underline">
+                                      📋 Reference
+                                    </a>
+                                  )}
+                                  {!applicant.cv_file_url && !applicant.cover_letter_file_url && !applicant.reference_letter_file_url && (
+                                    <span className="text-xs text-[hsl(var(--muted-foreground))]">No documents</span>
+                                  )}
+                                </div>
                               </td>
                               <td className="p-3 text-sm">
                                 {editingJobApplicantId === applicant.id ? (
@@ -5326,6 +5611,177 @@ function AdminPanel() {
 
           {activeSection === 'rating-review' && (
             <section className="space-y-6">
+              {/* Rating Criteria Management */}
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Service Standards (Rating Criteria)</h3>
+                      <p className="text-sm text-[hsl(var(--muted-foreground))]">Manage the criteria used for rating products and services</p>
+                    </div>
+                    <Button onClick={() => setShowAddCriteriaForm(!showAddCriteriaForm)}>
+                      {showAddCriteriaForm ? 'Close Form' : 'Add Criteria'}
+                    </Button>
+                  </div>
+
+                  {showAddCriteriaForm && (
+                    <div className="border border-[hsl(var(--border))] rounded-md p-4 bg-[hsl(var(--secondary))]/20">
+                      <h4 className="text-sm font-semibold mb-3 text-[hsl(var(--foreground))]">Add New Rating Criteria</h4>
+                      <form onSubmit={handleAddCriteriaSubmit} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Name *</label>
+                            <Input
+                              value={criteriaFormData.name}
+                              onChange={(e) => setCriteriaFormData({ ...criteriaFormData, name: e.target.value })}
+                              placeholder="e.g., Delivery on Time"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Sort Order</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={criteriaFormData.sort_order}
+                              onChange={(e) => setCriteriaFormData({ ...criteriaFormData, sort_order: parseInt(e.target.value) || 0 })}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description</label>
+                          <Input
+                            value={criteriaFormData.description}
+                            onChange={(e) => setCriteriaFormData({ ...criteriaFormData, description: e.target.value })}
+                            placeholder="Brief description of this criteria"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="criteria_active"
+                            checked={criteriaFormData.is_active}
+                            onChange={(e) => setCriteriaFormData({ ...criteriaFormData, is_active: e.target.checked })}
+                            className="rounded"
+                          />
+                          <label htmlFor="criteria_active" className="text-sm text-[hsl(var(--foreground))]">Active</label>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                              setShowAddCriteriaForm(false);
+                              setCriteriaFormData({
+                                name: '',
+                                description: '',
+                                sort_order: 0,
+                                is_active: true,
+                              });
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit">Add Criteria</Button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-[hsl(var(--border))]">
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Name</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Description</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Sort Order</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Status</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ratingCriteriaLoading ? (
+                          <tr>
+                            <td colSpan="6" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading criteria...</td>
+                          </tr>
+                        ) : ratingCriteria.length === 0 ? (
+                          <tr>
+                            <td colSpan="6" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No rating criteria found.</td>
+                          </tr>
+                        ) : (
+                          ratingCriteria.map((criteria, index) => (
+                            <tr key={criteria.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingCriteriaId === criteria.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                              <td className="p-3 text-sm">
+                                {editingCriteriaId === criteria.id ? (
+                                  <Input
+                                    value={editingCriteriaData.name}
+                                    onChange={(e) => setEditingCriteriaData({ ...editingCriteriaData, name: e.target.value })}
+                                  />
+                                ) : (
+                                  <span className="font-medium">{criteria.name}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingCriteriaId === criteria.id ? (
+                                  <Input
+                                    value={editingCriteriaData.description || ''}
+                                    onChange={(e) => setEditingCriteriaData({ ...editingCriteriaData, description: e.target.value })}
+                                  />
+                                ) : (
+                                  <span className="text-[hsl(var(--muted-foreground))]">{criteria.description || '-'}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingCriteriaId === criteria.id ? (
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={editingCriteriaData.sort_order}
+                                    onChange={(e) => setEditingCriteriaData({ ...editingCriteriaData, sort_order: parseInt(e.target.value) || 0 })}
+                                  />
+                                ) : (
+                                  criteria.sort_order
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingCriteriaId === criteria.id ? (
+                                  <input
+                                    type="checkbox"
+                                    checked={editingCriteriaData.is_active}
+                                    onChange={(e) => setEditingCriteriaData({ ...editingCriteriaData, is_active: e.target.checked })}
+                                    className="rounded"
+                                  />
+                                ) : (
+                                  <span className={`capitalize ${criteria.is_active ? 'text-green-600' : 'text-red-600'}`}>
+                                    {criteria.is_active ? 'Active' : 'Inactive'}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm">
+                                {editingCriteriaId === criteria.id ? (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveCriteria(criteria.id)}>Save</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditCriteria}>Cancel</Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditCriteria(criteria)}>Edit</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteCriteria(criteria.id)}>Delete</Button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Ratings Table */}
               <Card>
                 <CardContent className="p-4 space-y-4">
                   <div className="flex items-center justify-between">
@@ -5344,17 +5800,18 @@ function AdminPanel() {
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Rating as Seller</th>
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Rating as Buyer</th>
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Overall rating</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Criteria Scores</th>
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
                         </tr>
                       </thead>
                       <tbody>
                         {ratingsLoading ? (
                           <tr>
-                            <td colSpan="7" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading ratings...</td>
+                            <td colSpan="8" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading ratings...</td>
                           </tr>
                         ) : ratings.length === 0 ? (
                           <tr>
-                            <td colSpan="7" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No ratings found.</td>
+                            <td colSpan="8" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No ratings found.</td>
                           </tr>
                         ) : (
                           ratings.map((rating, index) => (
@@ -5425,6 +5882,21 @@ function AdminPanel() {
                                   <span className="font-semibold">{rating.overall_rating}</span>
                                   <span className="text-yellow-500">★</span>
                                 </div>
+                              </td>
+                              <td className="p-3 text-sm">
+                                {rating.criteria_scores && rating.criteria_scores.length > 0 ? (
+                                  <div className="flex flex-col gap-1">
+                                    {rating.criteria_scores.map((score, idx) => (
+                                      <div key={idx} className="text-xs">
+                                        <span className="text-[hsl(var(--muted-foreground))]">{score.criteria_name}:</span>
+                                        <span className="ml-1 font-medium">{score.score}</span>
+                                        <span className="text-yellow-500 ml-1">★</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-[hsl(var(--muted-foreground))]">No criteria scores</span>
+                                )}
                               </td>
                               <td className="p-3 text-sm">
                                 {editingRatingId === rating.id ? (

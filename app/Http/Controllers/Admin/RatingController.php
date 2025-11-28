@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Rating;
+use App\Models\RatingCriteria;
+use App\Models\RatingCriteriaScore;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -11,8 +13,8 @@ class RatingController extends Controller
 {
     public function index()
     {
-        // Get ratings with user, seller, and ad relationships
-        $ratings = Rating::with(['user', 'seller', 'ad'])
+        // Get ratings with user, seller, ad, and criteria scores relationships
+        $ratings = Rating::with(['user', 'seller', 'ad', 'criteriaScores.criteria'])
             ->orderBy('created_at', 'desc')
             ->orderBy('id', 'desc')
             ->get()
@@ -31,6 +33,15 @@ class RatingController extends Controller
                     $overallRating = $rating->rating;
                 }
 
+                // Get criteria scores for this rating
+                $criteriaScores = $rating->criteriaScores->map(function ($score) {
+                    return [
+                        'criteria_id' => $score->rating_criteria_id,
+                        'criteria_name' => $score->criteria->name ?? 'N/A',
+                        'score' => $score->score,
+                    ];
+                });
+
                 return [
                     'id' => $rating->id,
                     'user_id' => $rating->user_id,
@@ -46,6 +57,7 @@ class RatingController extends Controller
                     'ad_title' => $rating->ad->title ?? 'N/A',
                     'purchase_verified' => $rating->purchase_verified,
                     'purchase_code' => $rating->purchase_code,
+                    'criteria_scores' => $criteriaScores,
                     'created_at' => $rating->created_at,
                     'updated_at' => $rating->updated_at,
                 ];
