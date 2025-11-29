@@ -88,40 +88,48 @@ class AuthController extends Controller
   }
 
   /**
-   * Change password for super_admin only
+   * Change password for any user (except super_admin) - Super Admin only
    */
   public function changePassword(Request $request)
   {
-    // Only super_admin can change password through this endpoint
+    // Only super_admin can change passwords through this endpoint
     if ($request->user()->role !== 'super_admin') {
       return response()->json([
-        'message' => 'Unauthorized. Only super admin can change password.',
+        'message' => 'Unauthorized. Only super admin can change user passwords.',
       ], 403);
     }
 
     $validated = $request->validate([
-      'current_password' => 'required|string',
+      'user_id' => 'required|exists:users,id',
       'new_password' => 'required|string|min:8|confirmed',
     ], [
+      'user_id.required' => 'User ID is required.',
+      'user_id.exists' => 'User not found.',
       'new_password.confirmed' => 'The new password confirmation does not match.',
       'new_password.min' => 'The new password must be at least 8 characters.',
     ]);
 
-    $user = $request->user();
+    $targetUser = User::findOrFail($validated['user_id']);
 
-    // Verify current password
-    if (!Hash::check($validated['current_password'], $user->password)) {
+    // Prevent changing super_admin passwords
+    if ($targetUser->role === 'super_admin') {
       return response()->json([
-        'message' => 'Current password is incorrect.',
-      ], 422);
+        'message' => 'Cannot change password for super admin accounts.',
+      ], 403);
     }
 
     // Update password
-    $user->password = Hash::make($validated['new_password']);
-    $user->save();
+    $targetUser->password = Hash::make($validated['new_password']);
+    $targetUser->save();
 
     return response()->json([
       'message' => 'Password changed successfully.',
+      'user' => [
+        'id' => $targetUser->id,
+        'name' => $targetUser->name,
+        'email' => $targetUser->email,
+        'role' => $targetUser->role,
+      ],
     ]);
   }
 }

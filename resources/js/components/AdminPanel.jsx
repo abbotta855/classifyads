@@ -237,9 +237,9 @@ function AdminPanel() {
     is_active: true,
   });
 
-  // Change Password data (Super Admin only)
+  // Change Password data (Super Admin only - for changing other users' passwords)
   const [changePasswordData, setChangePasswordData] = useState({
-    current_password: '',
+    user_id: '',
     new_password: '',
     new_password_confirmation: '',
   });
@@ -408,6 +408,13 @@ function AdminPanel() {
       fetchUserManagement();
     }
   }, [activeSection]);
+
+  // Fetch users for change password section
+  useEffect(() => {
+    if (activeSection === 'change-password' && isSuperAdmin) {
+      fetchUsers();
+    }
+  }, [activeSection, isSuperAdmin]);
 
   // Check for low stock alerts periodically
   useEffect(() => {
@@ -755,6 +762,12 @@ function AdminPanel() {
   const handleChangePassword = async (e) => {
     e.preventDefault();
     
+    if (!changePasswordData.user_id) {
+      setError('Please select a user.');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+
     // Validate passwords match
     if (changePasswordData.new_password !== changePasswordData.new_password_confirmation) {
       setError('New password and confirmation do not match.');
@@ -773,15 +786,16 @@ function AdminPanel() {
     setError(null);
     
     try {
-      await adminAPI.changePassword({
-        current_password: changePasswordData.current_password,
+      const response = await adminAPI.changePassword({
+        user_id: changePasswordData.user_id,
         new_password: changePasswordData.new_password,
         new_password_confirmation: changePasswordData.new_password_confirmation,
       });
       
-      setSuccessMessage('Password changed successfully!');
+      const userName = response.data?.user?.name || 'User';
+      setSuccessMessage(`Password changed successfully for ${userName}!`);
       setChangePasswordData({
-        current_password: '',
+        user_id: '',
         new_password: '',
         new_password_confirmation: '',
       });
@@ -8694,24 +8708,34 @@ function AdminPanel() {
               <Card>
                 <CardContent className="p-6">
                   <div className="max-w-2xl mx-auto">
-                    <h3 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-6">Change Password</h3>
+                    <h3 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-2">Change User Password</h3>
                     <p className="text-sm text-[hsl(var(--muted-foreground))] mb-6">
-                      Change your super admin password. Make sure to use a strong password.
+                      As super admin, you can change passwords for admin, user, and vendor accounts. Super admin passwords cannot be changed through this interface.
                     </p>
                     
                     <form onSubmit={handleChangePassword} className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">
-                          Current Password *
+                          Select User *
                         </label>
-                        <Input
-                          type="password"
-                          value={changePasswordData.current_password}
-                          onChange={(e) => setChangePasswordData({ ...changePasswordData, current_password: e.target.value })}
-                          placeholder="Enter your current password"
+                        <select
+                          value={changePasswordData.user_id}
+                          onChange={(e) => setChangePasswordData({ ...changePasswordData, user_id: e.target.value })}
+                          className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                           required
-                          className="w-full"
-                        />
+                        >
+                          <option value="">-- Select a user --</option>
+                          {users
+                            .filter(u => u.role !== 'super_admin') // Exclude super_admin users
+                            .map((user) => (
+                              <option key={user.id} value={user.id}>
+                                {user.name} ({user.email}) - {user.role}
+                              </option>
+                            ))}
+                        </select>
+                        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                          Only non-super-admin users are listed
+                        </p>
                       </div>
 
                       <div>
@@ -8740,7 +8764,7 @@ function AdminPanel() {
                           type="password"
                           value={changePasswordData.new_password_confirmation}
                           onChange={(e) => setChangePasswordData({ ...changePasswordData, new_password_confirmation: e.target.value })}
-                          placeholder="Confirm your new password"
+                          placeholder="Confirm the new password"
                           required
                           minLength={8}
                           className="w-full"
@@ -8753,7 +8777,7 @@ function AdminPanel() {
                           variant="ghost"
                           onClick={() => {
                             setChangePasswordData({
-                              current_password: '',
+                              user_id: '',
                               new_password: '',
                               new_password_confirmation: '',
                             });
@@ -8763,7 +8787,7 @@ function AdminPanel() {
                         >
                           Clear
                         </Button>
-                        <Button type="submit" disabled={changingPassword}>
+                        <Button type="submit" disabled={changingPassword || !changePasswordData.user_id}>
                           {changingPassword ? 'Changing Password...' : 'Change Password'}
                         </Button>
                       </div>
