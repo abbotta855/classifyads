@@ -237,6 +237,14 @@ function AdminPanel() {
     is_active: true,
   });
 
+  // Change Password data (Super Admin only)
+  const [changePasswordData, setChangePasswordData] = useState({
+    current_password: '',
+    new_password: '',
+    new_password_confirmation: '',
+  });
+  const [changingPassword, setChangingPassword] = useState(false);
+
   // Sales Report data
   const [salesReport, setSalesReport] = useState(null);
   const [salesReportLoading, setSalesReportLoading] = useState(false);
@@ -741,6 +749,49 @@ function AdminPanel() {
       setError('Failed to delete rating criteria: ' + (err.response?.data?.message || err.message));
       console.error('Error deleting rating criteria:', err);
       setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    
+    // Validate passwords match
+    if (changePasswordData.new_password !== changePasswordData.new_password_confirmation) {
+      setError('New password and confirmation do not match.');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+
+    // Validate password length
+    if (changePasswordData.new_password.length < 8) {
+      setError('New password must be at least 8 characters long.');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+
+    setChangingPassword(true);
+    setError(null);
+    
+    try {
+      await adminAPI.changePassword({
+        current_password: changePasswordData.current_password,
+        new_password: changePasswordData.new_password,
+        new_password_confirmation: changePasswordData.new_password_confirmation,
+      });
+      
+      setSuccessMessage('Password changed successfully!');
+      setChangePasswordData({
+        current_password: '',
+        new_password: '',
+        new_password_confirmation: '',
+      });
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to change password';
+      setError(errorMessage);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -3495,7 +3546,7 @@ function AdminPanel() {
     { id: 'ads-management', label: 'Ads Management' },
     { id: 'auction-management', label: 'Auction Management' },
     { id: 'category-management', label: 'Category Management' },
-    { id: 'change-password', label: 'Change Password' },
+    ...(isSuperAdmin ? [{ id: 'change-password', label: 'Change Password' }] : []), // Only show for super_admin
     { id: 'delivery-management', label: 'Delivery Management' },
     { id: 'email-subscriber', label: 'Email Subscriber List' },
     { id: 'job-management', label: 'Job Management' },
@@ -8632,6 +8683,91 @@ function AdminPanel() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'change-password' && isSuperAdmin && (
+            <section className="space-y-6">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="max-w-2xl mx-auto">
+                    <h3 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-6">Change Password</h3>
+                    <p className="text-sm text-[hsl(var(--muted-foreground))] mb-6">
+                      Change your super admin password. Make sure to use a strong password.
+                    </p>
+                    
+                    <form onSubmit={handleChangePassword} className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">
+                          Current Password *
+                        </label>
+                        <Input
+                          type="password"
+                          value={changePasswordData.current_password}
+                          onChange={(e) => setChangePasswordData({ ...changePasswordData, current_password: e.target.value })}
+                          placeholder="Enter your current password"
+                          required
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">
+                          New Password *
+                        </label>
+                        <Input
+                          type="password"
+                          value={changePasswordData.new_password}
+                          onChange={(e) => setChangePasswordData({ ...changePasswordData, new_password: e.target.value })}
+                          placeholder="Enter new password (min 8 characters)"
+                          required
+                          minLength={8}
+                          className="w-full"
+                        />
+                        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                          Password must be at least 8 characters long
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">
+                          Confirm New Password *
+                        </label>
+                        <Input
+                          type="password"
+                          value={changePasswordData.new_password_confirmation}
+                          onChange={(e) => setChangePasswordData({ ...changePasswordData, new_password_confirmation: e.target.value })}
+                          placeholder="Confirm your new password"
+                          required
+                          minLength={8}
+                          className="w-full"
+                        />
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => {
+                            setChangePasswordData({
+                              current_password: '',
+                              new_password: '',
+                              new_password_confirmation: '',
+                            });
+                            setError(null);
+                          }}
+                          disabled={changingPassword}
+                        >
+                          Clear
+                        </Button>
+                        <Button type="submit" disabled={changingPassword}>
+                          {changingPassword ? 'Changing Password...' : 'Change Password'}
+                        </Button>
+                      </div>
+                    </form>
                   </div>
                 </CardContent>
               </Card>

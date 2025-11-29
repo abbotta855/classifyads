@@ -39,6 +39,7 @@ Route::get('/locations', [App\Http\Controllers\LocationController::class, 'index
 Route::middleware('auth:sanctum')->group(function () {
   Route::post('/logout', [AuthController::class, 'logout']);
   Route::get('/user', [AuthController::class, 'user']);
+  Route::post('/change-password', [AuthController::class, 'changePassword']);
 
   // Admin routes
   Route::prefix('admin')->group(function () {

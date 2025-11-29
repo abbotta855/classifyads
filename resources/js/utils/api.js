@@ -190,5 +190,8 @@ export const adminAPI = {
   createTransactionItem: (data) => axios.post(`${API_BASE}/transaction-management`, data),
   updateTransactionItem: (id, data) => axios.put(`${API_BASE}/transaction-management/${id}`, data),
   deleteTransactionItem: (id) => axios.delete(`${API_BASE}/transaction-management/${id}`),
+
+  // Change Password (Super Admin only)
+  changePassword: (data) => axios.post('/api/change-password', data),
 };
 
