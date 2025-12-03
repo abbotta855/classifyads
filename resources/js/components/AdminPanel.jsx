@@ -67,6 +67,16 @@ function AdminPanel() {
     user_id: '',
   });
   const [postAdImages, setPostAdImages] = useState([null, null, null, null]); // 4 image slots
+  const [postAdSelectedCategoryName, setPostAdSelectedCategoryName] = useState(''); // Selected category for Post Ad form
+  const [postAdSelectedSubcategoryId, setPostAdSelectedSubcategoryId] = useState(''); // Selected subcategory for Post Ad form
+  const [postAdShowCategoryDropdown, setPostAdShowCategoryDropdown] = useState(false); // Category dropdown for Post Ad form
+  const [postAdSelectedLocations, setPostAdSelectedLocations] = useState(new Set()); // Selected locations for Post Ad form
+  const [postAdShowLocationDropdown, setPostAdShowLocationDropdown] = useState(false); // Location dropdown for Post Ad form
+  const [postAdExpandedProvinces, setPostAdExpandedProvinces] = useState(new Set()); // For Post Ad location dropdown
+  const [postAdExpandedDistricts, setPostAdExpandedDistricts] = useState(new Set()); // For Post Ad location dropdown
+  const [postAdExpandedLocalLevels, setPostAdExpandedLocalLevels] = useState(new Set()); // For Post Ad location dropdown
+  const postAdCategoryDropdownRef = useRef(null);
+  const postAdLocationDropdownRef = useRef(null);
   const [addLocationFormData, setAddLocationFormData] = useState({
     province: '',
     district: '',
@@ -107,6 +117,16 @@ function AdminPanel() {
   const [successMessage, setSuccessMessage] = useState(null);
   const [editingAdId, setEditingAdId] = useState(null);
   const [editingAdData, setEditingAdData] = useState(null);
+  const [editingAdSelectedCategoryName, setEditingAdSelectedCategoryName] = useState(''); // Selected category for Edit Ad form
+  const [editingAdSelectedSubcategoryId, setEditingAdSelectedSubcategoryId] = useState(''); // Selected subcategory for Edit Ad form
+  const [editingAdShowCategoryDropdown, setEditingAdShowCategoryDropdown] = useState(false); // Category dropdown for Edit Ad form
+  const [editingAdSelectedLocations, setEditingAdSelectedLocations] = useState(new Set()); // Selected locations for Edit Ad form
+  const [editingAdShowLocationDropdown, setEditingAdShowLocationDropdown] = useState(false); // Location dropdown for Edit Ad form
+  const [editingAdExpandedProvinces, setEditingAdExpandedProvinces] = useState(new Set()); // For Edit Ad location dropdown
+  const [editingAdExpandedDistricts, setEditingAdExpandedDistricts] = useState(new Set()); // For Edit Ad location dropdown
+  const [editingAdExpandedLocalLevels, setEditingAdExpandedLocalLevels] = useState(new Set()); // For Edit Ad location dropdown
+  const editingAdCategoryDropdownRef = useRef(null);
+  const editingAdLocationDropdownRef = useRef(null);
 
   // Location data - fetched from database via API
   const [locations, setLocations] = useState([]);
@@ -168,6 +188,10 @@ function AdminPanel() {
     posted_job: 0,
     job_status: 'draft',
   });
+  const [jobCategorySelectedCategoryName, setJobCategorySelectedCategoryName] = useState(''); // Selected category for Job Category form
+  const [jobCategorySelectedSubcategoryId, setJobCategorySelectedSubcategoryId] = useState(''); // Selected subcategory for Job Category form
+  const [jobCategoryShowCategoryDropdown, setJobCategoryShowCategoryDropdown] = useState(false); // Category dropdown for Job Category form
+  const jobCategoryCategoryDropdownRef = useRef(null);
 
   const [jobApplicants, setJobApplicants] = useState([]);
   const [jobApplicantsLoading, setJobApplicantsLoading] = useState(false);
@@ -317,6 +341,10 @@ function AdminPanel() {
     email: '',
     status: 'active',
   });
+  const [transactionSelectedCategoryName, setTransactionSelectedCategoryName] = useState(''); // Selected category for Transaction form
+  const [transactionSelectedSubcategoryId, setTransactionSelectedSubcategoryId] = useState(''); // Selected subcategory for Transaction form
+  const [transactionShowCategoryDropdown, setTransactionShowCategoryDropdown] = useState(false); // Category dropdown for Transaction form
+  const transactionCategoryDropdownRef = useRef(null);
   const [showCategoryWiseDropdown, setShowCategoryWiseDropdown] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
@@ -981,10 +1009,27 @@ function AdminPanel() {
 
   const handleAddJobCategorySubmit = async (e) => {
     e.preventDefault();
+    
+    // Get category_id from selected category/subcategory
+    let categoryId = null;
+    if (jobCategorySelectedSubcategoryId) {
+      categoryId = parseInt(jobCategorySelectedSubcategoryId);
+    } else if (jobCategorySelectedCategoryName) {
+      const category = getJobCategorySelectedCategory();
+      if (category) {
+        categoryId = category.id;
+      }
+    }
+
+    if (!categoryId) {
+      setError('Please select a category');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+
     try {
       await adminAPI.createJobCategory({
-        category: jobCategoryFormData.category,
-        sub_category: jobCategoryFormData.sub_category || null,
+        category_id: categoryId,
         posted_job: parseInt(jobCategoryFormData.posted_job, 10) || 0,
         job_status: jobCategoryFormData.job_status,
       });
@@ -996,6 +1041,8 @@ function AdminPanel() {
         posted_job: 0,
         job_status: 'draft',
       });
+      setJobCategorySelectedCategoryName('');
+      setJobCategorySelectedSubcategoryId('');
       fetchJobCategories();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -1008,23 +1055,80 @@ function AdminPanel() {
   const handleEditJobCategory = (category) => {
     setEditingJobCategoryId(category.id);
     setEditingJobCategoryData({
-      category: category.category,
-      sub_category: category.sub_category || '',
+      category_id: category.category_id,
       posted_job: category.posted_job,
       job_status: category.job_status,
     });
+
+    // Initialize category selection from category_id
+    if (category.category_id) {
+      // Find the category in the categories list by ID
+      let foundCategory = null;
+      let foundSubcategory = null;
+      
+      for (const cat of categories) {
+        // Check if it's a main category match
+        if (cat.id === category.category_id) {
+          foundCategory = cat;
+          break;
+        }
+        // Check if it's a subcategory match
+        if (cat.subcategories) {
+          const subcat = cat.subcategories.find(s => s.id === category.category_id);
+          if (subcat) {
+            foundCategory = cat;
+            foundSubcategory = subcat;
+            break;
+          }
+        }
+      }
+
+      if (foundCategory) {
+        setJobCategorySelectedCategoryName(foundCategory.name);
+        if (foundSubcategory) {
+          setJobCategorySelectedSubcategoryId(foundSubcategory.id.toString());
+        } else {
+          setJobCategorySelectedSubcategoryId('');
+        }
+      } else {
+        setJobCategorySelectedCategoryName('');
+        setJobCategorySelectedSubcategoryId('');
+      }
+    } else {
+      setJobCategorySelectedCategoryName('');
+      setJobCategorySelectedSubcategoryId('');
+    }
   };
 
   const handleSaveJobCategory = async (categoryId) => {
     try {
+      // Get category_id from selected category/subcategory
+      let selectedCategoryId = null;
+      if (jobCategorySelectedSubcategoryId) {
+        selectedCategoryId = parseInt(jobCategorySelectedSubcategoryId);
+      } else if (jobCategorySelectedCategoryName) {
+        const category = getJobCategorySelectedCategory();
+        if (category) {
+          selectedCategoryId = category.id;
+        }
+      }
+
+      if (!selectedCategoryId) {
+        setError('Please select a category');
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+
       await adminAPI.updateJobCategory(categoryId, {
-        ...editingJobCategoryData,
-        sub_category: editingJobCategoryData.sub_category || null,
+        category_id: selectedCategoryId,
         posted_job: parseInt(editingJobCategoryData.posted_job, 10) || 0,
+        job_status: editingJobCategoryData.job_status,
       });
       setSuccessMessage('Job category updated successfully');
       setEditingJobCategoryId(null);
       setEditingJobCategoryData(null);
+      setJobCategorySelectedCategoryName('');
+      setJobCategorySelectedSubcategoryId('');
       fetchJobCategories();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -1037,6 +1141,8 @@ function AdminPanel() {
   const handleCancelEditJobCategory = () => {
     setEditingJobCategoryId(null);
     setEditingJobCategoryData(null);
+    setJobCategorySelectedCategoryName('');
+    setJobCategorySelectedSubcategoryId('');
   };
 
   const handleDeleteJobCategory = async (categoryId) => {
@@ -1872,6 +1978,8 @@ function AdminPanel() {
         email: '',
         status: 'active',
       });
+      setTransactionSelectedCategoryName('');
+      setTransactionSelectedSubcategoryId('');
       fetchTransactionManagement();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -1894,6 +2002,45 @@ function AdminPanel() {
       email: transaction.email || '',
       status: transaction.status || 'active',
     });
+
+    // Initialize category selection from category_id
+    if (transaction.category_id) {
+      // Find the category in the categories list by ID
+      let foundCategory = null;
+      let foundSubcategory = null;
+      
+      for (const cat of categories) {
+        // Check if it's a main category match
+        if (cat.id === parseInt(transaction.category_id)) {
+          foundCategory = cat;
+          break;
+        }
+        // Check if it's a subcategory match
+        if (cat.subcategories) {
+          const subcat = cat.subcategories.find(s => s.id === parseInt(transaction.category_id));
+          if (subcat) {
+            foundCategory = cat;
+            foundSubcategory = subcat;
+            break;
+          }
+        }
+      }
+
+      if (foundCategory) {
+        setTransactionSelectedCategoryName(foundCategory.name);
+        if (foundSubcategory) {
+          setTransactionSelectedSubcategoryId(foundSubcategory.id.toString());
+        } else {
+          setTransactionSelectedSubcategoryId('');
+        }
+      } else {
+        setTransactionSelectedCategoryName('');
+        setTransactionSelectedSubcategoryId('');
+      }
+    } else {
+      setTransactionSelectedCategoryName('');
+      setTransactionSelectedSubcategoryId('');
+    }
   };
 
   const handleSaveTransaction = async (transactionId) => {
@@ -1910,6 +2057,8 @@ function AdminPanel() {
       setSuccessMessage('Transaction updated successfully');
       setEditingTransactionId(null);
       setEditingTransactionData(null);
+      setTransactionSelectedCategoryName('');
+      setTransactionSelectedSubcategoryId('');
       fetchTransactionManagement();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -1922,6 +2071,8 @@ function AdminPanel() {
   const handleCancelEditTransaction = () => {
     setEditingTransactionId(null);
     setEditingTransactionData(null);
+    setTransactionSelectedCategoryName('');
+    setTransactionSelectedSubcategoryId('');
   };
 
   const handleEditUser = (user) => {
@@ -2215,6 +2366,8 @@ function AdminPanel() {
         sn: ad.id,
         title: ad.title,
         category: ad.category?.category || 'N/A',
+        category_id: ad.category_id,
+        location_id: ad.location_id,
         description: ad.description,
         price: parseFloat(ad.price) || 0,
         views: ad.views || 0,
@@ -2256,20 +2409,94 @@ function AdminPanel() {
       title: ad.title,
       description: ad.description,
       price: ad.price,
+      category_id: ad.category_id || '',
+      location_id: ad.location_id || null,
     });
+
+    // Initialize category selection
+    if (ad.category_id) {
+      // Find the category in the categories list
+      let foundCategory = null;
+      let foundSubcategory = null;
+      
+      for (const category of categories) {
+        if (category.id === ad.category_id) {
+          foundCategory = category;
+          break;
+        }
+        if (category.subcategories) {
+          const subcategory = category.subcategories.find(s => s.id === ad.category_id);
+          if (subcategory) {
+            foundCategory = category;
+            foundSubcategory = subcategory;
+            break;
+          }
+        }
+      }
+
+      if (foundCategory) {
+        setEditingAdSelectedCategoryName(foundCategory.name);
+        if (foundSubcategory) {
+          setEditingAdSelectedSubcategoryId(foundSubcategory.id.toString());
+        } else {
+          setEditingAdSelectedSubcategoryId('');
+        }
+      } else {
+        setEditingAdSelectedCategoryName('');
+        setEditingAdSelectedSubcategoryId('');
+      }
+    } else {
+      setEditingAdSelectedCategoryName('');
+      setEditingAdSelectedSubcategoryId('');
+    }
+
+    // Initialize location selection
+    if (ad.location_id) {
+      setEditingAdSelectedLocations(new Set([ad.location_id]));
+    } else {
+      setEditingAdSelectedLocations(new Set());
+    }
   };
 
   // Handle save ad - save changes
   const handleSaveAd = async (adId) => {
     try {
+      // Get location ID from selected locations
+      let locationId = null;
+      if (editingAdSelectedLocations.size > 0) {
+        const selectedLocationIds = Array.from(editingAdSelectedLocations);
+        for (const locId of selectedLocationIds) {
+          if (typeof locId === 'number') {
+            locationId = locId;
+            break;
+          } else if (typeof locId === 'string') {
+            if (locId.includes('-')) {
+              const wardId = locId.split('-')[0];
+              if (!isNaN(wardId)) {
+                locationId = parseInt(wardId);
+                break;
+              }
+            } else if (!isNaN(locId)) {
+              locationId = parseInt(locId);
+              break;
+            }
+          }
+        }
+      }
+
       await adminAPI.updateAd(adId, {
         title: editingAdData.title,
         description: editingAdData.description,
         price: parseFloat(editingAdData.price),
+        category_id: parseInt(editingAdData.category_id),
+        location_id: locationId,
       });
       setSuccessMessage('Ad updated successfully');
       setEditingAdId(null);
       setEditingAdData(null);
+      setEditingAdSelectedCategoryName('');
+      setEditingAdSelectedSubcategoryId('');
+      setEditingAdSelectedLocations(new Set());
       fetchAds(); // Refresh the list
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -2282,6 +2509,9 @@ function AdminPanel() {
   const handleCancelEditAd = () => {
     setEditingAdId(null);
     setEditingAdData(null);
+    setEditingAdSelectedCategoryName('');
+    setEditingAdSelectedSubcategoryId('');
+    setEditingAdSelectedLocations(new Set());
   };
 
   // Handle Post Ad form submission
@@ -2295,8 +2525,48 @@ function AdminPanel() {
       setTimeout(() => setError(null), 5000);
       return;
     }
+
+    // Validate that at least one location is selected
+    if (postAdSelectedLocations.size === 0) {
+      setError('Please select at least one location for the ad');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
     
     try {
+      // Get the first selected location ID (ward ID from locations table)
+      // If user selected a local address (ward.id-0), extract the ward.id
+      const selectedLocationIds = Array.from(postAdSelectedLocations);
+      let locationId = null;
+      
+      // Find the first valid location ID (ward ID, not address index)
+      for (const locId of selectedLocationIds) {
+        if (typeof locId === 'number') {
+          // It's a ward ID (number)
+          locationId = locId;
+          break;
+        } else if (typeof locId === 'string') {
+          if (locId.includes('-')) {
+            // It's a local address ID like "123-0", extract the ward ID (123)
+            const wardId = locId.split('-')[0];
+            if (!isNaN(wardId)) {
+              locationId = parseInt(wardId);
+              break;
+            }
+          } else if (!isNaN(locId)) {
+            // It's a ward ID as string
+            locationId = parseInt(locId);
+            break;
+          }
+        }
+      }
+
+      if (!locationId) {
+        setError('Please select a valid location for the ad');
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+      
       // Create FormData for file uploads
       const formData = new FormData();
       formData.append('title', postAdFormData.title);
@@ -2304,6 +2574,7 @@ function AdminPanel() {
       formData.append('price', parseFloat(postAdFormData.price));
       formData.append('category_id', parseInt(postAdFormData.category_id));
       formData.append('user_id', parseInt(postAdFormData.user_id));
+      formData.append('location_id', locationId);
       formData.append('posted_by', 'admin');
 
       // Append images (only non-null ones)
@@ -2332,6 +2603,9 @@ function AdminPanel() {
         user_id: '',
       });
       setPostAdImages([null, null, null, null]); // Reset images
+      setPostAdSelectedCategoryName('');
+      setPostAdSelectedSubcategoryId('');
+      setPostAdSelectedLocations(new Set());
       fetchAds(); // Refresh the ads list
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -3554,16 +3828,22 @@ function AdminPanel() {
       if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target)) {
         setShowLocationDropdown(false);
       }
+      if (postAdLocationDropdownRef.current && !postAdLocationDropdownRef.current.contains(event.target)) {
+        setPostAdShowLocationDropdown(false);
+      }
+      if (editingAdLocationDropdownRef.current && !editingAdLocationDropdownRef.current.contains(event.target)) {
+        setEditingAdShowLocationDropdown(false);
+      }
     };
 
-    if (showLocationDropdown) {
+    if (showLocationDropdown || postAdShowLocationDropdown || editingAdShowLocationDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showLocationDropdown]);
+  }, [showLocationDropdown, postAdShowLocationDropdown, editingAdShowLocationDropdown]);
 
   // Handle click outside category dropdown
   useEffect(() => {
@@ -3571,16 +3851,28 @@ function AdminPanel() {
       if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
         setShowCategoryDropdown(false);
       }
+      if (postAdCategoryDropdownRef.current && !postAdCategoryDropdownRef.current.contains(event.target)) {
+        setPostAdShowCategoryDropdown(false);
+      }
+      if (editingAdCategoryDropdownRef.current && !editingAdCategoryDropdownRef.current.contains(event.target)) {
+        setEditingAdShowCategoryDropdown(false);
+      }
+      if (jobCategoryCategoryDropdownRef.current && !jobCategoryCategoryDropdownRef.current.contains(event.target)) {
+        setJobCategoryShowCategoryDropdown(false);
+      }
+      if (transactionCategoryDropdownRef.current && !transactionCategoryDropdownRef.current.contains(event.target)) {
+        setTransactionShowCategoryDropdown(false);
+      }
     };
 
-    if (showCategoryDropdown) {
+    if (showCategoryDropdown || postAdShowCategoryDropdown || editingAdShowCategoryDropdown || jobCategoryShowCategoryDropdown || transactionShowCategoryDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCategoryDropdown]);
+  }, [showCategoryDropdown, postAdShowCategoryDropdown, editingAdShowCategoryDropdown, jobCategoryShowCategoryDropdown, transactionShowCategoryDropdown]);
 
   // Helper functions for category selection
   const getSelectedCategory = () => {
@@ -3635,6 +3927,336 @@ function AdminPanel() {
     setSelectedSubcategoryId('');
     setSearchCategory('');
     setShowCategoryDropdown(false);
+  };
+
+  // Helper functions for Edit Ad form category selection
+  const getEditingAdSelectedCategory = () => {
+    if (!editingAdSelectedCategoryName) return null;
+    return categories.find(c => c.name === editingAdSelectedCategoryName);
+  };
+
+  const handleEditingAdCategorySelect = (categoryName) => {
+    setEditingAdSelectedCategoryName(categoryName);
+    setEditingAdSelectedSubcategoryId(''); // Reset subcategory when category changes
+    const category = categories.find(c => c.name === categoryName);
+    if (category) {
+      setEditingAdData({...editingAdData, category_id: category.id.toString()});
+    }
+  };
+
+  const handleEditingAdSubcategorySelect = (subcategoryId) => {
+    setEditingAdSelectedSubcategoryId(subcategoryId);
+    const category = getEditingAdSelectedCategory();
+    if (category) {
+      const subcategory = category.subcategories.find(s => s.id === parseInt(subcategoryId));
+      if (subcategory) {
+        setEditingAdData({...editingAdData, category_id: subcategory.id.toString()});
+        setEditingAdShowCategoryDropdown(false);
+      }
+    }
+  };
+
+  const buildEditingAdCategoryString = () => {
+    if (editingAdSelectedSubcategoryId) {
+      const category = getEditingAdSelectedCategory();
+      const subcategory = category?.subcategories.find(s => s.id === parseInt(editingAdSelectedSubcategoryId));
+      if (category && subcategory) {
+        return `${category.name} > ${subcategory.name}`;
+      }
+    }
+    if (editingAdSelectedCategoryName) {
+      const category = getEditingAdSelectedCategory();
+      if (category) {
+        return category.name;
+      }
+    }
+    return '';
+  };
+
+  const handleEditingAdClearCategorySelection = () => {
+    setEditingAdSelectedCategoryName('');
+    setEditingAdSelectedSubcategoryId('');
+    setEditingAdData({...editingAdData, category_id: ''});
+    setEditingAdShowCategoryDropdown(false);
+  };
+
+  // Helper functions for Edit Ad form location selection
+  const handleEditingAdLocationToggle = (locationId) => {
+    setEditingAdSelectedLocations(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(locationId)) {
+        newSet.delete(locationId);
+      } else {
+        newSet.add(locationId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleEditingAdSelectAllLocations = () => {
+    setEditingAdSelectedLocations(new Set());
+  };
+
+  const buildEditingAdLocationString = () => {
+    if (editingAdSelectedLocations.size === 0) {
+      return 'Select Location';
+    }
+    if (editingAdSelectedLocations.size === 1) {
+      return '1 location selected';
+    }
+    return `${editingAdSelectedLocations.size} locations selected`;
+  };
+
+  const toggleEditingAdProvince = (provinceId) => {
+    setEditingAdExpandedProvinces(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(provinceId)) {
+        newSet.delete(provinceId);
+      } else {
+        newSet.add(provinceId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleEditingAdDistrict = (districtKey) => {
+    setEditingAdExpandedDistricts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(districtKey)) {
+        newSet.delete(districtKey);
+      } else {
+        newSet.add(districtKey);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleEditingAdLocalLevel = (localLevelKey) => {
+    setEditingAdExpandedLocalLevels(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(localLevelKey)) {
+        newSet.delete(localLevelKey);
+      } else {
+        newSet.add(localLevelKey);
+      }
+      return newSet;
+    });
+  };
+
+  // Helper functions for Job Category form category selection
+  const getJobCategorySelectedCategory = () => {
+    if (!jobCategorySelectedCategoryName) return null;
+    return categories.find(c => c.name === jobCategorySelectedCategoryName);
+  };
+
+  const handleJobCategoryCategorySelect = (categoryName) => {
+    setJobCategorySelectedCategoryName(categoryName);
+    setJobCategorySelectedSubcategoryId(''); // Reset subcategory when category changes
+    const category = categories.find(c => c.name === categoryName);
+    if (category) {
+      setJobCategoryFormData({...jobCategoryFormData, category: category.name, sub_category: ''});
+    }
+  };
+
+  const handleJobCategorySubcategorySelect = (subcategoryId) => {
+    setJobCategorySelectedSubcategoryId(subcategoryId);
+    const category = getJobCategorySelectedCategory();
+    if (category) {
+      const subcategory = category.subcategories.find(s => s.id === parseInt(subcategoryId));
+      if (subcategory) {
+        setJobCategoryFormData({...jobCategoryFormData, category: category.name, sub_category: subcategory.name});
+        setJobCategoryShowCategoryDropdown(false);
+      }
+    }
+  };
+
+  const buildJobCategoryCategoryString = () => {
+    if (jobCategorySelectedSubcategoryId) {
+      const category = getJobCategorySelectedCategory();
+      const subcategory = category?.subcategories.find(s => s.id === parseInt(jobCategorySelectedSubcategoryId));
+      if (category && subcategory) {
+        return `${category.name} > ${subcategory.name}`;
+      }
+    }
+    if (jobCategorySelectedCategoryName) {
+      const category = getJobCategorySelectedCategory();
+      if (category) {
+        return category.name;
+      }
+    }
+    return '';
+  };
+
+  const handleJobCategoryClearCategorySelection = () => {
+    setJobCategorySelectedCategoryName('');
+    setJobCategorySelectedSubcategoryId('');
+    setJobCategoryFormData({...jobCategoryFormData, category: '', sub_category: ''});
+    setJobCategoryShowCategoryDropdown(false);
+  };
+
+  // Helper functions for Transaction form category selection
+  const getTransactionSelectedCategory = () => {
+    if (!transactionSelectedCategoryName) return null;
+    return categories.find(c => c.name === transactionSelectedCategoryName);
+  };
+
+  const handleTransactionCategorySelect = (categoryName) => {
+    setTransactionSelectedCategoryName(categoryName);
+    setTransactionSelectedSubcategoryId(''); // Reset subcategory when category changes
+    const category = categories.find(c => c.name === categoryName);
+    if (category) {
+      setPostAdTransactionFormData({...postAdTransactionFormData, category_id: category.id.toString()});
+    }
+  };
+
+  const handleTransactionSubcategorySelect = (subcategoryId) => {
+    setTransactionSelectedSubcategoryId(subcategoryId);
+    const category = getTransactionSelectedCategory();
+    if (category) {
+      const subcategory = category.subcategories.find(s => s.id === parseInt(subcategoryId));
+      if (subcategory) {
+        setPostAdTransactionFormData({...postAdTransactionFormData, category_id: subcategory.id.toString()});
+        setTransactionShowCategoryDropdown(false);
+      }
+    }
+  };
+
+  const buildTransactionCategoryString = () => {
+    if (transactionSelectedSubcategoryId) {
+      const category = getTransactionSelectedCategory();
+      const subcategory = category?.subcategories.find(s => s.id === parseInt(transactionSelectedSubcategoryId));
+      if (category && subcategory) {
+        return `${category.name} > ${subcategory.name}`;
+      }
+    }
+    if (transactionSelectedCategoryName) {
+      const category = getTransactionSelectedCategory();
+      if (category) {
+        return category.name;
+      }
+    }
+    return '';
+  };
+
+  const handleTransactionClearCategorySelection = () => {
+    setTransactionSelectedCategoryName('');
+    setTransactionSelectedSubcategoryId('');
+    setPostAdTransactionFormData({...postAdTransactionFormData, category_id: ''});
+    setTransactionShowCategoryDropdown(false);
+  };
+
+  // Helper functions for Post Ad form category selection
+  const getPostAdSelectedCategory = () => {
+    if (!postAdSelectedCategoryName) return null;
+    return categories.find(c => c.name === postAdSelectedCategoryName);
+  };
+
+  const handlePostAdCategorySelect = (categoryName) => {
+    setPostAdSelectedCategoryName(categoryName);
+    setPostAdSelectedSubcategoryId(''); // Reset subcategory when category changes
+    const category = categories.find(c => c.name === categoryName);
+    if (category) {
+      setPostAdFormData({...postAdFormData, category_id: category.id.toString()});
+    }
+  };
+
+  const handlePostAdSubcategorySelect = (subcategoryId) => {
+    setPostAdSelectedSubcategoryId(subcategoryId);
+    const category = getPostAdSelectedCategory();
+    if (category) {
+      const subcategory = category.subcategories.find(s => s.id === parseInt(subcategoryId));
+      if (subcategory) {
+        setPostAdFormData({...postAdFormData, category_id: subcategory.id.toString()});
+        setPostAdShowCategoryDropdown(false);
+      }
+    }
+  };
+
+  const buildPostAdCategoryString = () => {
+    if (postAdSelectedSubcategoryId) {
+      const category = getPostAdSelectedCategory();
+      const subcategory = category?.subcategories.find(s => s.id === parseInt(postAdSelectedSubcategoryId));
+      if (category && subcategory) {
+        return `${category.name} > ${subcategory.name}`;
+      }
+    }
+    if (postAdSelectedCategoryName) {
+      const category = getPostAdSelectedCategory();
+      if (category) {
+        return category.name;
+      }
+    }
+    return '';
+  };
+
+  const handlePostAdClearCategorySelection = () => {
+    setPostAdSelectedCategoryName('');
+    setPostAdSelectedSubcategoryId('');
+    setPostAdFormData({...postAdFormData, category_id: ''});
+    setPostAdShowCategoryDropdown(false);
+  };
+
+  // Helper functions for Post Ad form location selection
+  const handlePostAdLocationToggle = (locationId) => {
+    setPostAdSelectedLocations(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(locationId)) {
+        newSet.delete(locationId);
+      } else {
+        newSet.add(locationId);
+      }
+      return newSet;
+    });
+  };
+
+  const handlePostAdSelectAllLocations = () => {
+    setPostAdSelectedLocations(new Set());
+  };
+
+  const buildPostAdLocationString = () => {
+    if (postAdSelectedLocations.size === 0) {
+      return 'Select Location';
+    }
+    if (postAdSelectedLocations.size === 1) {
+      return '1 location selected';
+    }
+    return `${postAdSelectedLocations.size} locations selected`;
+  };
+
+  const togglePostAdProvince = (provinceId) => {
+    setPostAdExpandedProvinces(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(provinceId)) {
+        newSet.delete(provinceId);
+      } else {
+        newSet.add(provinceId);
+      }
+      return newSet;
+    });
+  };
+
+  const togglePostAdDistrict = (districtKey) => {
+    setPostAdExpandedDistricts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(districtKey)) {
+        newSet.delete(districtKey);
+      } else {
+        newSet.add(districtKey);
+      }
+      return newSet;
+    });
+  };
+
+  const togglePostAdLocalLevel = (localLevelKey) => {
+    setPostAdExpandedLocalLevels(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(localLevelKey)) {
+        newSet.delete(localLevelKey);
+      } else {
+        newSet.add(localLevelKey);
+      }
+      return newSet;
+    });
   };
 
   const menuItems = [
@@ -4179,19 +4801,98 @@ function AdminPanel() {
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category *</label>
-                            <select
-                              value={postAdFormData.category_id}
-                              onChange={(e) => setPostAdFormData({...postAdFormData, category_id: e.target.value})}
-                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                              required
-                            >
-                              <option value="">Select Category</option>
-                              {Array.isArray(flattenedCategories) && flattenedCategories.map((category) => (
-                                <option key={category.id} value={category.id}>
-                                  {category.name}
-                                </option>
-                              ))}
-                            </select>
+                            <div className="relative" ref={postAdCategoryDropdownRef}>
+                              <button
+                                type="button"
+                                onClick={() => setPostAdShowCategoryDropdown(!postAdShowCategoryDropdown)}
+                                className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                              >
+                                <span>{buildPostAdCategoryString() || 'Select Category'}</span>
+                                <span className="ml-2">{postAdShowCategoryDropdown ? '▼' : '▶'}</span>
+                              </button>
+                              
+                              {/* Cascading Category Menu */}
+                              {postAdShowCategoryDropdown && (
+                                <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
+                                  {/* Category Column */}
+                                  <div className="min-w-[200px] max-h-96 overflow-y-auto border-r border-[hsl(var(--border))]">
+                                    <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                      Category
+                                    </div>
+                                    <div className="py-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handlePostAdClearCategorySelection();
+                                        }}
+                                        className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                          !postAdSelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
+                                        }`}
+                                      >
+                                        All Categories
+                                      </button>
+                                      {categories.map((category, index) => (
+                                        <button
+                                          key={category.id || `category-${index}`}
+                                          type="button"
+                                          onClick={() => handlePostAdCategorySelect(category.name)}
+                                          onMouseEnter={() => {
+                                            if (postAdSelectedCategoryName !== category.name) {
+                                              handlePostAdCategorySelect(category.name);
+                                            }
+                                          }}
+                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
+                                            postAdSelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
+                                          }`}
+                                        >
+                                          <span>{category.name}</span>
+                                          {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Subcategory Column - appears when category is selected */}
+                                  {postAdSelectedCategoryName && getPostAdSelectedCategory() && getPostAdSelectedCategory().subcategories && getPostAdSelectedCategory().subcategories.length > 0 && (
+                                    <div className="min-w-[200px] max-h-96 overflow-y-auto">
+                                      <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                        Subcategory
+                                      </div>
+                                      <div className="py-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setPostAdSelectedSubcategoryId('');
+                                            const category = getPostAdSelectedCategory();
+                                            if (category) {
+                                              setPostAdFormData({...postAdFormData, category_id: category.id.toString()});
+                                            }
+                                            setPostAdShowCategoryDropdown(false);
+                                          }}
+                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                            !postAdSelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
+                                          }`}
+                                        >
+                                          All Subcategories
+                                        </button>
+                                        {getPostAdSelectedCategory().subcategories.map((subcategory) => (
+                                          <button
+                                            key={subcategory.id}
+                                            type="button"
+                                            onClick={() => handlePostAdSubcategorySelect(subcategory.id.toString())}
+                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                              postAdSelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                            }`}
+                                          >
+                                            {subcategory.name}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">User *</label>
@@ -4208,6 +4909,302 @@ function AdminPanel() {
                                 </option>
                               ))}
                             </select>
+                          </div>
+                        </div>
+                        
+                        {/* Location Selection */}
+                        <div>
+                          <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Location *</label>
+                          <div className="relative" ref={postAdLocationDropdownRef}>
+                            <button
+                              type="button"
+                              onClick={() => setPostAdShowLocationDropdown(!postAdShowLocationDropdown)}
+                              className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                            >
+                              <span>{buildPostAdLocationString()}</span>
+                              <span className="ml-2">{postAdShowLocationDropdown ? '▼' : '▶'}</span>
+                            </button>
+                            
+                            {/* Hierarchical Checkbox Menu */}
+                            {postAdShowLocationDropdown && (
+                              <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[600px] max-h-[500px] overflow-y-auto">
+                                <div className="p-3">
+                                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
+                                    <span className="font-semibold text-sm text-[hsl(var(--foreground))]">Select Locations</span>
+                                    <button
+                                      type="button"
+                                      onClick={handlePostAdSelectAllLocations}
+                                      className="text-xs text-[hsl(var(--primary))] hover:underline"
+                                    >
+                                      {postAdSelectedLocations.size > 0 ? 'Clear All' : 'Select All'}
+                                    </button>
+                                  </div>
+                                  
+                                  {/* Hierarchical Location Tree */}
+                                  <div className="space-y-1">
+                                    {locationData?.provinces && locationData.provinces.length > 0 ? (
+                                      locationData.provinces.map((province) => (
+                                      <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
+                                        {/* Province Level */}
+                                        <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => togglePostAdProvince(province.id)}
+                                            className="mr-2 text-xs"
+                                          >
+                                            {postAdExpandedProvinces.has(province.id) ? '▼' : '▶'}
+                                          </button>
+                                          <input
+                                            type="checkbox"
+                                            className="mr-2"
+                                            checked={(() => {
+                                              const allLocationIds = [];
+                                              province.districts.forEach(d => {
+                                                d.localLevels.forEach(ll => {
+                                                  if (ll.wards) {
+                                                    ll.wards.forEach(w => {
+                                                      allLocationIds.push(w.id);
+                                                      if (w.local_addresses) {
+                                                        w.local_addresses.forEach((_, idx) => {
+                                                          allLocationIds.push(`${w.id}-${idx}`);
+                                                        });
+                                                      }
+                                                    });
+                                                  }
+                                                });
+                                              });
+                                              return allLocationIds.length > 0 && allLocationIds.every(id => postAdSelectedLocations.has(id));
+                                            })()}
+                                            onChange={() => {
+                                              const allLocationIds = [];
+                                              province.districts.forEach(d => {
+                                                d.localLevels.forEach(ll => {
+                                                  if (ll.wards) {
+                                                    ll.wards.forEach(w => {
+                                                      allLocationIds.push(w.id);
+                                                      if (w.local_addresses) {
+                                                        w.local_addresses.forEach((_, idx) => {
+                                                          allLocationIds.push(`${w.id}-${idx}`);
+                                                        });
+                                                      }
+                                                    });
+                                                  }
+                                                });
+                                              });
+                                              setPostAdSelectedLocations(prev => {
+                                                const newSet = new Set(prev);
+                                                const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                allLocationIds.forEach(id => {
+                                                  if (allSelected) {
+                                                    newSet.delete(id);
+                                                  } else {
+                                                    newSet.add(id);
+                                                  }
+                                                });
+                                                return newSet;
+                                              });
+                                            }}
+                                          />
+                                          <span className="text-sm font-medium text-[hsl(var(--foreground))]">{province.name}</span>
+                                        </div>
+                                        
+                                        {/* Districts */}
+                                        {postAdExpandedProvinces.has(province.id) && province.districts.map((district) => (
+                                          <div key={district.id} className="ml-6 mt-1">
+                                            <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => togglePostAdDistrict(`${province.id}-${district.id}`)}
+                                                className="mr-2 text-xs"
+                                              >
+                                                {postAdExpandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
+                                              </button>
+                                              <input
+                                                type="checkbox"
+                                                className="mr-2"
+                                                checked={(() => {
+                                                  const allLocationIds = [];
+                                                  district.localLevels.forEach(ll => {
+                                                    if (ll.wards) {
+                                                      ll.wards.forEach(w => {
+                                                        allLocationIds.push(w.id);
+                                                        if (w.local_addresses) {
+                                                          w.local_addresses.forEach((_, idx) => {
+                                                            allLocationIds.push(`${w.id}-${idx}`);
+                                                          });
+                                                        }
+                                                      });
+                                                    }
+                                                  });
+                                                  return allLocationIds.length > 0 && allLocationIds.every(id => postAdSelectedLocations.has(id));
+                                                })()}
+                                                onChange={() => {
+                                                  const allLocationIds = [];
+                                                  district.localLevels.forEach(ll => {
+                                                    if (ll.wards) {
+                                                      ll.wards.forEach(w => {
+                                                        allLocationIds.push(w.id);
+                                                        if (w.local_addresses) {
+                                                          w.local_addresses.forEach((_, idx) => {
+                                                            allLocationIds.push(`${w.id}-${idx}`);
+                                                          });
+                                                        }
+                                                      });
+                                                    }
+                                                  });
+                                                  setPostAdSelectedLocations(prev => {
+                                                    const newSet = new Set(prev);
+                                                    const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                    allLocationIds.forEach(id => {
+                                                      if (allSelected) {
+                                                        newSet.delete(id);
+                                                      } else {
+                                                        newSet.add(id);
+                                                      }
+                                                    });
+                                                    return newSet;
+                                                  });
+                                                }}
+                                              />
+                                              <span className="text-sm text-[hsl(var(--foreground))]">{district.name}</span>
+                                            </div>
+                                            
+                                            {/* Local Levels */}
+                                            {postAdExpandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
+                                              <div key={localLevel.id} className="ml-6 mt-1">
+                                                <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => togglePostAdLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
+                                                    className="mr-2 text-xs"
+                                                  >
+                                                    {postAdExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
+                                                  </button>
+                                                  <input
+                                                    type="checkbox"
+                                                    className="mr-2"
+                                                    checked={(() => {
+                                                      if (!localLevel.wards) return false;
+                                                      const allLocationIds = [];
+                                                      localLevel.wards.forEach(w => {
+                                                        allLocationIds.push(w.id);
+                                                        if (w.local_addresses) {
+                                                          w.local_addresses.forEach((_, idx) => {
+                                                            allLocationIds.push(`${w.id}-${idx}`);
+                                                          });
+                                                        }
+                                                      });
+                                                      return allLocationIds.length > 0 && allLocationIds.every(id => postAdSelectedLocations.has(id));
+                                                    })()}
+                                                    onChange={() => {
+                                                      if (localLevel.wards) {
+                                                        const allLocationIds = [];
+                                                        localLevel.wards.forEach(w => {
+                                                          allLocationIds.push(w.id);
+                                                          if (w.local_addresses) {
+                                                            w.local_addresses.forEach((_, idx) => {
+                                                              allLocationIds.push(`${w.id}-${idx}`);
+                                                            });
+                                                          }
+                                                        });
+                                                        setPostAdSelectedLocations(prev => {
+                                                          const newSet = new Set(prev);
+                                                          const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                          allLocationIds.forEach(id => {
+                                                            if (allSelected) {
+                                                              newSet.delete(id);
+                                                            } else {
+                                                              newSet.add(id);
+                                                            }
+                                                          });
+                                                          return newSet;
+                                                        });
+                                                      }
+                                                    }}
+                                                  />
+                                                  <span className="text-sm text-[hsl(var(--foreground))]">
+                                                    {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
+                                                  </span>
+                                                </div>
+                                                
+                                                {/* Wards and Local Addresses */}
+                                                {postAdExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
+                                                  <div key={ward.id} className="ml-6 mt-1">
+                                                    <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                      <input
+                                                        type="checkbox"
+                                                        className="mr-2"
+                                                        checked={(() => {
+                                                          const allIds = [ward.id];
+                                                          if (ward.local_addresses) {
+                                                            ward.local_addresses.forEach((_, idx) => {
+                                                              allIds.push(`${ward.id}-${idx}`);
+                                                            });
+                                                          }
+                                                          return allIds.every(id => postAdSelectedLocations.has(id));
+                                                        })()}
+                                                        onChange={() => {
+                                                          const allIds = [ward.id];
+                                                          if (ward.local_addresses) {
+                                                            ward.local_addresses.forEach((_, idx) => {
+                                                              allIds.push(`${ward.id}-${idx}`);
+                                                            });
+                                                          }
+                                                          const allSelected = allIds.every(id => postAdSelectedLocations.has(id));
+                                                          setPostAdSelectedLocations(prev => {
+                                                            const newSet = new Set(prev);
+                                                            allIds.forEach(id => {
+                                                              if (allSelected) {
+                                                                newSet.delete(id);
+                                                              } else {
+                                                                newSet.add(id);
+                                                              }
+                                                            });
+                                                            return newSet;
+                                                          });
+                                                        }}
+                                                      />
+                                                      <span className="text-sm text-[hsl(var(--foreground))]">
+                                                        Ward {ward.ward_number}
+                                                      </span>
+                                                    </div>
+                                                    
+                                                    {/* Local Addresses */}
+                                                    {ward.local_addresses && ward.local_addresses.length > 0 && (
+                                                      <div className="ml-6 mt-1 space-y-1">
+                                                        {ward.local_addresses.map((address, idx) => {
+                                                          const addressId = `${ward.id}-${idx}`;
+                                                          return (
+                                                            <div key={addressId} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                              <input
+                                                                type="checkbox"
+                                                                className="mr-2"
+                                                                checked={postAdSelectedLocations.has(addressId)}
+                                                                onChange={() => handlePostAdLocationToggle(addressId)}
+                                                              />
+                                                              <span className="text-xs text-[hsl(var(--muted-foreground))]">{address}</span>
+                                                            </div>
+                                                          );
+                                                        })}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ))
+                                    ) : (
+                                      <div className="p-4 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                                        No locations available. Please add locations first.
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                         
@@ -4276,6 +5273,9 @@ function AdminPanel() {
                                 user_id: '',
                               });
                               setPostAdImages([null, null, null, null]); // Reset images
+                              setPostAdSelectedCategoryName('');
+                              setPostAdSelectedSubcategoryId('');
+                              setPostAdSelectedLocations(new Set());
                             }}
                           >
                             Cancel
@@ -4398,19 +5398,98 @@ function AdminPanel() {
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category *</label>
-                              <select
-                                value={postAdFormData.category_id}
-                                onChange={(e) => setPostAdFormData({...postAdFormData, category_id: e.target.value})}
-                                className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                                required
-                              >
-                                <option value="">Select Category</option>
-                                {Array.isArray(categories) && categories.map((category) => (
-                                  <option key={category.id} value={category.id}>
-                                    {category.name}
-                                  </option>
-                                ))}
-                              </select>
+                              <div className="relative" ref={postAdCategoryDropdownRef}>
+                                <button
+                                  type="button"
+                                  onClick={() => setPostAdShowCategoryDropdown(!postAdShowCategoryDropdown)}
+                                  className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                                >
+                                  <span>{buildPostAdCategoryString() || 'Select Category'}</span>
+                                  <span className="ml-2">{postAdShowCategoryDropdown ? '▼' : '▶'}</span>
+                                </button>
+                                
+                                {/* Cascading Category Menu */}
+                                {postAdShowCategoryDropdown && (
+                                  <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
+                                    {/* Category Column */}
+                                    <div className="min-w-[200px] max-h-96 overflow-y-auto border-r border-[hsl(var(--border))]">
+                                      <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                        Category
+                                      </div>
+                                      <div className="py-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            handlePostAdClearCategorySelection();
+                                          }}
+                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                            !postAdSelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
+                                          }`}
+                                        >
+                                          All Categories
+                                        </button>
+                                        {categories.map((category, index) => (
+                                          <button
+                                            key={category.id || `category-${index}`}
+                                            type="button"
+                                            onClick={() => handlePostAdCategorySelect(category.name)}
+                                            onMouseEnter={() => {
+                                              if (postAdSelectedCategoryName !== category.name) {
+                                                handlePostAdCategorySelect(category.name);
+                                              }
+                                            }}
+                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
+                                              postAdSelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
+                                            }`}
+                                          >
+                                            <span>{category.name}</span>
+                                            {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Subcategory Column - appears when category is selected */}
+                                    {postAdSelectedCategoryName && getPostAdSelectedCategory() && getPostAdSelectedCategory().subcategories && getPostAdSelectedCategory().subcategories.length > 0 && (
+                                      <div className="min-w-[200px] max-h-96 overflow-y-auto">
+                                        <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                          Subcategory
+                                        </div>
+                                        <div className="py-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setPostAdSelectedSubcategoryId('');
+                                              const category = getPostAdSelectedCategory();
+                                              if (category) {
+                                                setPostAdFormData({...postAdFormData, category_id: category.id.toString()});
+                                              }
+                                              setPostAdShowCategoryDropdown(false);
+                                            }}
+                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                              !postAdSelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
+                                            }`}
+                                          >
+                                            All Subcategories
+                                          </button>
+                                          {getPostAdSelectedCategory().subcategories.map((subcategory) => (
+                                            <button
+                                              key={subcategory.id}
+                                              type="button"
+                                              onClick={() => handlePostAdSubcategorySelect(subcategory.id.toString())}
+                                              className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                                postAdSelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                              }`}
+                                            >
+                                              {subcategory.name}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">User *</label>
@@ -4427,6 +5506,302 @@ function AdminPanel() {
                                   </option>
                                 ))}
                               </select>
+                            </div>
+                          </div>
+                          
+                          {/* Location Selection */}
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Location *</label>
+                            <div className="relative" ref={postAdLocationDropdownRef}>
+                              <button
+                                type="button"
+                                onClick={() => setPostAdShowLocationDropdown(!postAdShowLocationDropdown)}
+                                className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                              >
+                                <span>{buildPostAdLocationString()}</span>
+                                <span className="ml-2">{postAdShowLocationDropdown ? '▼' : '▶'}</span>
+                              </button>
+                              
+                              {/* Hierarchical Checkbox Menu */}
+                              {postAdShowLocationDropdown && (
+                                <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[600px] max-h-[500px] overflow-y-auto">
+                                  <div className="p-3">
+                                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
+                                      <span className="font-semibold text-sm text-[hsl(var(--foreground))]">Select Locations</span>
+                                      <button
+                                        type="button"
+                                        onClick={handlePostAdSelectAllLocations}
+                                        className="text-xs text-[hsl(var(--primary))] hover:underline"
+                                      >
+                                        {postAdSelectedLocations.size > 0 ? 'Clear All' : 'Select All'}
+                                      </button>
+                                    </div>
+                                    
+                                    {/* Hierarchical Location Tree */}
+                                    <div className="space-y-1">
+                                      {locationData?.provinces && locationData.provinces.length > 0 ? (
+                                        locationData.provinces.map((province) => (
+                                        <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
+                                          {/* Province Level */}
+                                          <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => togglePostAdProvince(province.id)}
+                                              className="mr-2 text-xs"
+                                            >
+                                              {postAdExpandedProvinces.has(province.id) ? '▼' : '▶'}
+                                            </button>
+                                            <input
+                                              type="checkbox"
+                                              className="mr-2"
+                                              checked={(() => {
+                                                const allLocationIds = [];
+                                                province.districts.forEach(d => {
+                                                  d.localLevels.forEach(ll => {
+                                                    if (ll.wards) {
+                                                      ll.wards.forEach(w => {
+                                                        allLocationIds.push(w.id);
+                                                        if (w.local_addresses) {
+                                                          w.local_addresses.forEach((_, idx) => {
+                                                            allLocationIds.push(`${w.id}-${idx}`);
+                                                          });
+                                                        }
+                                                      });
+                                                    }
+                                                  });
+                                                });
+                                                return allLocationIds.length > 0 && allLocationIds.every(id => postAdSelectedLocations.has(id));
+                                              })()}
+                                              onChange={() => {
+                                                const allLocationIds = [];
+                                                province.districts.forEach(d => {
+                                                  d.localLevels.forEach(ll => {
+                                                    if (ll.wards) {
+                                                      ll.wards.forEach(w => {
+                                                        allLocationIds.push(w.id);
+                                                        if (w.local_addresses) {
+                                                          w.local_addresses.forEach((_, idx) => {
+                                                            allLocationIds.push(`${w.id}-${idx}`);
+                                                          });
+                                                        }
+                                                      });
+                                                    }
+                                                  });
+                                                });
+                                                setPostAdSelectedLocations(prev => {
+                                                  const newSet = new Set(prev);
+                                                  const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                  allLocationIds.forEach(id => {
+                                                    if (allSelected) {
+                                                      newSet.delete(id);
+                                                    } else {
+                                                      newSet.add(id);
+                                                    }
+                                                  });
+                                                  return newSet;
+                                                });
+                                              }}
+                                            />
+                                            <span className="text-sm font-medium text-[hsl(var(--foreground))]">{province.name}</span>
+                                          </div>
+                                          
+                                          {/* Districts */}
+                                          {postAdExpandedProvinces.has(province.id) && province.districts.map((district) => (
+                                            <div key={district.id} className="ml-6 mt-1">
+                                              <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => togglePostAdDistrict(`${province.id}-${district.id}`)}
+                                                  className="mr-2 text-xs"
+                                                >
+                                                  {postAdExpandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
+                                                </button>
+                                                <input
+                                                  type="checkbox"
+                                                  className="mr-2"
+                                                  checked={(() => {
+                                                    const allLocationIds = [];
+                                                    district.localLevels.forEach(ll => {
+                                                      if (ll.wards) {
+                                                        ll.wards.forEach(w => {
+                                                          allLocationIds.push(w.id);
+                                                          if (w.local_addresses) {
+                                                            w.local_addresses.forEach((_, idx) => {
+                                                              allLocationIds.push(`${w.id}-${idx}`);
+                                                            });
+                                                          }
+                                                        });
+                                                      }
+                                                    });
+                                                    return allLocationIds.length > 0 && allLocationIds.every(id => postAdSelectedLocations.has(id));
+                                                  })()}
+                                                  onChange={() => {
+                                                    const allLocationIds = [];
+                                                    district.localLevels.forEach(ll => {
+                                                      if (ll.wards) {
+                                                        ll.wards.forEach(w => {
+                                                          allLocationIds.push(w.id);
+                                                          if (w.local_addresses) {
+                                                            w.local_addresses.forEach((_, idx) => {
+                                                              allLocationIds.push(`${w.id}-${idx}`);
+                                                            });
+                                                          }
+                                                        });
+                                                      }
+                                                    });
+                                                    setPostAdSelectedLocations(prev => {
+                                                      const newSet = new Set(prev);
+                                                      const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                      allLocationIds.forEach(id => {
+                                                        if (allSelected) {
+                                                          newSet.delete(id);
+                                                        } else {
+                                                          newSet.add(id);
+                                                        }
+                                                      });
+                                                      return newSet;
+                                                    });
+                                                  }}
+                                                />
+                                                <span className="text-sm text-[hsl(var(--foreground))]">{district.name}</span>
+                                              </div>
+                                              
+                                              {/* Local Levels */}
+                                              {postAdExpandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
+                                                <div key={localLevel.id} className="ml-6 mt-1">
+                                                  <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => togglePostAdLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
+                                                      className="mr-2 text-xs"
+                                                    >
+                                                      {postAdExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
+                                                    </button>
+                                                    <input
+                                                      type="checkbox"
+                                                      className="mr-2"
+                                                      checked={(() => {
+                                                        if (!localLevel.wards) return false;
+                                                        const allLocationIds = [];
+                                                        localLevel.wards.forEach(w => {
+                                                          allLocationIds.push(w.id);
+                                                          if (w.local_addresses) {
+                                                            w.local_addresses.forEach((_, idx) => {
+                                                              allLocationIds.push(`${w.id}-${idx}`);
+                                                            });
+                                                          }
+                                                        });
+                                                        return allLocationIds.length > 0 && allLocationIds.every(id => postAdSelectedLocations.has(id));
+                                                      })()}
+                                                      onChange={() => {
+                                                        if (localLevel.wards) {
+                                                          const allLocationIds = [];
+                                                          localLevel.wards.forEach(w => {
+                                                            allLocationIds.push(w.id);
+                                                            if (w.local_addresses) {
+                                                              w.local_addresses.forEach((_, idx) => {
+                                                                allLocationIds.push(`${w.id}-${idx}`);
+                                                              });
+                                                            }
+                                                          });
+                                                          setPostAdSelectedLocations(prev => {
+                                                            const newSet = new Set(prev);
+                                                            const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                            allLocationIds.forEach(id => {
+                                                              if (allSelected) {
+                                                                newSet.delete(id);
+                                                              } else {
+                                                                newSet.add(id);
+                                                              }
+                                                            });
+                                                            return newSet;
+                                                          });
+                                                        }
+                                                      }}
+                                                    />
+                                                    <span className="text-sm text-[hsl(var(--foreground))]">
+                                                      {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
+                                                    </span>
+                                                  </div>
+                                                  
+                                                  {/* Wards and Local Addresses */}
+                                                  {postAdExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
+                                                    <div key={ward.id} className="ml-6 mt-1">
+                                                      <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                        <input
+                                                          type="checkbox"
+                                                          className="mr-2"
+                                                          checked={(() => {
+                                                            const allIds = [ward.id];
+                                                            if (ward.local_addresses) {
+                                                              ward.local_addresses.forEach((_, idx) => {
+                                                                allIds.push(`${ward.id}-${idx}`);
+                                                              });
+                                                            }
+                                                            return allIds.every(id => postAdSelectedLocations.has(id));
+                                                          })()}
+                                                          onChange={() => {
+                                                            const allIds = [ward.id];
+                                                            if (ward.local_addresses) {
+                                                              ward.local_addresses.forEach((_, idx) => {
+                                                                allIds.push(`${ward.id}-${idx}`);
+                                                              });
+                                                            }
+                                                            const allSelected = allIds.every(id => postAdSelectedLocations.has(id));
+                                                            setPostAdSelectedLocations(prev => {
+                                                              const newSet = new Set(prev);
+                                                              allIds.forEach(id => {
+                                                                if (allSelected) {
+                                                                  newSet.delete(id);
+                                                                } else {
+                                                                  newSet.add(id);
+                                                                }
+                                                              });
+                                                              return newSet;
+                                                            });
+                                                          }}
+                                                        />
+                                                        <span className="text-sm text-[hsl(var(--foreground))]">
+                                                          Ward {ward.ward_number}
+                                                        </span>
+                                                      </div>
+                                                      
+                                                      {/* Local Addresses */}
+                                                      {ward.local_addresses && ward.local_addresses.length > 0 && (
+                                                        <div className="ml-6 mt-1 space-y-1">
+                                                          {ward.local_addresses.map((address, idx) => {
+                                                            const addressId = `${ward.id}-${idx}`;
+                                                            return (
+                                                              <div key={addressId} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                                <input
+                                                                  type="checkbox"
+                                                                  className="mr-2"
+                                                                  checked={postAdSelectedLocations.has(addressId)}
+                                                                  onChange={() => handlePostAdLocationToggle(addressId)}
+                                                                />
+                                                                <span className="text-xs text-[hsl(var(--muted-foreground))]">{address}</span>
+                                                              </div>
+                                                            );
+                                                          })}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ))}
+                                        </div>
+                                        ))
+                                      ) : (
+                                        <div className="p-4 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                                          No locations available. Please add locations first.
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                           
@@ -4495,6 +5870,9 @@ function AdminPanel() {
                                   user_id: '',
                                 });
                                 setPostAdImages([null, null, null, null]); // Reset images
+                                setPostAdSelectedCategoryName('');
+                                setPostAdSelectedSubcategoryId('');
+                                setPostAdSelectedLocations(new Set());
                               }}
                             >
                               Cancel
@@ -4535,6 +5913,7 @@ function AdminPanel() {
                             <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
                             <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Title</th>
                             <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Category</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Location</th>
                             <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Description</th>
                             <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Price</th>
                             <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">View</th>
@@ -4557,7 +5936,102 @@ function AdminPanel() {
                                   <span className="font-medium">{ad.title}</span>
                                 )}
                               </td>
-                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.category}</td>
+                              <td className="p-3 text-sm">
+                                {editingAdId === ad.id ? (
+                                  <div className="relative" ref={editingAdCategoryDropdownRef}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingAdShowCategoryDropdown(!editingAdShowCategoryDropdown)}
+                                      className="w-full px-2 py-1 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between text-xs"
+                                    >
+                                      <span>{buildEditingAdCategoryString() || 'Select Category'}</span>
+                                      <span className="ml-1 text-xs">{editingAdShowCategoryDropdown ? '▼' : '▶'}</span>
+                                    </button>
+                                    
+                                    {/* Cascading Category Menu */}
+                                    {editingAdShowCategoryDropdown && (
+                                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
+                                        {/* Category Column */}
+                                        <div className="min-w-[150px] max-h-64 overflow-y-auto border-r border-[hsl(var(--border))]">
+                                          <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                            Category
+                                          </div>
+                                          <div className="py-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleEditingAdClearCategorySelection()}
+                                              className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
+                                                !editingAdSelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
+                                              }`}
+                                            >
+                                              All Categories
+                                            </button>
+                                            {categories.map((category, index) => (
+                                              <button
+                                                key={category.id || `category-${index}`}
+                                                type="button"
+                                                onClick={() => handleEditingAdCategorySelect(category.name)}
+                                                onMouseEnter={() => {
+                                                  if (editingAdSelectedCategoryName !== category.name) {
+                                                    handleEditingAdCategorySelect(category.name);
+                                                  }
+                                                }}
+                                                className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
+                                                  editingAdSelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
+                                                }`}
+                                              >
+                                                <span>{category.name}</span>
+                                                {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Subcategory Column */}
+                                        {editingAdSelectedCategoryName && getEditingAdSelectedCategory() && getEditingAdSelectedCategory().subcategories && getEditingAdSelectedCategory().subcategories.length > 0 && (
+                                          <div className="min-w-[150px] max-h-64 overflow-y-auto">
+                                            <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                              Subcategory
+                                            </div>
+                                            <div className="py-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setEditingAdSelectedSubcategoryId('');
+                                                  const category = getEditingAdSelectedCategory();
+                                                  if (category) {
+                                                    setEditingAdData({...editingAdData, category_id: category.id.toString()});
+                                                  }
+                                                  setEditingAdShowCategoryDropdown(false);
+                                                }}
+                                                className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
+                                                  !editingAdSelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
+                                                }`}
+                                              >
+                                                All Subcategories
+                                              </button>
+                                              {getEditingAdSelectedCategory().subcategories.map((subcategory) => (
+                                                <button
+                                                  key={subcategory.id}
+                                                  type="button"
+                                                  onClick={() => handleEditingAdSubcategorySelect(subcategory.id.toString())}
+                                                  className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
+                                                    editingAdSelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                                  }`}
+                                                >
+                                                  {subcategory.name}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-[hsl(var(--foreground))]">{ad.category}</span>
+                                )}
+                              </td>
                               <td className="p-3 text-sm max-w-xs">
                                 {editingAdId === ad.id ? (
                                   <Input
@@ -5056,18 +6530,98 @@ function AdminPanel() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category *</label>
-                            <Input
-                              value={jobCategoryFormData.category}
-                              onChange={(e) => setJobCategoryFormData({ ...jobCategoryFormData, category: e.target.value })}
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Sub Category</label>
-                            <Input
-                              value={jobCategoryFormData.sub_category}
-                              onChange={(e) => setJobCategoryFormData({ ...jobCategoryFormData, sub_category: e.target.value })}
-                            />
+                            <div className="relative" ref={jobCategoryCategoryDropdownRef}>
+                              <button
+                                type="button"
+                                onClick={() => setJobCategoryShowCategoryDropdown(!jobCategoryShowCategoryDropdown)}
+                                className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                              >
+                                <span>{buildJobCategoryCategoryString() || 'Select Category'}</span>
+                                <span className="ml-2">{jobCategoryShowCategoryDropdown ? '▼' : '▶'}</span>
+                              </button>
+                              
+                              {/* Cascading Category Menu */}
+                              {jobCategoryShowCategoryDropdown && (
+                                <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
+                                  {/* Category Column */}
+                                  <div className="min-w-[200px] max-h-96 overflow-y-auto border-r border-[hsl(var(--border))]">
+                                    <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                      Category
+                                    </div>
+                                    <div className="py-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          handleJobCategoryClearCategorySelection();
+                                        }}
+                                        className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                          !jobCategorySelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
+                                        }`}
+                                      >
+                                        All Categories
+                                      </button>
+                                      {categories.map((category, index) => (
+                                        <button
+                                          key={category.id || `category-${index}`}
+                                          type="button"
+                                          onClick={() => handleJobCategoryCategorySelect(category.name)}
+                                          onMouseEnter={() => {
+                                            if (jobCategorySelectedCategoryName !== category.name) {
+                                              handleJobCategoryCategorySelect(category.name);
+                                            }
+                                          }}
+                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
+                                            jobCategorySelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
+                                          }`}
+                                        >
+                                          <span>{category.name}</span>
+                                          {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Subcategory Column - appears when category is selected */}
+                                  {jobCategorySelectedCategoryName && getJobCategorySelectedCategory() && getJobCategorySelectedCategory().subcategories && getJobCategorySelectedCategory().subcategories.length > 0 && (
+                                    <div className="min-w-[200px] max-h-96 overflow-y-auto">
+                                      <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                        Subcategory
+                                      </div>
+                                      <div className="py-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setJobCategorySelectedSubcategoryId('');
+                                            const category = getJobCategorySelectedCategory();
+                                            if (category) {
+                                              setJobCategoryFormData({...jobCategoryFormData, category: category.name, sub_category: ''});
+                                            }
+                                            setJobCategoryShowCategoryDropdown(false);
+                                          }}
+                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                            !jobCategorySelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
+                                          }`}
+                                        >
+                                          All Subcategories
+                                        </button>
+                                        {getJobCategorySelectedCategory().subcategories.map((subcategory) => (
+                                          <button
+                                            key={subcategory.id}
+                                            type="button"
+                                            onClick={() => handleJobCategorySubcategorySelect(subcategory.id.toString())}
+                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                              jobCategorySelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                            }`}
+                                          >
+                                            {subcategory.name}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Posted Jobs</label>
@@ -5104,6 +6658,8 @@ function AdminPanel() {
                                 posted_job: 0,
                                 job_status: 'draft',
                               });
+                              setJobCategorySelectedCategoryName('');
+                              setJobCategorySelectedSubcategoryId('');
                             }}
                           >
                             Cancel
@@ -5141,22 +6697,148 @@ function AdminPanel() {
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm">
                                 {editingJobCategoryId === category.id ? (
-                                  <Input
-                                    value={editingJobCategoryData.category}
-                                    onChange={(e) => setEditingJobCategoryData({ ...editingJobCategoryData, category: e.target.value })}
-                                  />
+                                  <div className="relative" ref={jobCategoryCategoryDropdownRef}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setJobCategoryShowCategoryDropdown(!jobCategoryShowCategoryDropdown)}
+                                      className="w-full px-2 py-1 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between text-xs"
+                                    >
+                                      <span>{buildJobCategoryCategoryString() || 'Select Category'}</span>
+                                      <span className="ml-1 text-xs">{jobCategoryShowCategoryDropdown ? '▼' : '▶'}</span>
+                                    </button>
+                                    
+                                    {/* Cascading Category Menu */}
+                                    {jobCategoryShowCategoryDropdown && (
+                                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
+                                        {/* Category Column */}
+                                        <div className="min-w-[150px] max-h-64 overflow-y-auto border-r border-[hsl(var(--border))]">
+                                          <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                            Category
+                                          </div>
+                                          <div className="py-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleJobCategoryClearCategorySelection()}
+                                              className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
+                                                !jobCategorySelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
+                                              }`}
+                                            >
+                                              All Categories
+                                            </button>
+                                            {categories.map((category, index) => (
+                                              <button
+                                                key={category.id || `category-${index}`}
+                                                type="button"
+                                                onClick={() => handleJobCategoryCategorySelect(category.name)}
+                                                onMouseEnter={() => {
+                                                  if (jobCategorySelectedCategoryName !== category.name) {
+                                                    handleJobCategoryCategorySelect(category.name);
+                                                  }
+                                                }}
+                                                className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
+                                                  jobCategorySelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
+                                                }`}
+                                              >
+                                                <span>{category.name}</span>
+                                                {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Subcategory Column */}
+                                        {jobCategorySelectedCategoryName && getJobCategorySelectedCategory() && getJobCategorySelectedCategory().subcategories && getJobCategorySelectedCategory().subcategories.length > 0 && (
+                                          <div className="min-w-[150px] max-h-64 overflow-y-auto">
+                                            <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                              Subcategory
+                                            </div>
+                                            <div className="py-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setJobCategorySelectedSubcategoryId('');
+                                                  const category = getJobCategorySelectedCategory();
+                                                  if (category) {
+                                                    setEditingJobCategoryData({...editingJobCategoryData, category: category.name, sub_category: ''});
+                                                  }
+                                                  setJobCategoryShowCategoryDropdown(false);
+                                                }}
+                                                className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
+                                                  !jobCategorySelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
+                                                }`}
+                                              >
+                                                All Subcategories
+                                              </button>
+                                              {getJobCategorySelectedCategory().subcategories.map((subcategory) => (
+                                                <button
+                                                  key={subcategory.id}
+                                                  type="button"
+                                                  onClick={() => handleJobCategorySubcategorySelect(subcategory.id.toString())}
+                                                  className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
+                                                    jobCategorySelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                                  }`}
+                                                >
+                                                  {subcategory.name}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 ) : (
-                                  <span className="font-medium">{category.category}</span>
+                                  <span className="font-medium">
+                                    {(() => {
+                                      // Get category name from relationship or find in categories list
+                                      if (category.category) {
+                                        return category.category.category || category.category;
+                                      }
+                                      if (category.category_id) {
+                                        // Find in categories list
+                                        for (const cat of categories) {
+                                          if (cat.id === category.category_id) {
+                                            return cat.name;
+                                          }
+                                          if (cat.subcategories) {
+                                            const subcat = cat.subcategories.find(s => s.id === category.category_id);
+                                            if (subcat) {
+                                              return cat.name; // Return parent category name
+                                            }
+                                          }
+                                        }
+                                      }
+                                      return '-';
+                                    })()}
+                                  </span>
                                 )}
                               </td>
                               <td className="p-3 text-sm">
                                 {editingJobCategoryId === category.id ? (
-                                  <Input
-                                    value={editingJobCategoryData.sub_category}
-                                    onChange={(e) => setEditingJobCategoryData({ ...editingJobCategoryData, sub_category: e.target.value })}
-                                  />
+                                  <span className="text-[hsl(var(--muted-foreground))] text-xs">
+                                    {jobCategorySelectedSubcategoryId ? (() => {
+                                      const cat = getJobCategorySelectedCategory();
+                                      const subcat = cat?.subcategories.find(s => s.id === parseInt(jobCategorySelectedSubcategoryId));
+                                      return subcat?.name || '-';
+                                    })() : '-'}
+                                  </span>
                                 ) : (
-                                  <span className="text-[hsl(var(--muted-foreground))]">{category.sub_category || '-'}</span>
+                                  <span className="text-[hsl(var(--muted-foreground))]">
+                                    {(() => {
+                                      // Get subcategory name from category_id
+                                      if (category.category_id) {
+                                        for (const cat of categories) {
+                                          if (cat.subcategories) {
+                                            const subcat = cat.subcategories.find(s => s.id === category.category_id);
+                                            if (subcat) {
+                                              return subcat.name;
+                                            }
+                                          }
+                                        }
+                                      }
+                                      return '-';
+                                    })()}
+                                  </span>
                                 )}
                               </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">
@@ -7337,18 +9019,98 @@ function AdminPanel() {
                           <div className="grid grid-cols-2 gap-4">
                             <div>
                               <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Category/Subcategory (Optional)</label>
-                              <select
-                                value={postAdTransactionFormData.category_id}
-                                onChange={(e) => setPostAdTransactionFormData({...postAdTransactionFormData, category_id: e.target.value})}
-                                className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
-                              >
-                                <option value="">Select Category</option>
-                                {Array.isArray(flattenedCategories) && flattenedCategories.map((cat) => (
-                                  <option key={cat.id} value={cat.id}>
-                                    {cat.name}
-                                  </option>
-                                ))}
-                              </select>
+                              <div className="relative" ref={transactionCategoryDropdownRef}>
+                                <button
+                                  type="button"
+                                  onClick={() => setTransactionShowCategoryDropdown(!transactionShowCategoryDropdown)}
+                                  className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                                >
+                                  <span>{buildTransactionCategoryString() || 'Select Category'}</span>
+                                  <span className="ml-2">{transactionShowCategoryDropdown ? '▼' : '▶'}</span>
+                                </button>
+                                
+                                {/* Cascading Category Menu */}
+                                {transactionShowCategoryDropdown && (
+                                  <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
+                                    {/* Category Column */}
+                                    <div className="min-w-[200px] max-h-96 overflow-y-auto border-r border-[hsl(var(--border))]">
+                                      <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                        Category
+                                      </div>
+                                      <div className="py-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            handleTransactionClearCategorySelection();
+                                          }}
+                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                            !transactionSelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
+                                          }`}
+                                        >
+                                          All Categories
+                                        </button>
+                                        {categories.map((category, index) => (
+                                          <button
+                                            key={category.id || `category-${index}`}
+                                            type="button"
+                                            onClick={() => handleTransactionCategorySelect(category.name)}
+                                            onMouseEnter={() => {
+                                              if (transactionSelectedCategoryName !== category.name) {
+                                                handleTransactionCategorySelect(category.name);
+                                              }
+                                            }}
+                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
+                                              transactionSelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
+                                            }`}
+                                          >
+                                            <span>{category.name}</span>
+                                            {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Subcategory Column - appears when category is selected */}
+                                    {transactionSelectedCategoryName && getTransactionSelectedCategory() && getTransactionSelectedCategory().subcategories && getTransactionSelectedCategory().subcategories.length > 0 && (
+                                      <div className="min-w-[200px] max-h-96 overflow-y-auto">
+                                        <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                          Subcategory
+                                        </div>
+                                        <div className="py-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setTransactionSelectedSubcategoryId('');
+                                              const category = getTransactionSelectedCategory();
+                                              if (category) {
+                                                setPostAdTransactionFormData({...postAdTransactionFormData, category_id: category.id.toString()});
+                                              }
+                                              setTransactionShowCategoryDropdown(false);
+                                            }}
+                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                              !transactionSelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
+                                            }`}
+                                          >
+                                            All Subcategories
+                                          </button>
+                                          {getTransactionSelectedCategory().subcategories.map((subcategory) => (
+                                            <button
+                                              key={subcategory.id}
+                                              type="button"
+                                              onClick={() => handleTransactionSubcategorySelect(subcategory.id.toString())}
+                                              className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                                transactionSelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                              }`}
+                                            >
+                                              {subcategory.name}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                             <div>
                               <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Amount *</label>
@@ -7425,6 +9187,8 @@ function AdminPanel() {
                                   email: '',
                                   status: 'active',
                                 });
+                                setTransactionSelectedCategoryName('');
+                                setTransactionSelectedSubcategoryId('');
                               }}
                             >
                               Cancel
@@ -7502,18 +9266,99 @@ function AdminPanel() {
                               </td>
                               <td className="p-3 text-sm">
                                 {editingTransactionId === transaction.id && editingTransactionData ? (
-                                  <select
-                                    value={editingTransactionData.category_id}
-                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, category_id: e.target.value})}
-                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
-                                  >
-                                    <option value="">Select Category</option>
-                                    {flattenedCategories.map((cat) => (
-                                      <option key={cat.id} value={cat.id}>
-                                        {cat.name}
-                                      </option>
-                                    ))}
-                                  </select>
+                                  <div className="relative" ref={transactionCategoryDropdownRef}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setTransactionShowCategoryDropdown(!transactionShowCategoryDropdown)}
+                                      className="w-full px-2 py-1 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between text-xs"
+                                    >
+                                      <span>{buildTransactionCategoryString() || 'Select Category'}</span>
+                                      <span className="ml-1 text-xs">{transactionShowCategoryDropdown ? '▼' : '▶'}</span>
+                                    </button>
+                                    
+                                    {/* Cascading Category Menu */}
+                                    {transactionShowCategoryDropdown && (
+                                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
+                                        {/* Category Column */}
+                                        <div className="min-w-[150px] max-h-64 overflow-y-auto border-r border-[hsl(var(--border))]">
+                                          <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                            Category
+                                          </div>
+                                          <div className="py-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleTransactionClearCategorySelection()}
+                                              className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
+                                                !transactionSelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
+                                              }`}
+                                            >
+                                              All Categories
+                                            </button>
+                                            {categories.map((category, index) => (
+                                              <button
+                                                key={category.id || `category-${index}`}
+                                                type="button"
+                                                onClick={() => handleTransactionCategorySelect(category.name)}
+                                                onMouseEnter={() => {
+                                                  if (transactionSelectedCategoryName !== category.name) {
+                                                    handleTransactionCategorySelect(category.name);
+                                                  }
+                                                }}
+                                                className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
+                                                  transactionSelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
+                                                }`}
+                                              >
+                                                <span>{category.name}</span>
+                                                {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                        
+                                        {/* Subcategory Column */}
+                                        {transactionSelectedCategoryName && getTransactionSelectedCategory() && getTransactionSelectedCategory().subcategories && getTransactionSelectedCategory().subcategories.length > 0 && (
+                                          <div className="min-w-[150px] max-h-64 overflow-y-auto">
+                                            <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                              Subcategory
+                                            </div>
+                                            <div className="py-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setTransactionSelectedSubcategoryId('');
+                                                  const category = getTransactionSelectedCategory();
+                                                  if (category) {
+                                                    setEditingTransactionData({...editingTransactionData, category_id: category.id.toString()});
+                                                  }
+                                                  setTransactionShowCategoryDropdown(false);
+                                                }}
+                                                className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
+                                                  !transactionSelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
+                                                }`}
+                                              >
+                                                All Subcategories
+                                              </button>
+                                              {getTransactionSelectedCategory().subcategories.map((subcategory) => (
+                                                <button
+                                                  key={subcategory.id}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    handleTransactionSubcategorySelect(subcategory.id.toString());
+                                                    setEditingTransactionData({...editingTransactionData, category_id: subcategory.id.toString()});
+                                                  }}
+                                                  className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
+                                                    transactionSelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                                  }`}
+                                                >
+                                                  {subcategory.name}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 ) : (
                                   `${transaction.category_name || 'N/A'}${transaction.subcategory_name ? ` / ${transaction.subcategory_name}` : ''}`
                                 )}
@@ -7638,7 +9483,6 @@ function AdminPanel() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">User management</h2>
-                    <Button variant="outline" onClick={() => {}}>Post Ad</Button>
                   </div>
 
                   <div className="overflow-x-auto">

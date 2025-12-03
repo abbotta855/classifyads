@@ -49,6 +49,7 @@ class AdController extends Controller
       'category_id' => 'required|exists:categories,id',
       'user_id' => 'required|exists:users,id',
       'posted_by' => 'required|in:user,vendor,admin',
+      'location_id' => 'nullable|exists:locations,id',
       'images' => 'required|array|min:1|max:4',
       'images.*' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048', // Max 2MB per image
     ]);
@@ -78,6 +79,7 @@ class AdController extends Controller
       'category_id' => $validated['category_id'],
       'user_id' => $validated['user_id'],
       'posted_by' => $validated['posted_by'],
+      'location_id' => $validated['location_id'] ?? null,
       'status' => 'active',
       'image1_url' => $imageUrls[0],
       'image2_url' => $imageUrls[1],
@@ -113,10 +115,14 @@ class AdController extends Controller
       'price' => 'sometimes|numeric|min:0',
       'category_id' => 'sometimes|exists:categories,id',
       'user_id' => 'sometimes|exists:users,id',
+      'location_id' => 'nullable|exists:locations,id',
       'posted_by' => 'sometimes|in:user,vendor,admin',
     ]);
 
     $ad->update($validated);
+
+    // Load relationships
+    $ad->load(['category', 'user']);
 
     return response()->json($ad);
   }

@@ -17,6 +17,7 @@ class Ad extends Model
     'featured',
     'posted_by',
     'views',
+    'location_id',
     'image1_url',
     'image2_url',
     'image3_url',
@@ -31,6 +32,11 @@ class Ad extends Model
   public function category(): BelongsTo
   {
     return $this->belongsTo(Category::class);
+  }
+
+  public function location(): BelongsTo
+  {
+    return $this->belongsTo(Location::class);
   }
 
   public function photos()

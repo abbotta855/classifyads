@@ -13,8 +13,8 @@ class JobCategoryController extends Controller
      */
     public function index()
     {
-        $categories = JobCategory::orderBy('category')
-            ->orderBy('sub_category')
+        $categories = JobCategory::with('category')
+            ->orderBy('category_id')
             ->get();
 
         return response()->json($categories);
@@ -26,8 +26,7 @@ class JobCategoryController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'category' => 'required|string|max:255',
-            'sub_category' => 'nullable|string|max:255',
+            'category_id' => 'required|exists:categories,id',
             'posted_job' => 'nullable|integer|min:0',
             'job_status' => 'required|in:draft,active,closed',
         ]);
@@ -37,6 +36,7 @@ class JobCategoryController extends Controller
         }
 
         $category = JobCategory::create($validated);
+        $category->load('category');
 
         return response()->json($category, 201);
     }
@@ -58,13 +58,13 @@ class JobCategoryController extends Controller
         $category = JobCategory::findOrFail($id);
 
         $validated = $request->validate([
-            'category' => 'sometimes|string|max:255',
-            'sub_category' => 'sometimes|nullable|string|max:255',
+            'category_id' => 'sometimes|exists:categories,id',
             'posted_job' => 'sometimes|integer|min:0',
             'job_status' => 'sometimes|in:draft,active,closed',
         ]);
 
         $category->update($validated);
+        $category->load('category');
 
         return response()->json($category);
     }
