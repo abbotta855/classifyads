@@ -82,12 +82,16 @@ function AdminPanel() {
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchCategory, setSearchCategory] = useState('');
-  const [categories, setCategories] = useState([]); // Main categories for search bar
+  const [categories, setCategories] = useState([]); // Main categories for search bar (from API with subcategories)
   const [flattenedCategories, setFlattenedCategories] = useState([]); // All categories + subcategories for forms
   const [locationData, setLocationData] = useState({ provinces: [] }); // Location data from database
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [selectedCategoryName, setSelectedCategoryName] = useState(''); // Selected category name for showing subcategories
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState(''); // Selected subcategory ID
   const [loading, setLoading] = useState(true);
   const locationDropdownRef = useRef(null);
+  const categoryDropdownRef = useRef(null);
   const [adSort, setAdSort] = useState(''); // Sort option: 'price', 'date', 'alphabetical'
 
   // Ad totals and ads data
@@ -3372,13 +3376,9 @@ function AdminPanel() {
         categoriesData = [];
       }
       
-      // For search bar dropdown: show only unique main categories (from category column in database)
-      const uniqueMainCategories = Array.isArray(categoriesData) 
-        ? categoriesData.map((category) => ({
-            id: category.id,
-            name: category.name, // Main category name from database
-          }))
-        : [];
+      // For search bar: keep nested structure with categories and subcategories
+      // This allows cascading menu to work properly
+      const categoriesWithSubcategories = Array.isArray(categoriesData) ? categoriesData : [];
       
       // For forms (Post Ad, Auction): flatten to include both main categories and subcategories
       const flattenedCategoriesForForms = [];
@@ -3401,8 +3401,8 @@ function AdminPanel() {
         });
       }
       
-      // Set unique main categories for search bar
-      setCategories(uniqueMainCategories);
+      // Set categories for search bar (nested structure with subcategories)
+      setCategories(categoriesWithSubcategories);
       // Set flattened categories for forms
       setFlattenedCategories(flattenedCategoriesForForms);
     } catch (error) {
@@ -3556,6 +3556,78 @@ function AdminPanel() {
     };
   }, [showLocationDropdown]);
 
+  // Handle click outside category dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
+        setShowCategoryDropdown(false);
+      }
+    };
+
+    if (showCategoryDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showCategoryDropdown]);
+
+  // Helper functions for category selection
+  const getSelectedCategory = () => {
+    if (!selectedCategoryName) return null;
+    return categories.find(c => c.name === selectedCategoryName);
+  };
+
+  const getSelectedSubcategory = () => {
+    const category = getSelectedCategory();
+    if (!category || !selectedSubcategoryId || !category.subcategories) return null;
+    return category.subcategories.find(s => s.id === parseInt(selectedSubcategoryId));
+  };
+
+  const handleCategorySelect = (categoryName) => {
+    setSelectedCategoryName(categoryName);
+    setSelectedSubcategoryId(''); // Reset subcategory when category changes
+    // Update searchCategory to the category name
+    setSearchCategory(categoryName);
+  };
+
+  const handleSubcategorySelect = (subcategoryId) => {
+    setSelectedSubcategoryId(subcategoryId);
+    const category = getSelectedCategory();
+    if (category) {
+      const subcategory = category.subcategories.find(s => s.id === parseInt(subcategoryId));
+      if (subcategory) {
+        setSearchCategory(`${category.name} > ${subcategory.name}`);
+        setShowCategoryDropdown(false);
+      }
+    }
+  };
+
+  const buildCategorySearchString = () => {
+    if (selectedSubcategoryId) {
+      const category = getSelectedCategory();
+      const subcategory = getSelectedSubcategory();
+      if (category && subcategory) {
+        return `${category.name} > ${subcategory.name}`;
+      }
+    }
+    if (selectedCategoryName) {
+      const category = getSelectedCategory();
+      if (category) {
+        return category.name;
+      }
+    }
+    return '';
+  };
+
+  const handleClearCategorySelection = () => {
+    setSelectedCategoryName('');
+    setSelectedSubcategoryId('');
+    setSearchCategory('');
+    setShowCategoryDropdown(false);
+  };
+
   const menuItems = [
     { id: 'ads-management', label: 'Ads Management' },
     { id: 'auction-management', label: 'Auction Management' },
@@ -3658,18 +3730,94 @@ function AdminPanel() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="flex-1 min-w-[200px] bg-[hsl(var(--background))]"
                   />
-                  <select
-                    value={searchCategory}
-                    onChange={(e) => setSearchCategory(e.target.value)}
-                    className="px-3 py-2 border-0 rounded-md bg-[hsl(var(--secondary))] text-[hsl(var(--foreground))] min-w-[150px] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                  >
-                    <option value="">All Categories</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.name}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
+                  {/* Category Selection - Cascading two-column menu */}
+                  <div className="relative min-w-[150px]" ref={categoryDropdownRef}>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                        className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                      >
+                        <span>{buildCategorySearchString() || 'All Categories'}</span>
+                        <span className="ml-2">{showCategoryDropdown ? '▼' : '▶'}</span>
+                      </button>
+                      
+                      {/* Cascading Category Menu */}
+                      {showCategoryDropdown && (
+                        <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
+                          {/* Category Column */}
+                          <div className="min-w-[200px] max-h-96 overflow-y-auto border-r border-[hsl(var(--border))]">
+                            <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                              Category
+                            </div>
+                            <div className="py-1">
+                              <button
+                                onClick={() => {
+                                  handleClearCategorySelection();
+                                }}
+                                className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                  !selectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
+                                }`}
+                              >
+                                All Categories
+                              </button>
+                              {categories.map((category, index) => (
+                                <button
+                                  key={category.id || `category-${index}`}
+                                  onClick={() => handleCategorySelect(category.name)}
+                                  onMouseEnter={() => {
+                                    if (selectedCategoryName !== category.name) {
+                                      handleCategorySelect(category.name);
+                                    }
+                                  }}
+                                  className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
+                                    selectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
+                                  }`}
+                                >
+                                  <span>{category.name}</span>
+                                  {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Subcategory Column - appears when category is selected */}
+                          {selectedCategoryName && getSelectedCategory() && getSelectedCategory().subcategories && getSelectedCategory().subcategories.length > 0 && (
+                            <div className="min-w-[200px] max-h-96 overflow-y-auto">
+                              <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                Subcategory
+                              </div>
+                              <div className="py-1">
+                                <button
+                                  onClick={() => {
+                                    setSelectedSubcategoryId('');
+                                    setSearchCategory(getSelectedCategory().name);
+                                    setShowCategoryDropdown(false);
+                                  }}
+                                  className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                    !selectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
+                                  }`}
+                                >
+                                  All Subcategories
+                                </button>
+                                {getSelectedCategory().subcategories.map((subcategory) => (
+                                  <button
+                                    key={subcategory.id}
+                                    onClick={() => handleSubcategorySelect(subcategory.id.toString())}
+                                    className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                      selectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                    }`}
+                                  >
+                                    {subcategory.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   {/* Location Selection - Cascading nested menu */}
                   <div className="relative min-w-[150px]" ref={locationDropdownRef}>
                     <div className="relative">
