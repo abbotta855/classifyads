@@ -16,7 +16,7 @@ class AdController extends Controller
   public function index()
   {
     try {
-      $ads = Ad::with(['category', 'user'])
+      $ads = Ad::with(['category', 'user', 'location'])
         ->orderBy('created_at', 'desc')
         ->get();
 

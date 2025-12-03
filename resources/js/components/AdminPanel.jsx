@@ -2368,6 +2368,18 @@ function AdminPanel() {
         category: ad.category?.category || 'N/A',
         category_id: ad.category_id,
         location_id: ad.location_id,
+        location: ad.location ? (() => {
+          const parts = [];
+          if (ad.location.province) parts.push(ad.location.province);
+          if (ad.location.district) parts.push(ad.location.district);
+          if (ad.location.local_level) parts.push(ad.location.local_level);
+          if (ad.location.ward_number) parts.push(`Ward ${ad.location.ward_number}`);
+          if (ad.location.local_address) {
+            const firstAddress = ad.location.local_address.split(', ')[0];
+            if (firstAddress) parts.push(firstAddress);
+          }
+          return parts.length > 0 ? parts.join(' > ') : null;
+        })() : null,
         description: ad.description,
         price: parseFloat(ad.price) || 0,
         views: ad.views || 0,
@@ -2452,7 +2464,7 @@ function AdminPanel() {
 
     // Initialize location selection
     if (ad.location_id) {
-      setEditingAdSelectedLocations(new Set([ad.location_id]));
+      setEditingAdSelectedLocations(new Set([ad.location_id.toString()]));
     } else {
       setEditingAdSelectedLocations(new Set());
     }
@@ -6030,6 +6042,305 @@ function AdminPanel() {
                                   </div>
                                 ) : (
                                   <span className="text-[hsl(var(--foreground))]">{ad.category}</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-sm max-w-xs">
+                                {editingAdId === ad.id ? (
+                                  <div className="relative" ref={editingAdLocationDropdownRef}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingAdShowLocationDropdown(!editingAdShowLocationDropdown)}
+                                      className="w-full px-2 py-1 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between text-xs"
+                                    >
+                                      <span>{buildEditingAdLocationString()}</span>
+                                      <span className="ml-1 text-xs">{editingAdShowLocationDropdown ? '▼' : '▶'}</span>
+                                    </button>
+                                    
+                                    {/* Hierarchical Checkbox Menu */}
+                                    {editingAdShowLocationDropdown && (
+                                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[500px] max-h-[400px] overflow-y-auto">
+                                        <div className="p-3">
+                                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
+                                            <span className="font-semibold text-xs text-[hsl(var(--foreground))]">Select Location</span>
+                                            <button
+                                              type="button"
+                                              onClick={handleEditingAdSelectAllLocations}
+                                              className="text-xs text-[hsl(var(--primary))] hover:underline"
+                                            >
+                                              {editingAdSelectedLocations.size > 0 ? 'Clear All' : 'Select All'}
+                                            </button>
+                                          </div>
+                                          
+                                          {/* Hierarchical Location Tree */}
+                                          <div className="space-y-1">
+                                            {locationData?.provinces && locationData.provinces.length > 0 ? (
+                                              locationData.provinces.map((province) => (
+                                              <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
+                                                {/* Province Level */}
+                                                <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => toggleEditingAdProvince(province.id)}
+                                                    className="mr-2 text-xs"
+                                                  >
+                                                    {editingAdExpandedProvinces.has(province.id) ? '▼' : '▶'}
+                                                  </button>
+                                                  <input
+                                                    type="checkbox"
+                                                    className="mr-2"
+                                                    checked={(() => {
+                                                      const allLocationIds = [];
+                                                      province.districts.forEach(d => {
+                                                        d.localLevels.forEach(ll => {
+                                                          if (ll.wards) {
+                                                            ll.wards.forEach(w => {
+                                                              allLocationIds.push(w.id);
+                                                              if (w.local_addresses) {
+                                                                w.local_addresses.forEach((_, idx) => {
+                                                                  allLocationIds.push(`${w.id}-${idx}`);
+                                                                });
+                                                              }
+                                                            });
+                                                          }
+                                                        });
+                                                      });
+                                                      return allLocationIds.length > 0 && allLocationIds.every(id => editingAdSelectedLocations.has(id));
+                                                    })()}
+                                                    onChange={() => {
+                                                      const allLocationIds = [];
+                                                      province.districts.forEach(d => {
+                                                        d.localLevels.forEach(ll => {
+                                                          if (ll.wards) {
+                                                            ll.wards.forEach(w => {
+                                                              allLocationIds.push(w.id);
+                                                              if (w.local_addresses) {
+                                                                w.local_addresses.forEach((_, idx) => {
+                                                                  allLocationIds.push(`${w.id}-${idx}`);
+                                                                });
+                                                              }
+                                                            });
+                                                          }
+                                                        });
+                                                      });
+                                                      setEditingAdSelectedLocations(prev => {
+                                                        const newSet = new Set(prev);
+                                                        const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                        allLocationIds.forEach(id => {
+                                                          if (allSelected) {
+                                                            newSet.delete(id);
+                                                          } else {
+                                                            newSet.add(id);
+                                                          }
+                                                        });
+                                                        return newSet;
+                                                      });
+                                                    }}
+                                                  />
+                                                  <span className="text-xs font-medium text-[hsl(var(--foreground))]">{province.name}</span>
+                                                </div>
+                                                
+                                                {/* Districts */}
+                                                {editingAdExpandedProvinces.has(province.id) && province.districts.map((district) => (
+                                                  <div key={district.id} className="ml-4 mt-1">
+                                                    <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => toggleEditingAdDistrict(`${province.id}-${district.id}`)}
+                                                        className="mr-2 text-xs"
+                                                      >
+                                                        {editingAdExpandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
+                                                      </button>
+                                                      <input
+                                                        type="checkbox"
+                                                        className="mr-2"
+                                                        checked={(() => {
+                                                          const allLocationIds = [];
+                                                          district.localLevels.forEach(ll => {
+                                                            if (ll.wards) {
+                                                              ll.wards.forEach(w => {
+                                                                allLocationIds.push(w.id);
+                                                                if (w.local_addresses) {
+                                                                  w.local_addresses.forEach((_, idx) => {
+                                                                    allLocationIds.push(`${w.id}-${idx}`);
+                                                                  });
+                                                                }
+                                                              });
+                                                            }
+                                                          });
+                                                          return allLocationIds.length > 0 && allLocationIds.every(id => editingAdSelectedLocations.has(id));
+                                                        })()}
+                                                        onChange={() => {
+                                                          const allLocationIds = [];
+                                                          district.localLevels.forEach(ll => {
+                                                            if (ll.wards) {
+                                                              ll.wards.forEach(w => {
+                                                                allLocationIds.push(w.id);
+                                                                if (w.local_addresses) {
+                                                                  w.local_addresses.forEach((_, idx) => {
+                                                                    allLocationIds.push(`${w.id}-${idx}`);
+                                                                  });
+                                                                }
+                                                              });
+                                                            }
+                                                          });
+                                                          setEditingAdSelectedLocations(prev => {
+                                                            const newSet = new Set(prev);
+                                                            const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                            allLocationIds.forEach(id => {
+                                                              if (allSelected) {
+                                                                newSet.delete(id);
+                                                              } else {
+                                                                newSet.add(id);
+                                                              }
+                                                            });
+                                                            return newSet;
+                                                          });
+                                                        }}
+                                                      />
+                                                      <span className="text-xs text-[hsl(var(--foreground))]">{district.name}</span>
+                                                    </div>
+                                                    
+                                                    {/* Local Levels */}
+                                                    {editingAdExpandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
+                                                      <div key={localLevel.id} className="ml-4 mt-1">
+                                                        <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                          <button
+                                                            type="button"
+                                                            onClick={() => toggleEditingAdLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
+                                                            className="mr-2 text-xs"
+                                                          >
+                                                            {editingAdExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
+                                                          </button>
+                                                          <input
+                                                            type="checkbox"
+                                                            className="mr-2"
+                                                            checked={(() => {
+                                                              if (!localLevel.wards) return false;
+                                                              const allLocationIds = [];
+                                                              localLevel.wards.forEach(w => {
+                                                                allLocationIds.push(w.id);
+                                                                if (w.local_addresses) {
+                                                                  w.local_addresses.forEach((_, idx) => {
+                                                                    allLocationIds.push(`${w.id}-${idx}`);
+                                                                  });
+                                                                }
+                                                              });
+                                                              return allLocationIds.length > 0 && allLocationIds.every(id => editingAdSelectedLocations.has(id));
+                                                            })()}
+                                                            onChange={() => {
+                                                              if (localLevel.wards) {
+                                                                const allLocationIds = [];
+                                                                localLevel.wards.forEach(w => {
+                                                                  allLocationIds.push(w.id);
+                                                                  if (w.local_addresses) {
+                                                                    w.local_addresses.forEach((_, idx) => {
+                                                                      allLocationIds.push(`${w.id}-${idx}`);
+                                                                    });
+                                                                  }
+                                                                });
+                                                                setEditingAdSelectedLocations(prev => {
+                                                                  const newSet = new Set(prev);
+                                                                  const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                                  allLocationIds.forEach(id => {
+                                                                    if (allSelected) {
+                                                                      newSet.delete(id);
+                                                                    } else {
+                                                                      newSet.add(id);
+                                                                    }
+                                                                  });
+                                                                  return newSet;
+                                                                });
+                                                              }
+                                                            }}
+                                                          />
+                                                          <span className="text-xs text-[hsl(var(--foreground))]">
+                                                            {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
+                                                          </span>
+                                                        </div>
+                                                        
+                                                        {/* Wards and Local Addresses */}
+                                                        {editingAdExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
+                                                          <div key={ward.id} className="ml-4 mt-1">
+                                                            <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                              <input
+                                                                type="checkbox"
+                                                                className="mr-2"
+                                                                checked={(() => {
+                                                                  const allIds = [ward.id];
+                                                                  if (ward.local_addresses) {
+                                                                    ward.local_addresses.forEach((_, idx) => {
+                                                                      allIds.push(`${ward.id}-${idx}`);
+                                                                    });
+                                                                  }
+                                                                  return allIds.every(id => editingAdSelectedLocations.has(id));
+                                                                })()}
+                                                                onChange={() => {
+                                                                  const allIds = [ward.id];
+                                                                  if (ward.local_addresses) {
+                                                                    ward.local_addresses.forEach((_, idx) => {
+                                                                      allIds.push(`${ward.id}-${idx}`);
+                                                                    });
+                                                                  }
+                                                                  const allSelected = allIds.every(id => editingAdSelectedLocations.has(id));
+                                                                  setEditingAdSelectedLocations(prev => {
+                                                                    const newSet = new Set(prev);
+                                                                    allIds.forEach(id => {
+                                                                      if (allSelected) {
+                                                                        newSet.delete(id);
+                                                                      } else {
+                                                                        newSet.add(id);
+                                                                      }
+                                                                    });
+                                                                    return newSet;
+                                                                  });
+                                                                }}
+                                                              />
+                                                              <span className="text-xs text-[hsl(var(--foreground))]">
+                                                                Ward {ward.ward_number}
+                                                              </span>
+                                                            </div>
+                                                            
+                                                            {/* Local Addresses */}
+                                                            {ward.local_addresses && ward.local_addresses.length > 0 && (
+                                                              <div className="ml-4 mt-1 space-y-1">
+                                                                {ward.local_addresses.map((address, idx) => {
+                                                                  const addressId = `${ward.id}-${idx}`;
+                                                                  return (
+                                                                    <div key={addressId} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                                      <input
+                                                                        type="checkbox"
+                                                                        className="mr-2"
+                                                                        checked={editingAdSelectedLocations.has(addressId)}
+                                                                        onChange={() => handleEditingAdLocationToggle(addressId)}
+                                                                      />
+                                                                      <span className="text-xs text-[hsl(var(--muted-foreground))]">{address}</span>
+                                                                    </div>
+                                                                  );
+                                                                })}
+                                                              </div>
+                                                            )}
+                                                          </div>
+                                                        ))}
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                              ))
+                                            ) : (
+                                              <div className="p-4 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                                                No locations available.
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block">
+                                    {ad.location || '-'}
+                                  </span>
                                 )}
                               </td>
                               <td className="p-3 text-sm max-w-xs">
