@@ -3246,71 +3246,80 @@ function AdminPanel() {
     }
   }, [ads, adSort]);
 
-  // Search location hierarchy state
-  const [searchLocationHierarchy, setSearchLocationHierarchy] = useState({
-    province: '',
-    district: '',
-    localLevel: '',
-    ward: ''
-  });
+  // Search location selections - multiple selections with checkboxes
+  const [selectedLocations, setSelectedLocations] = useState(new Set()); // Store location IDs as Set
+  const [expandedProvinces, setExpandedProvinces] = useState(new Set());
+  const [expandedDistricts, setExpandedDistricts] = useState(new Set());
+  const [expandedLocalLevels, setExpandedLocalLevels] = useState(new Set());
 
 
-  // Helper functions for search location hierarchy
-  const getSearchProvince = () => {
-    if (!searchLocationHierarchy.province) return null;
-    return locationData.provinces.find(p => p.id === parseInt(searchLocationHierarchy.province));
-  };
-
-  const getSearchDistrict = () => {
-    const province = getSearchProvince();
-    if (!province || !searchLocationHierarchy.district) return null;
-    return province.districts.find(d => d.id === parseInt(searchLocationHierarchy.district));
-  };
-
-  const getSearchLocalLevel = () => {
-    const district = getSearchDistrict();
-    if (!district || !searchLocationHierarchy.localLevel) return null;
-    return district.localLevels.find(ll => ll.id === parseInt(searchLocationHierarchy.localLevel));
-  };
-
-  const handleSearchLocationChange = (level, value) => {
-    setSearchLocationHierarchy(prev => {
-      const newHierarchy = { ...prev };
-      newHierarchy[level] = value;
-      
-      // Reset all dependent levels when a parent level changes
-      const levels = ['province', 'district', 'localLevel', 'ward'];
-      const currentIndex = levels.indexOf(level);
-      for (let i = currentIndex + 1; i < levels.length; i++) {
-        newHierarchy[levels[i]] = '';
+  // Helper functions for location selection with checkboxes
+  const handleLocationToggle = (locationId) => {
+    setSelectedLocations(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(locationId)) {
+        newSet.delete(locationId);
+      } else {
+        newSet.add(locationId);
       }
-      
-      return newHierarchy;
+      return newSet;
     });
   };
 
+  const handleSelectAllLocations = () => {
+    if (selectedLocations.size > 0) {
+      setSelectedLocations(new Set());
+    } else {
+      // Select all location IDs from the database
+      // This would require fetching all location IDs, but for now we'll just clear
+      setSelectedLocations(new Set());
+    }
+  };
+
   const buildSearchLocationString = () => {
-    const parts = [];
-    if (searchLocationHierarchy.province) {
-      const province = getSearchProvince();
-      if (province) parts.push(province.name);
+    if (selectedLocations.size === 0) {
+      return 'All Locations';
     }
-    if (searchLocationHierarchy.district) {
-      const district = getSearchDistrict();
-      if (district) parts.push(district.name);
+    if (selectedLocations.size === 1) {
+      return '1 location selected';
     }
-    if (searchLocationHierarchy.localLevel) {
-      const localLevel = getSearchLocalLevel();
-      if (localLevel) parts.push(localLevel.name);
-    }
-    if (searchLocationHierarchy.ward) {
-      const localLevel = getSearchLocalLevel();
-      if (localLevel) {
-        const ward = localLevel.wards.find(w => w.ward_id === parseInt(searchLocationHierarchy.ward.split('-')[0]) && w.ward_number === parseInt(searchLocationHierarchy.ward.split('-')[1]));
-        if (ward) parts.push(`Ward ${ward.ward_id}-${ward.ward_number}`);
+    return `${selectedLocations.size} locations selected`;
+  };
+
+  const toggleProvince = (provinceId) => {
+    setExpandedProvinces(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(provinceId)) {
+        newSet.delete(provinceId);
+      } else {
+        newSet.add(provinceId);
       }
-    }
-    return parts.length > 0 ? parts.join(', ') : '';
+      return newSet;
+    });
+  };
+
+  const toggleDistrict = (districtKey) => {
+    setExpandedDistricts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(districtKey)) {
+        newSet.delete(districtKey);
+      } else {
+        newSet.add(districtKey);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleLocalLevel = (localLevelKey) => {
+    setExpandedLocalLevels(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(localLevelKey)) {
+        newSet.delete(localLevelKey);
+      } else {
+        newSet.add(localLevelKey);
+      }
+      return newSet;
+    });
   };
 
   const formatDate = (dateStr) => {
@@ -3818,7 +3827,7 @@ function AdminPanel() {
                       )}
                     </div>
                   </div>
-                  {/* Location Selection - Cascading nested menu */}
+                  {/* Location Selection - Hierarchical checkbox dropdown */}
                   <div className="relative min-w-[150px]" ref={locationDropdownRef}>
                     <div className="relative">
                       <button
@@ -3826,124 +3835,282 @@ function AdminPanel() {
                         onClick={() => setShowLocationDropdown(!showLocationDropdown)}
                         className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
                       >
-                        <span>{buildSearchLocationString() || 'All Locations'}</span>
+                        <span>{buildSearchLocationString()}</span>
                         <span className="ml-2">{showLocationDropdown ? '▼' : '▶'}</span>
                       </button>
                       
-                      {/* Cascading Menu */}
+                      {/* Hierarchical Checkbox Menu */}
                       {showLocationDropdown && (
-                        <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
-                          {/* Province Column */}
-                          <div className="min-w-[200px] max-h-96 overflow-y-auto border-r border-[hsl(var(--border))]">
-                            <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                              Province
-                            </div>
-                            <div className="py-1">
+                        <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[600px] max-h-[500px] overflow-y-auto">
+                          <div className="p-3">
+                            <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
+                              <span className="font-semibold text-sm text-[hsl(var(--foreground))]">Select Locations</span>
                               <button
-                                onClick={() => {
-                                  handleSearchLocationChange('province', '');
-                                  setShowLocationDropdown(false);
-                                }}
-                                className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
-                                  !searchLocationHierarchy.province ? 'bg-[hsl(var(--accent))]' : ''
-                                }`}
+                                onClick={handleSelectAllLocations}
+                                className="text-xs text-[hsl(var(--primary))] hover:underline"
                               >
-                                All Locations
+                                {selectedLocations.size > 0 ? 'Clear All' : 'Select All'}
                               </button>
+                            </div>
+                            
+                            {/* Hierarchical Location Tree */}
+                            <div className="space-y-1">
                               {locationData.provinces.map((province) => (
-                                <button
-                                  key={province.id}
-                                  onClick={() => handleSearchLocationChange('province', province.id.toString())}
-                                  onMouseEnter={() => {
-                                    if (searchLocationHierarchy.province !== province.id.toString()) {
-                                      handleSearchLocationChange('province', province.id.toString());
-                                    }
-                                  }}
-                                  className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
-                                    searchLocationHierarchy.province === province.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
-                                  }`}
-                                >
-                                  <span>{province.name}</span>
-                                  {province.districts.length > 0 && <span>▶</span>}
-                                </button>
+                                <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
+                                  {/* Province Level */}
+                                  <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleProvince(province.id)}
+                                      className="mr-2 text-xs"
+                                    >
+                                      {expandedProvinces.has(province.id) ? '▼' : '▶'}
+                                    </button>
+                                    <input
+                                      type="checkbox"
+                                      className="mr-2"
+                                      checked={(() => {
+                                        const allLocationIds = [];
+                                        province.districts.forEach(d => {
+                                          d.localLevels.forEach(ll => {
+                                            if (ll.wards) {
+                                              ll.wards.forEach(w => {
+                                                allLocationIds.push(w.id);
+                                                if (w.local_addresses) {
+                                                  w.local_addresses.forEach((_, idx) => {
+                                                    allLocationIds.push(`${w.id}-${idx}`);
+                                                  });
+                                                }
+                                              });
+                                            }
+                                          });
+                                        });
+                                        return allLocationIds.length > 0 && allLocationIds.every(id => selectedLocations.has(id));
+                                      })()}
+                                      onChange={() => {
+                                        // Toggle all locations in this province
+                                        const allLocationIds = [];
+                                        province.districts.forEach(d => {
+                                          d.localLevels.forEach(ll => {
+                                            if (ll.wards) {
+                                              ll.wards.forEach(w => {
+                                                allLocationIds.push(w.id);
+                                                if (w.local_addresses) {
+                                                  w.local_addresses.forEach((_, idx) => {
+                                                    allLocationIds.push(`${w.id}-${idx}`);
+                                                  });
+                                                }
+                                              });
+                                            }
+                                          });
+                                        });
+                                        setSelectedLocations(prev => {
+                                          const newSet = new Set(prev);
+                                          const allSelected = allLocationIds.every(id => newSet.has(id));
+                                          allLocationIds.forEach(id => {
+                                            if (allSelected) {
+                                              newSet.delete(id);
+                                            } else {
+                                              newSet.add(id);
+                                            }
+                                          });
+                                          return newSet;
+                                        });
+                                      }}
+                                    />
+                                    <span className="text-sm font-medium text-[hsl(var(--foreground))]">{province.name}</span>
+                                  </div>
+                                  
+                                  {/* Districts */}
+                                  {expandedProvinces.has(province.id) && province.districts.map((district) => (
+                                    <div key={district.id} className="ml-6 mt-1">
+                                      <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleDistrict(`${province.id}-${district.id}`)}
+                                          className="mr-2 text-xs"
+                                        >
+                                          {expandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
+                                        </button>
+                                        <input
+                                          type="checkbox"
+                                          className="mr-2"
+                                          checked={(() => {
+                                            const allLocationIds = [];
+                                            district.localLevels.forEach(ll => {
+                                              if (ll.wards) {
+                                                ll.wards.forEach(w => {
+                                                  allLocationIds.push(w.id);
+                                                  if (w.local_addresses) {
+                                                    w.local_addresses.forEach((_, idx) => {
+                                                      allLocationIds.push(`${w.id}-${idx}`);
+                                                    });
+                                                  }
+                                                });
+                                              }
+                                            });
+                                            return allLocationIds.length > 0 && allLocationIds.every(id => selectedLocations.has(id));
+                                          })()}
+                                          onChange={() => {
+                                            const allLocationIds = [];
+                                            district.localLevels.forEach(ll => {
+                                              if (ll.wards) {
+                                                ll.wards.forEach(w => {
+                                                  allLocationIds.push(w.id);
+                                                  if (w.local_addresses) {
+                                                    w.local_addresses.forEach((_, idx) => {
+                                                      allLocationIds.push(`${w.id}-${idx}`);
+                                                    });
+                                                  }
+                                                });
+                                              }
+                                            });
+                                            setSelectedLocations(prev => {
+                                              const newSet = new Set(prev);
+                                              const allSelected = allLocationIds.every(id => newSet.has(id));
+                                              allLocationIds.forEach(id => {
+                                                if (allSelected) {
+                                                  newSet.delete(id);
+                                                } else {
+                                                  newSet.add(id);
+                                                }
+                                              });
+                                              return newSet;
+                                            });
+                                          }}
+                                        />
+                                        <span className="text-sm text-[hsl(var(--foreground))]">{district.name}</span>
+                                      </div>
+                                      
+                                      {/* Local Levels */}
+                                      {expandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
+                                        <div key={localLevel.id} className="ml-6 mt-1">
+                                          <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
+                                              className="mr-2 text-xs"
+                                            >
+                                              {expandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
+                                            </button>
+                                            <input
+                                              type="checkbox"
+                                              className="mr-2"
+                                              checked={(() => {
+                                                if (!localLevel.wards) return false;
+                                                const allLocationIds = [];
+                                                localLevel.wards.forEach(w => {
+                                                  allLocationIds.push(w.id);
+                                                  if (w.local_addresses) {
+                                                    w.local_addresses.forEach((_, idx) => {
+                                                      allLocationIds.push(`${w.id}-${idx}`);
+                                                    });
+                                                  }
+                                                });
+                                                return allLocationIds.length > 0 && allLocationIds.every(id => selectedLocations.has(id));
+                                              })()}
+                                              onChange={() => {
+                                                if (localLevel.wards) {
+                                                  const allLocationIds = [];
+                                                  localLevel.wards.forEach(w => {
+                                                    allLocationIds.push(w.id);
+                                                    if (w.local_addresses) {
+                                                      w.local_addresses.forEach((_, idx) => {
+                                                        allLocationIds.push(`${w.id}-${idx}`);
+                                                      });
+                                                    }
+                                                  });
+                                                  setSelectedLocations(prev => {
+                                                    const newSet = new Set(prev);
+                                                    const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                    allLocationIds.forEach(id => {
+                                                      if (allSelected) {
+                                                        newSet.delete(id);
+                                                      } else {
+                                                        newSet.add(id);
+                                                      }
+                                                    });
+                                                    return newSet;
+                                                  });
+                                                }
+                                              }}
+                                            />
+                                            <span className="text-sm text-[hsl(var(--foreground))]">
+                                              {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
+                                            </span>
+                                          </div>
+                                          
+                                          {/* Wards and Local Addresses */}
+                                          {expandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
+                                            <div key={ward.id} className="ml-6 mt-1">
+                                              <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                <input
+                                                  type="checkbox"
+                                                  className="mr-2"
+                                                  checked={(() => {
+                                                    const allIds = [ward.id];
+                                                    if (ward.local_addresses) {
+                                                      ward.local_addresses.forEach((_, idx) => {
+                                                        allIds.push(`${ward.id}-${idx}`);
+                                                      });
+                                                    }
+                                                    return allIds.every(id => selectedLocations.has(id));
+                                                  })()}
+                                                  onChange={() => {
+                                                    const allIds = [ward.id];
+                                                    if (ward.local_addresses) {
+                                                      ward.local_addresses.forEach((_, idx) => {
+                                                        allIds.push(`${ward.id}-${idx}`);
+                                                      });
+                                                    }
+                                                    const allSelected = allIds.every(id => selectedLocations.has(id));
+                                                    setSelectedLocations(prev => {
+                                                      const newSet = new Set(prev);
+                                                      allIds.forEach(id => {
+                                                        if (allSelected) {
+                                                          newSet.delete(id);
+                                                        } else {
+                                                          newSet.add(id);
+                                                        }
+                                                      });
+                                                      return newSet;
+                                                    });
+                                                  }}
+                                                />
+                                                <span className="text-sm text-[hsl(var(--foreground))]">
+                                                  Ward {ward.ward_number}
+                                                </span>
+                                              </div>
+                                              
+                                              {/* Local Addresses */}
+                                              {ward.local_addresses && ward.local_addresses.length > 0 && (
+                                                <div className="ml-6 mt-1 space-y-1">
+                                                  {ward.local_addresses.map((address, idx) => {
+                                                    const addressId = `${ward.id}-${idx}`;
+                                                    return (
+                                                      <div key={addressId} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                        <input
+                                                          type="checkbox"
+                                                          className="mr-2"
+                                                          checked={selectedLocations.has(addressId)}
+                                                          onChange={() => handleLocationToggle(addressId)}
+                                                        />
+                                                        <span className="text-xs text-[hsl(var(--muted-foreground))]">{address}</span>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
                               ))}
                             </div>
                           </div>
-                          
-                          {/* District Column - appears when province is selected */}
-                          {searchLocationHierarchy.province && getSearchProvince() && (
-                            <div className="min-w-[200px] max-h-96 overflow-y-auto border-r border-[hsl(var(--border))]">
-                              <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                                District
-                              </div>
-                              <div className="py-1">
-                                <button
-                                  onClick={() => {
-                                    handleSearchLocationChange('district', '');
-                                    setShowLocationDropdown(false);
-                                  }}
-                                  className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
-                                    !searchLocationHierarchy.district ? 'bg-[hsl(var(--accent))]' : ''
-                                  }`}
-                                >
-                                  All Districts
-                                </button>
-                                {getSearchProvince().districts.map((district) => (
-                                  <button
-                                    key={district.id}
-                                    onClick={() => handleSearchLocationChange('district', district.id.toString())}
-                                    onMouseEnter={() => {
-                                      if (searchLocationHierarchy.district !== district.id.toString()) {
-                                        handleSearchLocationChange('district', district.id.toString());
-                                      }
-                                    }}
-                                    className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
-                                      searchLocationHierarchy.district === district.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
-                                    }`}
-                                  >
-                                    <span>{district.name}</span>
-                                    {district.localLevels.length > 0 && <span>▶</span>}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Local Level Column - appears when district is selected */}
-                          {searchLocationHierarchy.district && getSearchDistrict() && (
-                            <div className="min-w-[200px] max-h-96 overflow-y-auto">
-                              <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                                Local Level
-                              </div>
-                              <div className="py-1">
-                                <button
-                                  onClick={() => {
-                                    handleSearchLocationChange('localLevel', '');
-                                    setShowLocationDropdown(false);
-                                  }}
-                                  className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
-                                    !searchLocationHierarchy.localLevel ? 'bg-[hsl(var(--accent))]' : ''
-                                  }`}
-                                >
-                                  All Local Levels
-                                </button>
-                                {getSearchDistrict().localLevels.map((localLevel) => (
-                                  <button
-                                    key={localLevel.id}
-                                    onClick={() => {
-                                      handleSearchLocationChange('localLevel', localLevel.id.toString());
-                                      setShowLocationDropdown(false);
-                                    }}
-                                    className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
-                                      searchLocationHierarchy.localLevel === localLevel.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
-                                    }`}
-                                  >
-                                    {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>

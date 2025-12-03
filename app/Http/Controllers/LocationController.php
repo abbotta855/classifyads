@@ -77,10 +77,28 @@ class LocationController extends Controller
                     $type = 'municipality';
                 }
                 
+                // Get all wards for this local level
+                $wards = Location::where('province', $provinceName)
+                    ->where('district', $districtName)
+                    ->where('local_level', $localLevelName)
+                    ->orderBy('ward_number')
+                    ->get(['id', 'ward_number', 'local_address']);
+                
+                $wardsData = [];
+                foreach ($wards as $ward) {
+                    $localAddresses = $ward->local_address ? explode(', ', $ward->local_address) : [];
+                    $wardsData[] = [
+                        'id' => $ward->id,
+                        'ward_number' => $ward->ward_number,
+                        'local_addresses' => $localAddresses
+                    ];
+                }
+                
                 $district['localLevels'][] = [
                     'id' => $localLevelId,
                     'name' => $localLevelName,
-                    'type' => $type
+                    'type' => $type,
+                    'wards' => $wardsData
                 ];
             }
         }
