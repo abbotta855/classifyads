@@ -179,10 +179,41 @@ function Homepage() {
   useEffect(() => {
     fetchCategories();
     fetchLocations();
-    // TODO: Fetch ads when API is ready
-    // fetchAds();
-    generateMockAds();
+    fetchAds();
   }, []);
+
+  // Fetch real ads from API
+  const fetchAds = async () => {
+    try {
+      setLoading(true);
+      const response = await window.axios.get('/api/ads');
+      const adsData = response.data.ads || [];
+      
+      // Transform ads to match expected format
+      const transformedAds = adsData.map(ad => ({
+        id: ad.id,
+        title: ad.title,
+        description: ad.description,
+        price: ad.price,
+        image: ad.image || 'https://via.placeholder.com/1200x1200?text=No+Image',
+        category: ad.category,
+        subcategory: ad.subcategory || ad.sub_category,
+        sub_category: ad.subcategory || ad.sub_category,
+        location: ad.location,
+        location_id: ad.location_id,
+        locationHierarchy: ad.locationHierarchy,
+        created_at: ad.created_at,
+      }));
+      
+      setAllAds(transformedAds);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching ads:', error);
+      // Fallback to empty array if API fails
+      setAllAds([]);
+      setLoading(false);
+    }
+  };
 
   // Filter ads based on search query, category, location, and sidebar filters
   useEffect(() => {
@@ -453,45 +484,7 @@ function Homepage() {
     };
   }, [showCategoryDropdown]);
 
-  // Generate mock ads for demonstration (more than 39 to show pagination)
-  const generateMockAds = () => {
-    const mockAds = [];
-    const categories = ['Land for sale', 'Car for sale', 'Motorbike for sale', 'Bus for sale', 'Truck for sale', 'House for sale'];
-    
-    // Generate sample locations from the hierarchy
-    const sampleLocations = [
-      'Bagmati Province, Bagmati Zone, Kathmandu, Kathmandu, Ward 1, Thamel',
-      'Bagmati Province, Bagmati Zone, Kathmandu, Kathmandu, Ward 2, Durbar Square',
-      'Bagmati Province, Bagmati Zone, Kathmandu, Lalitpur, Ward 1, Patan',
-      'Province 1, Koshi Zone, Morang, Biratnagar, Ward 1, Biratnagar-1',
-      'Province 2, Janakpur Zone, Dhanusha, Janakpur, Ward 1, Janakpur-1'
-    ];
-    
-    // Generate 150 ads to demonstrate pagination
-    for (let i = 0; i < 150; i++) {
-      const category = categories[i % categories.length];
-      mockAds.push({
-        id: i + 1,
-        title: `${category} - Item ${i + 1}`.substring(0, 80),
-        description: `This is a detailed description for item ${i + 1}. It contains important information about the product.`.substring(0, 200),
-        price: Math.floor(Math.random() * 10000) + 100,
-        image: `https://via.placeholder.com/1200x1200?text=Ad+${i + 1}`,
-        category: category,
-        location: sampleLocations[i % sampleLocations.length],
-        locationHierarchy: {
-          province: (i % 3) + 1,
-          zone: (i % 3) + 1,
-          district: (i % 3) + 1,
-          municipality: (i % 2) + 1,
-          wardNumber: (i % 5) + 1,
-          place: `Place ${(i % 3) + 1}`
-        }
-      });
-    }
-    setAllAds(mockAds);
-    setLoading(false);
-    // The filtering useEffect will handle displaying ads
-  };
+  // Removed generateMockAds() - now using fetchAds() to get real data from API
 
   const handleCategoryToggle = (categoryId) => {
     setSelectedCategories(prev =>
@@ -1436,7 +1429,7 @@ function Homepage() {
                           {ad.description}
                         </p>
                         <p className="text-lg font-bold text-[hsl(var(--primary))]">
-                          ${ad.price.toLocaleString()}
+                          Rs. {ad.price.toLocaleString()}
                         </p>
                       </div>
                   </CardContent>
@@ -1522,7 +1515,7 @@ function Homepage() {
                               {ad.description}
                             </p>
                             <p className="text-lg font-bold text-[hsl(var(--primary))]">
-                              ${ad.price.toLocaleString()}
+                              Rs. {ad.price.toLocaleString()}
                             </p>
                           </div>
                         </CardContent>

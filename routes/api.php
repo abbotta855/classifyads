@@ -41,6 +41,9 @@ Route::get('/categories/{slug}', [CategoryController::class, 'show']);
 // Public location routes
 Route::get('/locations', [App\Http\Controllers\LocationController::class, 'index']);
 
+// Public ads routes (for homepage)
+Route::get('/ads', [App\Http\Controllers\AdController::class, 'index']);
+
 Route::middleware('auth:sanctum')->group(function () {
   Route::post('/logout', [AuthController::class, 'logout']);
   Route::get('/user', [AuthController::class, 'user']);
