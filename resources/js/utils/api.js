@@ -202,3 +202,35 @@ export const otpAPI = {
   resend: (email) => axios.post('/api/otp/resend', { email }),
 };
 
+// User Profile API functions
+export const profileAPI = {
+  getProfile: () => axios.get('/api/profile'),
+  updateProfile: (data) => {
+    const formData = data instanceof FormData ? data : new FormData();
+    if (!(data instanceof FormData)) {
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          if (data[key] instanceof File) {
+            formData.append(key, data[key]);
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+    }
+    // Use POST with _method=PUT for FormData compatibility
+    formData.append('_method', 'PUT');
+    return axios.post('/api/profile', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  changePassword: (data) => axios.post('/api/profile/change-password', data),
+};
+
+// Dashboard Stats API
+export const dashboardAPI = {
+  getStats: () => axios.get('/api/dashboard/stats'),
+};
+

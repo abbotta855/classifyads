@@ -49,6 +49,14 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::get('/user', [AuthController::class, 'user']);
   Route::post('/change-password', [AuthController::class, 'changePassword']);
 
+  // User profile routes
+  Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'show']);
+  Route::match(['put', 'post'], '/profile', [App\Http\Controllers\ProfileController::class, 'update']);
+  Route::post('/profile/change-password', [App\Http\Controllers\ProfileController::class, 'changePassword']);
+
+  // Dashboard statistics
+  Route::get('/dashboard/stats', [App\Http\Controllers\DashboardStatsController::class, 'index']);
+
   // Admin routes
   Route::prefix('admin')->group(function () {
     // Ads management
