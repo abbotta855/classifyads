@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import Login from './Login';
 import Register from './Register';
 import Dashboard from './Dashboard';
+import UserDashboard from './UserDashboard';
 import AdminPanel from './AdminPanel';
 import Homepage from './Homepage';
 import CategoriesPage from './CategoriesPage';
@@ -70,7 +71,8 @@ function DashboardRedirect() {
   if (user?.role === 'admin') {
     return <Navigate to="/admin" replace />;
   }
-  return <Dashboard />;
+  // Regular users go to User Dashboard
+  return <Navigate to="/dashboard/dashboard" replace />;
 }
 
 function AppRoutes() {
@@ -101,6 +103,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <DashboardRedirect />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard/:section?"
+        element={
+          <ProtectedRoute>
+            <UserDashboard />
           </ProtectedRoute>
         }
       />
