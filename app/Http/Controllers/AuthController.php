@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Http\Controllers\OtpController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
+use Carbon\Carbon;
 
 class AuthController extends Controller
 {
@@ -32,14 +35,18 @@ class AuthController extends Controller
       'email' => $request->email,
       'password' => Hash::make($request->password),
       'role' => 'user', // Default role for new registrations
+      'is_verified' => false, // User needs to verify via OTP
     ]);
 
-    $token = $user->createToken('auth_token')->plainTextToken;
+    // Generate and send OTP
+    $otpController = new OtpController();
+    $otpRequest = new Request(['email' => $user->email]);
+    $otpResponse = $otpController->generate($otpRequest);
 
     return response()->json([
-      'user' => $user,
-      'token' => $token,
-      'message' => 'Registration successful',
+      'user' => $user->only(['id', 'name', 'email', 'is_verified']),
+      'message' => 'Registration successful. Please check your email for OTP verification code.',
+      'requires_verification' => true,
     ], 201);
   }
 
@@ -63,6 +70,19 @@ class AuthController extends Controller
         'email' => ['The provided credentials are incorrect.'],
       ]);
     }
+
+    // Check if user is verified
+    if (!$user->is_verified) {
+      return response()->json([
+        'message' => 'Please verify your email address before logging in. Check your email for OTP code.',
+        'requires_verification' => true,
+        'user' => $user->only(['id', 'name', 'email', 'is_verified']),
+      ], 403);
+    }
+
+    // Update last login timestamp
+    $user->last_login_at = Carbon::now();
+    $user->save();
 
     $token = $user->createToken('auth_token')->plainTextToken;
 

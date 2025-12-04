@@ -195,3 +195,10 @@ export const adminAPI = {
   changePassword: (data) => axios.post('/api/change-password', data),
 };
 
+// OTP API functions
+export const otpAPI = {
+  generate: (email) => axios.post('/api/otp/generate', { email }),
+  verify: (email, otpCode) => axios.post('/api/otp/verify', { email, otp_code: otpCode }),
+  resend: (email) => axios.post('/api/otp/resend', { email }),
+};
+

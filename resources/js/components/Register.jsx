@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import OtpVerification from './OtpVerification';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -13,6 +14,8 @@ function Register() {
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [showOtpVerification, setShowOtpVerification] = useState(false);
+  const [registeredUser, setRegisteredUser] = useState(null);
   const { register } = useAuth();
   const navigate = useNavigate();
 
@@ -25,12 +28,35 @@ function Register() {
 
     if (!result.success) {
       setErrors(result.errors);
+    } else if (result.requiresVerification) {
+      // Show OTP verification screen
+      setRegisteredUser(result.user);
+      setShowOtpVerification(true);
     } else {
       navigate('/dashboard', { replace: true });
     }
 
     setLoading(false);
   };
+
+  const handleOtpVerified = (verifiedUser) => {
+    // After OTP verification, navigate to login
+    navigate('/login', { 
+      replace: true,
+      state: { message: 'Email verified successfully. Please login.' }
+    });
+  };
+
+  // Show OTP verification if needed
+  if (showOtpVerification && registeredUser) {
+    return (
+      <OtpVerification
+        email={registeredUser.email}
+        userName={registeredUser.name}
+        onVerified={handleOtpVerified}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))] p-4">

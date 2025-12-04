@@ -41,6 +41,15 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const response = await axios.post('/api/login', { email, password });
+      // Check if user needs verification
+      if (response.data.requires_verification) {
+        return {
+          success: false,
+          requiresVerification: true,
+          user: response.data.user,
+          message: response.data.message,
+        };
+      }
       const { token, user } = response.data;
       localStorage.setItem('token', token);
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -62,10 +71,22 @@ export const AuthProvider = ({ children }) => {
         password,
         password_confirmation,
       });
+      // Registration now requires OTP verification
+      if (response.data.requires_verification) {
+        return { 
+          success: true, 
+          requiresVerification: true,
+          user: response.data.user,
+          message: response.data.message,
+        };
+      }
+      // Fallback for backward compatibility
       const { token, user } = response.data;
-      localStorage.setItem('token', token);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      setUser(user);
+      if (token) {
+        localStorage.setItem('token', token);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        setUser(user);
+      }
       return { success: true };
     } catch (error) {
       return {

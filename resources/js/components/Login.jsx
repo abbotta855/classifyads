@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import OtpVerification from './OtpVerification';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -11,9 +12,19 @@ function Login() {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [showOtpVerification, setShowOtpVerification] = useState(false);
+  const [unverifiedUser, setUnverifiedUser] = useState(null);
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Check for verification message from registration
+  useEffect(() => {
+    if (location.state?.message) {
+      // Show success message (you can add a toast notification here)
+      console.log(location.state.message);
+    }
+  }, [location.state]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,7 +34,13 @@ function Login() {
     const result = await login(email, password);
 
     if (!result.success) {
-      setErrors(result.errors);
+      if (result.requiresVerification) {
+        // User needs to verify email
+        setUnverifiedUser(result.user);
+        setShowOtpVerification(true);
+      } else {
+        setErrors(result.errors);
+      }
     } else {
       // Redirect based on role
       let redirectPath = '/dashboard';
@@ -37,6 +54,27 @@ function Login() {
 
     setLoading(false);
   };
+
+  const handleOtpVerified = (verifiedUser) => {
+    // After OTP verification, try login again
+    setShowOtpVerification(false);
+    // Auto-submit login form
+    const form = document.querySelector('form');
+    if (form) {
+      form.requestSubmit();
+    }
+  };
+
+  // Show OTP verification if needed
+  if (showOtpVerification && unverifiedUser) {
+    return (
+      <OtpVerification
+        email={unverifiedUser.email}
+        userName={unverifiedUser.name}
+        onVerified={handleOtpVerified}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))] p-4">

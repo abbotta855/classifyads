@@ -27,6 +27,13 @@ class User extends Authenticatable
         'location_id',
         'selected_local_address',
         'comment',
+        'otp_code',
+        'otp_expires_at',
+        'is_verified',
+        'dob',
+        'phone',
+        'profile_picture',
+        'last_login_at',
     ];
 
     /**
@@ -49,6 +56,10 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'otp_expires_at' => 'datetime',
+            'is_verified' => 'boolean',
+            'dob' => 'date',
+            'last_login_at' => 'datetime',
         ];
     }
 

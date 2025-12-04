@@ -29,6 +29,11 @@ use Illuminate\Support\Facades\Route;
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
+// OTP routes (public)
+Route::post('/otp/generate', [App\Http\Controllers\OtpController::class, 'generate']);
+Route::post('/otp/verify', [App\Http\Controllers\OtpController::class, 'verify']);
+Route::post('/otp/resend', [App\Http\Controllers\OtpController::class, 'resend']);
+
 // Public category routes
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/categories/{slug}', [CategoryController::class, 'show']);
