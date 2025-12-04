@@ -163,7 +163,7 @@ function Homepage() {
     const handleClickOutside = (event) => {
       if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target)) {
         setShowLocationDropdown(false);
-      }
+    }
     };
 
     if (showLocationDropdown) {
@@ -221,11 +221,11 @@ function Homepage() {
 
     // Filter by selected locations (checkboxes)
     if (selectedLocations.size > 0) {
-      filtered = filtered.filter(ad => {
+        filtered = filtered.filter(ad => {
         // Check if ad's location matches any selected location ID
         const adLocationId = ad.location_id || ad.locationId;
         return adLocationId && selectedLocations.has(adLocationId);
-      });
+        });
     }
 
     // Filter by sidebar category filters (including subcategories)
@@ -631,11 +631,11 @@ function Homepage() {
         }
       } else {
         // Main category only
-        const category = categories.find(c => c.name === searchCategory);
-        if (category && !selectedCategories.includes(category.id)) {
-          setSelectedCategories([category.id]);
-        }
+      const category = categories.find(c => c.name === searchCategory);
+      if (category && !selectedCategories.includes(category.id)) {
+        setSelectedCategories([category.id]);
       }
+    }
     }
   };
 
@@ -804,7 +804,7 @@ function Homepage() {
                             >
                               {selectedLocations.size > 0 ? 'Clear All' : 'Select All'}
                             </button>
-                          </div>
+                            </div>
                           
                           {/* Hierarchical Location Tree */}
                           <div className="space-y-1">
@@ -812,13 +812,13 @@ function Homepage() {
                               <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
                                 {/* Province Level */}
                                 <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                  <button
+                              <button
                                     type="button"
                                     onClick={() => toggleProvince(province.id)}
                                     className="mr-2 text-xs"
                                   >
                                     {expandedProvinces.has(province.id) ? '▼' : '▶'}
-                                  </button>
+                              </button>
                                   <input
                                     type="checkbox"
                                     className="mr-2"
@@ -877,7 +877,7 @@ function Homepage() {
                                 {expandedProvinces.has(province.id) && province.districts.map((district) => (
                                   <div key={district.id} className="ml-6 mt-1">
                                     <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                      <button
+                                <button
                                         type="button"
                                         onClick={() => toggleDistrict(`${province.id}-${district.id}`)}
                                         className="mr-2 text-xs"
@@ -944,7 +944,7 @@ function Homepage() {
                                             className="mr-2 text-xs"
                                           >
                                             {expandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
-                                          </button>
+                                </button>
                                           <input
                                             type="checkbox"
                                             className="mr-2"
@@ -990,7 +990,7 @@ function Homepage() {
                                           <span className="text-sm text-[hsl(var(--foreground))]">
                                             {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
                                           </span>
-                                        </div>
+                            </div>
                                         
                                         {/* Wards and Local Addresses */}
                                         {expandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
@@ -1051,8 +1051,8 @@ function Homepage() {
                                                     </div>
                                                   );
                                                 })}
-                                              </div>
-                                            )}
+                          </div>
+                        )}
                                           </div>
                                         ))}
                                       </div>

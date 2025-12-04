@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class User extends Authenticatable
 {
@@ -23,7 +24,8 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
-        'location',
+        'location_id',
+        'selected_local_address',
         'comment',
     ];
 
@@ -88,5 +90,13 @@ class User extends Authenticatable
     public function notifications()
     {
         return $this->hasMany(Notification::class);
+    }
+
+    /**
+     * Get the location for this user
+     */
+    public function locationRelation()
+    {
+        return $this->belongsTo(Location::class, 'location_id');
     }
 }

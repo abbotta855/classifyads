@@ -13,13 +13,48 @@ class UserController extends Controller
 {
   public function index()
   {
-    $users = User::orderBy('created_at', 'desc')->get()->map(function ($user) {
+    $users = User::with('locationRelation')->orderBy('created_at', 'desc')->get()->map(function ($user) {
+      $locationString = null;
+      if ($user->locationRelation) {
+        $parts = [];
+        if ($user->locationRelation->province) $parts[] = $user->locationRelation->province;
+        if ($user->locationRelation->district) $parts[] = $user->locationRelation->district;
+        if ($user->locationRelation->local_level) $parts[] = $user->locationRelation->local_level;
+        
+        // Only show ward number if selected_local_address is null (meaning user selected a specific ward, not just local level)
+        // If selected_local_address exists, it means user selected a specific address, so show ward + address
+        // If selected_local_address is null but location_id exists, it might mean user selected only up to local level
+        // For now, we'll show ward if no selected_local_address (user selected a ward but not a specific address)
+        // But if we want to support "local level only" selection, we'd need an additional flag
+        
+        // Show ward number only if there's no selected_local_address (user selected ward but not specific address)
+        // If selected_local_address is null, it means user selected ward level, so show ward
+        // If selected_local_address exists, it means user selected a specific address, so show ward + address
+        // Check if selected_local_address is a special marker for "local level only"
+        if ($user->selected_local_address === '__LOCAL_LEVEL_ONLY__') {
+          // User selected only local level, not a specific ward - don't show ward number
+          // Location string will be: Province > District > Local Level
+        } elseif ($user->locationRelation->ward_number && $user->selected_local_address === null) {
+          // User selected a ward but not a specific address - show ward
+          $parts[] = 'Ward ' . $user->locationRelation->ward_number;
+        } elseif ($user->locationRelation->ward_number && $user->selected_local_address) {
+          // User selected a specific address - show ward + address
+          $parts[] = 'Ward ' . $user->locationRelation->ward_number;
+          $parts[] = $user->selected_local_address;
+        }
+        // If ward_number is null, don't show ward
+        
+        $locationString = count($parts) > 0 ? implode(' > ', $parts) : null;
+      }
+      
       return [
         'id' => $user->id,
         'name' => $user->name,
         'email' => $user->email,
         'role' => $user->role,
-        'location' => $user->location,
+        'location' => $locationString ?: null,
+        'location_id' => $user->location_id,
+        'selected_local_address' => $user->selected_local_address,
         'comment' => $user->comment,
         'created_at' => $user->created_at,
         'updated_at' => $user->updated_at,
@@ -74,7 +109,8 @@ class UserController extends Controller
       'password' => 'sometimes|string|min:8',
       'role' => 'sometimes|in:admin,user,vendor',
       'comment' => 'sometimes|nullable|string',
-      'location' => 'sometimes|nullable|string',
+      'location_id' => 'sometimes|nullable|exists:locations,id',
+      'selected_local_address' => 'sometimes|nullable|string|max:255',
     ]);
 
     // Prevent changing role to super_admin

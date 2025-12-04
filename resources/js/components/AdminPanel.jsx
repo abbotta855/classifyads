@@ -357,6 +357,12 @@ function AdminPanel() {
   const [userManagementLoading, setUserManagementLoading] = useState(false);
   const [editingUserId, setEditingUserId] = useState(null);
   const [editingUserData, setEditingUserData] = useState(null);
+  const [editingUserSelectedLocations, setEditingUserSelectedLocations] = useState(new Set()); // Selected locations for Edit User form
+  const [editingUserShowLocationDropdown, setEditingUserShowLocationDropdown] = useState(false); // Location dropdown for Edit User form
+  const [editingUserExpandedProvinces, setEditingUserExpandedProvinces] = useState(new Set()); // For Edit User location dropdown
+  const [editingUserExpandedDistricts, setEditingUserExpandedDistricts] = useState(new Set()); // For Edit User location dropdown
+  const [editingUserExpandedLocalLevels, setEditingUserExpandedLocalLevels] = useState(new Set()); // For Edit User location dropdown
+  const editingUserLocationDropdownRef = useRef(null);
   const [commentingUserId, setCommentingUserId] = useState(null);
   const [userComment, setUserComment] = useState('');
 
@@ -2087,17 +2093,160 @@ function AdminPanel() {
       name: user.name,
       email: user.email,
       role: user.role,
-      location: user.location || '',
+      location_id: user.location_id || null,
+      selected_local_address: user.selected_local_address || null,
       comment: user.comment || '',
     });
+    
+    // Initialize location selection
+    if (user.location_id) {
+      const selectedSet = new Set([user.location_id.toString()]);
+      // If user has a selected_local_address, find and add it to the selection
+      if (user.selected_local_address && locationData?.provinces) {
+        // Find the ward and local address in the locationData structure
+        for (const province of locationData.provinces) {
+          for (const district of province.districts || []) {
+            for (const localLevel of district.localLevels || []) {
+              for (const ward of localLevel.wards || []) {
+                if (ward.id === user.location_id && ward.local_addresses) {
+                  const addressIndex = ward.local_addresses.findIndex(addr => addr === user.selected_local_address || addr.name === user.selected_local_address);
+                  if (addressIndex !== -1) {
+                    selectedSet.add(`${ward.id}-${addressIndex}`);
+                  }
+                  break;
+                }
+              }
+            }
+          }
+        }
+      }
+      setEditingUserSelectedLocations(selectedSet);
+    } else {
+      setEditingUserSelectedLocations(new Set());
+    }
   };
 
   const handleSaveUser = async (userId) => {
     try {
-      await adminAPI.updateUser(userId, editingUserData);
+      // Get location ID and selected local address from selected locations
+      let locationId = null;
+      let selectedLocalAddress = null;
+      
+      if (editingUserSelectedLocations.size > 0) {
+        const selectedLocationIds = Array.from(editingUserSelectedLocations);
+        
+        // Find local address IDs (those with dash format: "wardId-index")
+        const localAddressIds = selectedLocationIds.filter(locId => 
+          typeof locId === 'string' && locId.includes('-')
+        );
+        
+        // Find ward IDs (numeric or string without dash)
+        const wardIds = selectedLocationIds.filter(locId => {
+          if (typeof locId === 'number') return true;
+          if (typeof locId === 'string' && !locId.includes('-') && !isNaN(locId)) return true;
+          return false;
+        });
+        
+        // If a local address is selected, extract ward ID and address name
+        if (localAddressIds.length > 0) {
+          const localAddressId = localAddressIds[0]; // Use first selected local address
+          const [wardIdStr, addressIndexStr] = localAddressId.split('-');
+          const wardId = parseInt(wardIdStr);
+          const addressIndex = parseInt(addressIndexStr);
+          
+          if (!isNaN(wardId) && !isNaN(addressIndex)) {
+            locationId = wardId;
+            
+            // Find the actual address name from locationData
+            if (locationData?.provinces) {
+              for (const province of locationData.provinces) {
+                for (const district of province.districts || []) {
+                  for (const localLevel of district.localLevels || []) {
+                    for (const ward of localLevel.wards || []) {
+                      if (ward.id === wardId && ward.local_addresses && ward.local_addresses[addressIndex]) {
+                        const address = ward.local_addresses[addressIndex];
+                        selectedLocalAddress = typeof address === 'string' ? address : address.name || address;
+                        break;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } else if (wardIds.length > 0) {
+          // Check if all wards in a local level are selected (meaning user selected local level, not specific ward)
+          // We need to find if all wards belong to the same local level
+          if (locationData?.provinces && wardIds.length > 1) {
+            // Check if all selected wards belong to the same local level
+            const wardIdNumbers = wardIds.map(id => typeof id === 'number' ? id : parseInt(id)).filter(id => !isNaN(id));
+            const localLevelMap = new Map(); // localLevel key -> array of ward IDs
+            
+            for (const province of locationData.provinces) {
+              for (const district of province.districts || []) {
+                for (const localLevel of district.localLevels || []) {
+                  if (localLevel.wards) {
+                    const localLevelKey = `${province.id}-${district.id}-${localLevel.id}`;
+                    const localLevelWardIds = localLevel.wards.map(w => w.id);
+                    localLevelMap.set(localLevelKey, {
+                      province: province.name,
+                      district: district.name,
+                      localLevel: localLevel.name,
+                      wardIds: localLevelWardIds
+                    });
+                  }
+                }
+              }
+            }
+            
+            // Check if all selected wards belong to the same local level
+            let foundLocalLevelOnly = false;
+            for (const [key, data] of localLevelMap.entries()) {
+              const allWardsInLocalLevel = data.wardIds.every(wardId => wardIdNumbers.includes(wardId));
+              const allSelectedWardsInLocalLevel = wardIdNumbers.every(wardId => data.wardIds.includes(wardId));
+              
+              if (allWardsInLocalLevel && allSelectedWardsInLocalLevel && wardIdNumbers.length === data.wardIds.length) {
+                // User selected all wards in this local level = selected local level only
+                // Use first ward ID for location_id, but mark as local level only
+                locationId = wardIdNumbers[0];
+                selectedLocalAddress = '__LOCAL_LEVEL_ONLY__'; // Special marker
+                foundLocalLevelOnly = true;
+                break;
+              }
+            }
+            
+            if (!foundLocalLevelOnly) {
+              // Not all wards in same local level, treat as multiple ward selection
+              // Use first ward ID
+              const firstWardId = wardIdNumbers[0];
+              locationId = firstWardId;
+              selectedLocalAddress = null;
+            }
+          } else {
+            // Single ward selected
+            const firstWardId = wardIds[0];
+            if (typeof firstWardId === 'number') {
+              locationId = firstWardId;
+            } else if (typeof firstWardId === 'string' && !isNaN(firstWardId)) {
+              locationId = parseInt(firstWardId);
+            }
+            selectedLocalAddress = null; // Clear selected local address if only ward is selected
+          }
+        }
+      }
+      
+      await adminAPI.updateUser(userId, {
+        ...editingUserData,
+        location_id: locationId,
+        selected_local_address: selectedLocalAddress,
+      });
       setSuccessMessage('User updated successfully');
       setEditingUserId(null);
       setEditingUserData(null);
+      setEditingUserSelectedLocations(new Set());
+      setEditingUserExpandedProvinces(new Set());
+      setEditingUserExpandedDistricts(new Set());
+      setEditingUserExpandedLocalLevels(new Set());
       fetchUserManagement();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -2110,6 +2259,10 @@ function AdminPanel() {
   const handleCancelEditUser = () => {
     setEditingUserId(null);
     setEditingUserData(null);
+    setEditingUserSelectedLocations(new Set());
+    setEditingUserExpandedProvinces(new Set());
+    setEditingUserExpandedDistricts(new Set());
+    setEditingUserExpandedLocalLevels(new Set());
   };
 
   const handleDeleteUser = async (userId) => {
@@ -3846,16 +3999,19 @@ function AdminPanel() {
       if (editingAdLocationDropdownRef.current && !editingAdLocationDropdownRef.current.contains(event.target)) {
         setEditingAdShowLocationDropdown(false);
       }
+      if (editingUserLocationDropdownRef.current && !editingUserLocationDropdownRef.current.contains(event.target)) {
+        setEditingUserShowLocationDropdown(false);
+      }
     };
 
-    if (showLocationDropdown || postAdShowLocationDropdown || editingAdShowLocationDropdown) {
+    if (showLocationDropdown || postAdShowLocationDropdown || editingAdShowLocationDropdown || editingUserShowLocationDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showLocationDropdown, postAdShowLocationDropdown, editingAdShowLocationDropdown]);
+  }, [showLocationDropdown, postAdShowLocationDropdown, editingAdShowLocationDropdown, editingUserShowLocationDropdown]);
 
   // Handle click outside category dropdown
   useEffect(() => {
@@ -4045,6 +4201,121 @@ function AdminPanel() {
 
   const toggleEditingAdLocalLevel = (localLevelKey) => {
     setEditingAdExpandedLocalLevels(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(localLevelKey)) {
+        newSet.delete(localLevelKey);
+      } else {
+        newSet.add(localLevelKey);
+      }
+      return newSet;
+    });
+  };
+
+  // Helper functions for Edit User form location selection
+  const handleEditingUserLocationToggle = (locationId) => {
+    setEditingUserSelectedLocations(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(locationId)) {
+        newSet.delete(locationId);
+      } else {
+        newSet.add(locationId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleEditingUserSelectAllLocations = () => {
+    setEditingUserSelectedLocations(new Set());
+  };
+
+  const buildEditingUserLocationString = () => {
+    if (editingUserSelectedLocations.size === 0) {
+      return 'Select Location';
+    }
+    
+    // Check if a specific local address is selected
+    const localAddressIds = Array.from(editingUserSelectedLocations).filter(locId => 
+      typeof locId === 'string' && locId.includes('-')
+    );
+    
+    if (localAddressIds.length > 0) {
+      // A specific local address is selected
+      const localAddressId = localAddressIds[0];
+      const [wardIdStr, addressIndexStr] = localAddressId.split('-');
+      const wardId = parseInt(wardIdStr);
+      const addressIndex = parseInt(addressIndexStr);
+      
+      if (!isNaN(wardId) && !isNaN(addressIndex) && locationData?.provinces) {
+        // Find the address name
+        for (const province of locationData.provinces) {
+          for (const district of province.districts || []) {
+            for (const localLevel of district.localLevels || []) {
+              for (const ward of localLevel.wards || []) {
+                if (ward.id === wardId && ward.local_addresses && ward.local_addresses[addressIndex]) {
+                  const address = ward.local_addresses[addressIndex];
+                  const addressName = typeof address === 'string' ? address : address.name || address;
+                  const currentUser = userManagementData.find(u => u.id === editingUserId);
+                  if (currentUser && currentUser.location) {
+                    // Return the full location string if available
+                    return currentUser.location;
+                  }
+                  // Build location string
+                  return `${province.name} > ${district.name} > ${localLevel.name} > Ward ${ward.ward_number} > ${addressName}`;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Check ward IDs
+    const wardIds = Array.from(editingUserSelectedLocations).filter(locId => {
+      if (typeof locId === 'string' && locId.includes('-')) return false;
+      return true;
+    });
+    
+    if (wardIds.length === 1) {
+      const currentUser = userManagementData.find(u => u.id === editingUserId);
+      if (currentUser && currentUser.location) {
+        return currentUser.location;
+      }
+      return '1 location selected';
+    }
+    
+    if (wardIds.length > 1) {
+      return `${wardIds.length} locations selected`;
+    }
+    
+    return 'Select Location';
+  };
+
+  const toggleEditingUserProvince = (provinceId) => {
+    setEditingUserExpandedProvinces(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(provinceId)) {
+        newSet.delete(provinceId);
+      } else {
+        newSet.add(provinceId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleEditingUserDistrict = (districtKey) => {
+    setEditingUserExpandedDistricts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(districtKey)) {
+        newSet.delete(districtKey);
+      } else {
+        newSet.add(districtKey);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleEditingUserLocalLevel = (localLevelKey) => {
+    setEditingUserExpandedLocalLevels(prev => {
       const newSet = new Set(prev);
       if (newSet.has(localLevelKey)) {
         newSet.delete(localLevelKey);
@@ -9850,16 +10121,297 @@ function AdminPanel() {
                                   <span>{user.email}</span>
                                 )}
                               </td>
-                              <td className="p-3 text-sm">
+                              <td className="p-3 text-sm max-w-xs">
                                 {editingUserId === user.id ? (
-                                  <Input
-                                    value={editingUserData.location || ''}
-                                    onChange={(e) => setEditingUserData({...editingUserData, location: e.target.value})}
-                                    className="w-full text-sm"
-                                    placeholder="Address"
-                                  />
+                                  <div className="relative" ref={editingUserLocationDropdownRef}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingUserShowLocationDropdown(!editingUserShowLocationDropdown)}
+                                      className="w-full px-2 py-1 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between text-xs"
+                                    >
+                                      <span>{buildEditingUserLocationString()}</span>
+                                      <span className="ml-1 text-xs">{editingUserShowLocationDropdown ? '▼' : '▶'}</span>
+                                    </button>
+                                    
+                                    {/* Hierarchical Checkbox Menu */}
+                                    {editingUserShowLocationDropdown && (
+                                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[500px] max-h-[400px] overflow-y-auto">
+                                        <div className="p-3">
+                                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
+                                            <span className="font-semibold text-xs text-[hsl(var(--foreground))]">Select Location</span>
+                                            <button
+                                              type="button"
+                                              onClick={handleEditingUserSelectAllLocations}
+                                              className="text-xs text-[hsl(var(--primary))] hover:underline"
+                                            >
+                                              {editingUserSelectedLocations.size > 0 ? 'Clear All' : 'Select All'}
+                                            </button>
+                                          </div>
+                                          
+                                          {/* Hierarchical Location Tree */}
+                                          <div className="space-y-1">
+                                            {locationData?.provinces && locationData.provinces.length > 0 ? (
+                                              locationData.provinces.map((province) => (
+                                              <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
+                                                {/* Province Level */}
+                                                <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => toggleEditingUserProvince(province.id)}
+                                                    className="mr-2 text-xs"
+                                                  >
+                                                    {editingUserExpandedProvinces.has(province.id) ? '▼' : '▶'}
+                                                  </button>
+                                                  <input
+                                                    type="checkbox"
+                                                    className="mr-2"
+                                                    checked={(() => {
+                                                      // Only check ward IDs, not local address IDs
+                                                      const wardIds = [];
+                                                      province.districts.forEach(d => {
+                                                        d.localLevels.forEach(ll => {
+                                                          if (ll.wards) {
+                                                            ll.wards.forEach(w => {
+                                                              wardIds.push(w.id.toString());
+                                                            });
+                                                          }
+                                                        });
+                                                      });
+                                                      return wardIds.length > 0 && wardIds.every(id => editingUserSelectedLocations.has(id));
+                                                    })()}
+                                                    onChange={() => {
+                                                      const wardIds = [];
+                                                      province.districts.forEach(d => {
+                                                        d.localLevels.forEach(ll => {
+                                                          if (ll.wards) {
+                                                            ll.wards.forEach(w => {
+                                                              wardIds.push(w.id.toString());
+                                                            });
+                                                          }
+                                                        });
+                                                      });
+                                                      setEditingUserSelectedLocations(prev => {
+                                                        const newSet = new Set(prev);
+                                                        const allSelected = wardIds.every(id => newSet.has(id));
+                                                        wardIds.forEach(id => {
+                                                          if (allSelected) {
+                                                            newSet.delete(id);
+                                                          } else {
+                                                            newSet.add(id);
+                                                          }
+                                                        });
+                                                        return newSet;
+                                                      });
+                                                    }}
+                                                  />
+                                                  <span className="text-xs font-medium text-[hsl(var(--foreground))]">{province.name}</span>
+                                                </div>
+                                                
+                                                {/* Districts */}
+                                                {editingUserExpandedProvinces.has(province.id) && province.districts.map((district) => (
+                                                  <div key={district.id} className="ml-4 mt-1">
+                                                    <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => toggleEditingUserDistrict(`${province.id}-${district.id}`)}
+                                                        className="mr-2 text-xs"
+                                                      >
+                                                        {editingUserExpandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
+                                                      </button>
+                                                      <input
+                                                        type="checkbox"
+                                                        className="mr-2"
+                                                        checked={(() => {
+                                                          // Only check ward IDs, not local address IDs
+                                                          const wardIds = [];
+                                                          district.localLevels.forEach(ll => {
+                                                            if (ll.wards) {
+                                                              ll.wards.forEach(w => {
+                                                                wardIds.push(w.id.toString());
+                                                              });
+                                                            }
+                                                          });
+                                                          return wardIds.length > 0 && wardIds.every(id => editingUserSelectedLocations.has(id));
+                                                        })()}
+                                                        onChange={() => {
+                                                          const wardIds = [];
+                                                          district.localLevels.forEach(ll => {
+                                                            if (ll.wards) {
+                                                              ll.wards.forEach(w => {
+                                                                wardIds.push(w.id.toString());
+                                                              });
+                                                            }
+                                                          });
+                                                          setEditingUserSelectedLocations(prev => {
+                                                            const newSet = new Set(prev);
+                                                            const allSelected = wardIds.every(id => newSet.has(id));
+                                                            wardIds.forEach(id => {
+                                                              if (allSelected) {
+                                                                newSet.delete(id);
+                                                              } else {
+                                                                newSet.add(id);
+                                                              }
+                                                            });
+                                                            return newSet;
+                                                          });
+                                                        }}
+                                                      />
+                                                      <span className="text-xs text-[hsl(var(--foreground))]">{district.name}</span>
+                                                    </div>
+                                                    
+                                                    {/* Local Levels */}
+                                                    {editingUserExpandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
+                                                      <div key={localLevel.id} className="ml-4 mt-1">
+                                                        <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                          <button
+                                                            type="button"
+                                                            onClick={() => toggleEditingUserLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
+                                                            className="mr-2 text-xs"
+                                                          >
+                                                            {editingUserExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
+                                                          </button>
+                                                          <input
+                                                            type="checkbox"
+                                                            className="mr-2"
+                                                            checked={(() => {
+                                                              if (!localLevel.wards) return false;
+                                                              // Only check ward IDs
+                                                              const wardIds = localLevel.wards.map(w => w.id.toString());
+                                                              return wardIds.length > 0 && wardIds.every(id => editingUserSelectedLocations.has(id));
+                                                            })()}
+                                                            onChange={() => {
+                                                              if (localLevel.wards) {
+                                                                const wardIds = localLevel.wards.map(w => w.id.toString());
+                                                                setEditingUserSelectedLocations(prev => {
+                                                                  const newSet = new Set(prev);
+                                                                  const allSelected = wardIds.every(id => newSet.has(id));
+                                                                  wardIds.forEach(id => {
+                                                                    if (allSelected) {
+                                                                      newSet.delete(id);
+                                                                    } else {
+                                                                      newSet.add(id);
+                                                                    }
+                                                                  });
+                                                                  return newSet;
+                                                                });
+                                                              }
+                                                            }}
+                                                          />
+                                                          <span className="text-xs text-[hsl(var(--foreground))]">
+                                                            {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
+                                                          </span>
+                                                        </div>
+                                                        
+                                                        {/* Wards and Local Addresses */}
+                                                        {editingUserExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
+                                                          <div key={ward.id} className="ml-4 mt-1">
+                                                            <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                              <input
+                                                                type="checkbox"
+                                                                className="mr-2"
+                                                                checked={(() => {
+                                                                  const wardIdStr = ward.id.toString();
+                                                                  const hasWard = editingUserSelectedLocations.has(wardIdStr);
+                                                                  // Check if any local address is selected
+                                                                  if (ward.local_addresses) {
+                                                                    const hasLocalAddress = ward.local_addresses.some((_, idx) => 
+                                                                      editingUserSelectedLocations.has(`${ward.id}-${idx}`)
+                                                                    );
+                                                                    return hasWard || hasLocalAddress;
+                                                                  }
+                                                                  return hasWard;
+                                                                })()}
+                                                                onChange={() => {
+                                                                  setEditingUserSelectedLocations(prev => {
+                                                                    const newSet = new Set(prev);
+                                                                    const wardIdStr = ward.id.toString();
+                                                                    const hasWard = newSet.has(wardIdStr);
+                                                                    const hasLocalAddresses = ward.local_addresses && ward.local_addresses.some((_, idx) => 
+                                                                      newSet.has(`${ward.id}-${idx}`)
+                                                                    );
+                                                                    const isSelected = hasWard || hasLocalAddresses;
+                                                                    
+                                                                    if (isSelected) {
+                                                                      // Uncheck: remove ward ID and all its local address IDs
+                                                                      newSet.delete(wardIdStr);
+                                                                      if (ward.local_addresses) {
+                                                                        ward.local_addresses.forEach((_, idx) => {
+                                                                          newSet.delete(`${ward.id}-${idx}`);
+                                                                        });
+                                                                      }
+                                                                    } else {
+                                                                      // Check: add ward ID only
+                                                                      newSet.add(wardIdStr);
+                                                                    }
+                                                                    return newSet;
+                                                                  });
+                                                                }}
+                                                              />
+                                                              <span className="text-xs text-[hsl(var(--foreground))]">
+                                                                Ward {ward.ward_number}
+                                                              </span>
+                                                            </div>
+                                                            
+                                                            {/* Local Addresses - Selectable */}
+                                                            {ward.local_addresses && ward.local_addresses.length > 0 && (
+                                                              <div className="ml-4 mt-1 space-y-1">
+                                                                {ward.local_addresses.map((address, idx) => {
+                                                                  const addressId = `${ward.id}-${idx}`;
+                                                                  const addressName = typeof address === 'string' ? address : address.name || address;
+                                                                  return (
+                                                                    <div key={addressId} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                                      <input
+                                                                        type="checkbox"
+                                                                        className="mr-2"
+                                                                        checked={editingUserSelectedLocations.has(addressId)}
+                                                                        onChange={() => {
+                                                                          setEditingUserSelectedLocations(prev => {
+                                                                            const newSet = new Set(prev);
+                                                                            const wardIdStr = ward.id.toString();
+                                                                            
+                                                                            if (newSet.has(addressId)) {
+                                                                              // Uncheck: remove local address ID
+                                                                              newSet.delete(addressId);
+                                                                              // Also remove ward ID if it was selected
+                                                                              newSet.delete(wardIdStr);
+                                                                            } else {
+                                                                              // Check: add local address ID
+                                                                              newSet.add(addressId);
+                                                                              // Also add ward ID to ensure the ward is selected
+                                                                              newSet.add(wardIdStr);
+                                                                            }
+                                                                            return newSet;
+                                                                          });
+                                                                        }}
+                                                                      />
+                                                                      <span className="text-xs text-[hsl(var(--muted-foreground))]">{addressName}</span>
+                                                                    </div>
+                                                                  );
+                                                                })}
+                                                              </div>
+                                                            )}
+                                                          </div>
+                                                        ))}
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                              ))
+                                            ) : (
+                                              <div className="p-4 text-center text-xs text-[hsl(var(--muted-foreground))]">
+                                                No locations available.
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
                                 ) : (
-                                  <span>{user.location || '-'}</span>
+                                  <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block">
+                                    {user.location || '-'}
+                                  </span>
                                 )}
                               </td>
                               <td className="p-3 text-sm">

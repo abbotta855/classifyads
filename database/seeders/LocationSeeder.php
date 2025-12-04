@@ -167,16 +167,16 @@ class LocationSeeder extends Seeder
         // Join addresses with comma and space
         $localAddress = implode(', ', $selectedAddresses);
 
-        DB::table('locations')->insert([
-          'province' => $location['province'],
-          'district' => $location['district'],
-          'local_level' => $location['local_level'],
-          'local_level_type' => $location['local_level_type'],
+      DB::table('locations')->insert([
+        'province' => $location['province'],
+        'district' => $location['district'],
+        'local_level' => $location['local_level'],
+        'local_level_type' => $location['local_level_type'],
           'ward_number' => $ward,
           'local_address' => $localAddress,
-          'created_at' => now(),
-          'updated_at' => now(),
-        ]);
+        'created_at' => now(),
+        'updated_at' => now(),
+      ]);
       }
     }
     }
