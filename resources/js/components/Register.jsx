@@ -24,19 +24,29 @@ function Register() {
     setErrors({});
     setLoading(true);
 
-    const result = await register(name, email, password, passwordConfirmation);
+    try {
+      const result = await register(name, email, password, passwordConfirmation);
+      
+      console.log('Registration result:', result);
 
-    if (!result.success) {
-      setErrors(result.errors);
-    } else if (result.requiresVerification) {
-      // Show OTP verification screen
-      setRegisteredUser(result.user);
-      setShowOtpVerification(true);
-    } else {
-      navigate('/dashboard', { replace: true });
+      if (!result.success) {
+        setErrors(result.errors);
+        console.error('Registration failed:', result.errors);
+      } else if (result.requiresVerification) {
+        // Show OTP verification screen
+        console.log('Registration successful, showing OTP screen');
+        setRegisteredUser(result.user);
+        setShowOtpVerification(true);
+      } else {
+        console.log('Registration successful, redirecting to dashboard');
+        navigate('/dashboard', { replace: true });
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      setErrors({ email: ['An unexpected error occurred. Please try again.'] });
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const handleOtpVerified = (verifiedUser) => {

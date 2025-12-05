@@ -55,14 +55,35 @@ function Login() {
     setLoading(false);
   };
 
-  const handleOtpVerified = (verifiedUser) => {
-    // After OTP verification, try login again
+  const handleOtpVerified = async (verifiedUser) => {
+    // After OTP verification, directly call login again
     setShowOtpVerification(false);
-    // Auto-submit login form
-    const form = document.querySelector('form');
-    if (form) {
-      form.requestSubmit();
+    setLoading(true);
+    setErrors({});
+    
+    // Call login directly with preserved email and password
+    const result = await login(email, password);
+    
+    if (!result.success) {
+      if (result.requiresVerification) {
+        // Still requires verification (shouldn't happen, but handle it)
+        setUnverifiedUser(result.user);
+        setShowOtpVerification(true);
+      } else {
+        setErrors(result.errors);
+      }
+    } else {
+      // Login successful - redirect based on role
+      let redirectPath = '/dashboard';
+      if (result.user?.role === 'super_admin') {
+        redirectPath = '/super_admin';
+      } else if (result.user?.role === 'admin') {
+        redirectPath = '/admin';
+      }
+      navigate(location.state?.from?.pathname || redirectPath, { replace: true });
     }
+    
+    setLoading(false);
   };
 
   // Show OTP verification if needed

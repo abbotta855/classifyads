@@ -22,14 +22,11 @@ function OtpVerification({ email, userName, onVerified }) {
       firstInput.focus();
     }
     
-    // Automatically request OTP when component loads (for login flow)
-    // This ensures OTP is sent even if user navigates directly to OTP page
-    if (email) {
-      otpAPI.generate(email).catch(err => {
-        console.error('Failed to auto-generate OTP:', err);
-        // Don't show error to user - they can use resend button
-      });
-    }
+    // NOTE: Do NOT auto-generate OTP here because:
+    // - Registration already generates OTP before showing this component
+    // - Login already generates OTP before showing this component
+    // Auto-generating here would overwrite the OTP that was just sent!
+    // Users can use the "Resend" button if they need a new OTP.
   }, [email]);
 
   useEffect(() => {

@@ -56,6 +56,23 @@ export const AuthProvider = ({ children }) => {
       setUser(user);
       return { success: true, user };
     } catch (error) {
+      // Handle 403 responses that require verification (OTP)
+      if (error.response?.status === 403 && error.response?.data?.requires_verification) {
+        return {
+          success: false,
+          requiresVerification: true,
+          user: error.response.data.user,
+          message: error.response.data.message,
+        };
+      }
+      // Handle validation errors (422)
+      if (error.response?.status === 422) {
+        return {
+          success: false,
+          errors: error.response.data.errors || { email: ['Validation failed'] },
+        };
+      }
+      // Handle other errors
       return {
         success: false,
         errors: error.response?.data?.errors || { email: ['Invalid credentials'] },
@@ -89,9 +106,24 @@ export const AuthProvider = ({ children }) => {
       }
       return { success: true };
     } catch (error) {
+      // Handle validation errors (422)
+      if (error.response?.status === 422) {
+        return {
+          success: false,
+          errors: error.response.data.errors || {},
+        };
+      }
+      // Handle server errors (500)
+      if (error.response?.status === 500) {
+        return {
+          success: false,
+          errors: { email: [error.response.data.message || 'Server error. Please try again.'] },
+        };
+      }
+      // Handle other errors
       return {
         success: false,
-        errors: error.response?.data?.errors || {},
+        errors: error.response?.data?.errors || { email: ['Registration failed. Please try again.'] },
       };
     }
   };

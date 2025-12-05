@@ -30,6 +30,8 @@ class AuthController extends Controller
       'email.regex' => 'Confirm your email is correct',
     ]);
 
+    // Regular registration always creates 'user' role
+    // Super_admin users are created via seeders or admin panel, not through registration
     $user = User::create([
       'name' => $request->name,
       'email' => $request->email,
@@ -38,7 +40,7 @@ class AuthController extends Controller
       'is_verified' => false, // User needs to verify via OTP
     ]);
 
-    // Generate and send OTP
+    // Generate and send OTP for regular users
     $otpController = new OtpController();
     $otpRequest = new Request(['email' => $user->email]);
     $otpResponse = $otpController->generate($otpRequest);
@@ -71,55 +73,8 @@ class AuthController extends Controller
       ]);
     }
 
-    // Check if user is verified
-    if (!$user->is_verified) {
-      // Automatically generate and send OTP when unverified user tries to login
-      try {
-        $otpController = new OtpController();
-        $otpRequest = new Request(['email' => $user->email]);
-        $otpResponse = $otpController->generate($otpRequest);
-      } catch (\Exception $e) {
-        \Log::error('Failed to send OTP during login: ' . $e->getMessage());
-        // Continue even if OTP sending fails - user can resend
-      }
-      
-      return response()->json([
-        'message' => 'Please verify your email address before logging in. A new OTP code has been sent to your email.',
-        'requires_verification' => true,
-        'user' => $user->only(['id', 'name', 'email', 'is_verified']),
-      ], 403);
-    }
-
-    // Check if user hasn't logged in for more than 24 hours
-    $requiresOtpForInactivity = false;
-    if ($user->last_login_at) {
-      $hoursSinceLastLogin = Carbon::now()->diffInHours($user->last_login_at);
-      if ($hoursSinceLastLogin >= 24) {
-        $requiresOtpForInactivity = true;
-      }
-    } else {
-      // If last_login_at is null (first time login after verification), require OTP
-      $requiresOtpForInactivity = true;
-    }
-
-    // If user hasn't logged in for 24+ hours, require OTP verification
-    if ($requiresOtpForInactivity) {
-      try {
-        $otpController = new OtpController();
-        $otpRequest = new Request(['email' => $user->email]);
-        $otpResponse = $otpController->generate($otpRequest);
-      } catch (\Exception $e) {
-        \Log::error('Failed to send OTP during login: ' . $e->getMessage());
-        // Continue even if OTP sending fails - user can resend
-      }
-      
-      return response()->json([
-        'message' => 'For security purposes, please verify your identity. An OTP code has been sent to your email.',
-        'requires_verification' => true,
-        'verification_reason' => 'inactivity', // Flag to indicate this is for inactivity, not initial verification
-        'user' => $user->only(['id', 'name', 'email', 'is_verified']),
-      ], 403);
-    }
+    // OTP is NOT required for login - users can login directly
+    // Only registration requires OTP (and super_admin doesn't need OTP even for registration)
 
     // Update last login timestamp
     $user->last_login_at = Carbon::now();
