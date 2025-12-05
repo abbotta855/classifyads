@@ -80,16 +80,34 @@ class OtpController extends Controller
             ]);
         }
 
-        // Verify user
-        $user->is_verified = true;
+        // Check if user is already verified (for inactivity verification)
+        $wasAlreadyVerified = $user->is_verified;
+
+        // Verify user (if not already verified)
+        if (!$user->is_verified) {
+            $user->is_verified = true;
+            $user->email_verified_at = Carbon::now();
+        }
+
+        // If user was already verified, this is likely for inactivity verification
+        // Update last_login_at to allow login to proceed
+        if ($wasAlreadyVerified) {
+            $user->last_login_at = Carbon::now();
+        }
+
+        // Clear OTP
         $user->otp_code = null;
         $user->otp_expires_at = null;
-        $user->email_verified_at = Carbon::now();
         $user->save();
 
+        $message = $wasAlreadyVerified 
+            ? 'Identity verified successfully. You can now complete your login.'
+            : 'Email verified successfully.';
+
         return response()->json([
-            'message' => 'Email verified successfully.',
+            'message' => $message,
             'user' => $user->only(['id', 'name', 'email', 'is_verified']),
+            'was_already_verified' => $wasAlreadyVerified,
         ]);
     }
 

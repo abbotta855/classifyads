@@ -73,9 +73,50 @@ class AuthController extends Controller
 
     // Check if user is verified
     if (!$user->is_verified) {
+      // Automatically generate and send OTP when unverified user tries to login
+      try {
+        $otpController = new OtpController();
+        $otpRequest = new Request(['email' => $user->email]);
+        $otpResponse = $otpController->generate($otpRequest);
+      } catch (\Exception $e) {
+        \Log::error('Failed to send OTP during login: ' . $e->getMessage());
+        // Continue even if OTP sending fails - user can resend
+      }
+      
       return response()->json([
-        'message' => 'Please verify your email address before logging in. Check your email for OTP code.',
+        'message' => 'Please verify your email address before logging in. A new OTP code has been sent to your email.',
         'requires_verification' => true,
+        'user' => $user->only(['id', 'name', 'email', 'is_verified']),
+      ], 403);
+    }
+
+    // Check if user hasn't logged in for more than 24 hours
+    $requiresOtpForInactivity = false;
+    if ($user->last_login_at) {
+      $hoursSinceLastLogin = Carbon::now()->diffInHours($user->last_login_at);
+      if ($hoursSinceLastLogin >= 24) {
+        $requiresOtpForInactivity = true;
+      }
+    } else {
+      // If last_login_at is null (first time login after verification), require OTP
+      $requiresOtpForInactivity = true;
+    }
+
+    // If user hasn't logged in for 24+ hours, require OTP verification
+    if ($requiresOtpForInactivity) {
+      try {
+        $otpController = new OtpController();
+        $otpRequest = new Request(['email' => $user->email]);
+        $otpResponse = $otpController->generate($otpRequest);
+      } catch (\Exception $e) {
+        \Log::error('Failed to send OTP during login: ' . $e->getMessage());
+        // Continue even if OTP sending fails - user can resend
+      }
+      
+      return response()->json([
+        'message' => 'For security purposes, please verify your identity. An OTP code has been sent to your email.',
+        'requires_verification' => true,
+        'verification_reason' => 'inactivity', // Flag to indicate this is for inactivity, not initial verification
         'user' => $user->only(['id', 'name', 'email', 'is_verified']),
       ], 403);
     }

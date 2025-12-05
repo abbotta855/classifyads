@@ -486,6 +486,35 @@ function Homepage() {
 
   // Removed generateMockAds() - now using fetchAds() to get real data from API
 
+  // Handle ad click - track view and add to recently viewed
+  const handleAdClick = async (adId) => {
+    try {
+      // Increment view count (only if user is authenticated)
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          await window.axios.post(`/api/ads/${adId}/view`);
+        } catch (err) {
+          // Silently fail if not authenticated or other error
+          console.log('Could not increment view count:', err);
+        }
+      }
+
+      // Add to recently viewed items (localStorage)
+      const recentlyViewed = JSON.parse(localStorage.getItem('recentlyViewed') || '[]');
+      const ad = allAds.find(a => a.id === adId);
+      if (ad) {
+        // Remove if already exists
+        const filtered = recentlyViewed.filter(item => item.id !== adId);
+        // Add to beginning (most recent first)
+        const updated = [{ ...ad, viewedAt: new Date().toISOString() }, ...filtered].slice(0, 20); // Keep last 20
+        localStorage.setItem('recentlyViewed', JSON.stringify(updated));
+      }
+    } catch (err) {
+      console.error('Error handling ad click:', err);
+    }
+  };
+
   const handleCategoryToggle = (categoryId) => {
     setSelectedCategories(prev =>
       prev.includes(categoryId)
@@ -1414,7 +1443,11 @@ function Homepage() {
               {/* Display ads in grid (4 per row) */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {ads.map((ad) => (
-                  <Card key={ad.id} className="hover:shadow-lg transition-shadow">
+                  <Card 
+                    key={ad.id} 
+                    className="hover:shadow-lg transition-shadow cursor-pointer"
+                    onClick={() => handleAdClick(ad.id)}
+                  >
                     <CardContent className="p-0">
                       <img
                         src={ad.image}
@@ -1500,7 +1533,11 @@ function Homepage() {
                   <h3 className="text-xl font-bold text-[hsl(var(--foreground))] mb-4">{categoryName}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {categoryAds.map((ad) => (
-                      <Card key={ad.id} className="hover:shadow-lg transition-shadow">
+                      <Card 
+                        key={ad.id} 
+                        className="hover:shadow-lg transition-shadow cursor-pointer"
+                        onClick={() => handleAdClick(ad.id)}
+                      >
                         <CardContent className="p-0">
                           <img
                             src={ad.image}

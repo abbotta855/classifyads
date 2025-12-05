@@ -34,6 +34,18 @@ Route::post('/otp/generate', [App\Http\Controllers\OtpController::class, 'genera
 Route::post('/otp/verify', [App\Http\Controllers\OtpController::class, 'verify']);
 Route::post('/otp/resend', [App\Http\Controllers\OtpController::class, 'resend']);
 
+// Test email route (for debugging - remove in production)
+Route::get('/test-email', function() {
+    try {
+        $otpCode = '123456';
+        $userName = 'Test User';
+        \Illuminate\Support\Facades\Mail::to('daltonrosemond.snow@gmail.com')->send(new App\Mail\OtpMail($otpCode, $userName));
+        return response()->json(['message' => 'Test email sent successfully! Check Mailtrap inbox.']);
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+});
+
 // Public category routes
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/categories/{slug}', [CategoryController::class, 'show']);
@@ -56,6 +68,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
   // Dashboard statistics
   Route::get('/dashboard/stats', [App\Http\Controllers\DashboardStatsController::class, 'index']);
+
+  // User ad management routes
+  Route::prefix('user')->group(function () {
+    Route::apiResource('ads', App\Http\Controllers\UserAdController::class);
+    Route::post('ads/{id}/mark-sold', [App\Http\Controllers\UserAdController::class, 'markSold']);
+  });
+
+  // Increment ad view count (public but authenticated)
+  Route::post('/ads/{id}/view', [App\Http\Controllers\UserAdController::class, 'incrementView']);
 
   // Admin routes
   Route::prefix('admin')->group(function () {

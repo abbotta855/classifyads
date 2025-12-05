@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { profileAPI, dashboardAPI } from '../utils/api';
+import { profileAPI, dashboardAPI, userAdAPI } from '../utils/api';
 import axios from 'axios';
 
 function UserDashboard() {
@@ -793,13 +793,530 @@ function ProfileSection({ user: initialUser }) {
   );
 }
 
+// Ad Post Section Component
 function AdPostSection({ user }) {
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    price: '',
+    category_id: '',
+    location_id: null,
+  });
+  const [images, setImages] = useState([null, null, null, null]);
+  const [categories, setCategories] = useState([]);
+  const [locationData, setLocationData] = useState({ provinces: [] });
+  const [selectedCategoryName, setSelectedCategoryName] = useState('');
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState('');
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [selectedLocations, setSelectedLocations] = useState(new Set());
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [expandedProvinces, setExpandedProvinces] = useState(new Set());
+  const [expandedDistricts, setExpandedDistricts] = useState(new Set());
+  const [expandedLocalLevels, setExpandedLocalLevels] = useState(new Set());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+  const locationDropdownRef = useRef(null);
+
+  useEffect(() => {
+    fetchCategories();
+    fetchLocations();
+    
+    // Handle click outside location dropdown
+    const handleClickOutside = (event) => {
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target)) {
+        setShowLocationDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get('/api/categories');
+      setCategories(response.data || []);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+    }
+  };
+
+  const fetchLocations = async () => {
+    try {
+      const response = await axios.get('/api/locations');
+      setLocationData(response.data || { provinces: [] });
+    } catch (err) {
+      console.error('Error fetching locations:', err);
+    }
+  };
+
+  // Compress image before storing
+  const compressImage = (file, maxWidth = 1200, maxHeight = 1200, quality = 0.8) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Calculate new dimensions
+          if (width > height) {
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = (width * maxHeight) / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            'image/jpeg',
+            quality
+          );
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageChange = async (index, file) => {
+    if (!file) return;
+    
+    // Compress image if it's larger than 1MB
+    let processedFile = file;
+    if (file.size > 1024 * 1024) { // 1MB
+      try {
+        processedFile = await compressImage(file);
+      } catch (err) {
+        console.error('Error compressing image:', err);
+        // Use original file if compression fails
+      }
+    }
+    
+    const newImages = [...images];
+    newImages[index] = processedFile;
+    setImages(newImages);
+  };
+
+  const handleRemoveImage = (index) => {
+    const newImages = [...images];
+    newImages[index] = null;
+    setImages(newImages);
+  };
+
+  const getSelectedCategory = () => {
+    if (!selectedCategoryName) return null;
+    return categories.find(c => c.name === selectedCategoryName);
+  };
+
+  const handleCategorySelect = (categoryName) => {
+    setSelectedCategoryName(categoryName);
+    setSelectedSubcategoryId('');
+    const category = categories.find(c => c.name === categoryName);
+    if (category) {
+      setFormData({ ...formData, category_id: category.id.toString() });
+    }
+  };
+
+  const handleSubcategorySelect = (subcategoryId) => {
+    setSelectedSubcategoryId(subcategoryId);
+    const category = getSelectedCategory();
+    if (category) {
+      const subcategory = category.subcategories?.find(s => s.id === parseInt(subcategoryId));
+      if (subcategory) {
+        setFormData({ ...formData, category_id: subcategory.id.toString() });
+        setShowCategoryDropdown(false);
+      }
+    }
+  };
+
+  const buildCategoryString = () => {
+    if (selectedSubcategoryId) {
+      const category = getSelectedCategory();
+      const subcategory = category?.subcategories?.find(s => s.id === parseInt(selectedSubcategoryId));
+      if (category && subcategory) {
+        return `${category.name} > ${subcategory.name}`;
+      }
+    }
+    if (selectedCategoryName) {
+      return selectedCategoryName;
+    }
+    return 'Select Category';
+  };
+
+  const handleLocationToggle = (locationId) => {
+    setSelectedLocations(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(locationId)) {
+        newSet.delete(locationId);
+      } else {
+        // Only allow one location selection
+        newSet.clear();
+        newSet.add(locationId);
+      }
+      return newSet;
+    });
+  };
+
+  const buildLocationString = () => {
+    if (selectedLocations.size === 0) {
+      return 'Select Location';
+    }
+    const locationId = Array.from(selectedLocations)[0];
+    // Find location in hierarchy
+    for (const province of locationData.provinces || []) {
+      for (const district of province.districts || []) {
+        for (const localLevel of district.localLevels || []) {
+          for (const ward of localLevel.wards || []) {
+            if (ward.id === locationId) {
+              return `${province.name} > ${district.name} > ${localLevel.name}${ward.ward_number ? ' > Ward ' + ward.ward_number : ''}`;
+            }
+          }
+        }
+      }
+    }
+    return '1 location selected';
+  };
+
+  const toggleProvince = (provinceId) => {
+    setExpandedProvinces(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(provinceId)) {
+        newSet.delete(provinceId);
+      } else {
+        newSet.add(provinceId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleDistrict = (districtKey) => {
+    setExpandedDistricts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(districtKey)) {
+        newSet.delete(districtKey);
+      } else {
+        newSet.add(districtKey);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleLocalLevel = (localLevelKey) => {
+    setExpandedLocalLevels(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(localLevelKey)) {
+        newSet.delete(localLevelKey);
+      } else {
+        newSet.add(localLevelKey);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setSaving(true);
+
+    try {
+      // Validate
+      if (!formData.title || !formData.description || !formData.price || !formData.category_id) {
+        throw new Error('Please fill in all required fields');
+      }
+      if (images.filter(img => img !== null).length === 0) {
+        throw new Error('Please upload at least one image');
+      }
+
+      // Get location_id from selected locations
+      const locationId = selectedLocations.size > 0 ? Array.from(selectedLocations)[0] : null;
+
+      // Prepare form data
+      const submitData = {
+        title: formData.title,
+        description: formData.description,
+        price: parseFloat(formData.price),
+        category_id: parseInt(formData.category_id),
+        location_id: locationId,
+        images: images.filter(img => img !== null),
+      };
+
+      await userAdAPI.createAd(submitData);
+      
+      setSuccess('Ad posted successfully!');
+      // Reset form
+      setFormData({
+        title: '',
+        description: '',
+        price: '',
+        category_id: '',
+        location_id: null,
+      });
+      setImages([null, null, null, null]);
+      setSelectedCategoryName('');
+      setSelectedSubcategoryId('');
+      setSelectedLocations(new Set());
+      
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError('Failed to post ad: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Post New Ad</h1>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-2">Post New Ad</h1>
+        <p className="text-[hsl(var(--muted-foreground))]">Create a new listing for your item</p>
+      </div>
+
+      {error && (
+        <Card className="border-red-500 bg-red-50">
+          <CardContent className="p-4">
+            <p className="text-red-600">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {success && (
+        <Card className="border-green-500 bg-green-50">
+          <CardContent className="p-4">
+            <p className="text-green-600">{success}</p>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
-        <CardContent className="p-6">
-          <p className="text-[hsl(var(--muted-foreground))]">Ad posting form - Coming soon</p>
+        <CardHeader>
+          <CardTitle>Ad Details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Title */}
+            <div>
+              <Label htmlFor="title">Title *</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="Enter ad title"
+                required
+              />
+            </div>
+
+            {/* Description */}
+            <div>
+              <Label htmlFor="description">Description *</Label>
+              <textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Describe your item in detail"
+                className="w-full min-h-[120px] px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                required
+              />
+            </div>
+
+            {/* Price */}
+            <div>
+              <Label htmlFor="price">Price (Rs.) *</Label>
+              <Input
+                id="price"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.price}
+                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                placeholder="0.00"
+                required
+              />
+            </div>
+
+            {/* Category */}
+            <div className="relative" ref={locationDropdownRef}>
+              <Label>Category *</Label>
+              <button
+                type="button"
+                onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                className="w-full text-left px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+              >
+                {buildCategoryString()}
+              </button>
+              {showCategoryDropdown && (
+                <div className="absolute z-50 w-full mt-1 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-md shadow-lg max-h-96 overflow-y-auto">
+                  {categories.map((category) => (
+                    <div key={category.id}>
+                      <button
+                        type="button"
+                        onClick={() => handleCategorySelect(category.name)}
+                        className={`w-full text-left px-4 py-2 hover:bg-[hsl(var(--accent))] ${
+                          selectedCategoryName === category.name ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                        }`}
+                      >
+                        {category.name}
+                      </button>
+                      {selectedCategoryName === category.name && category.subcategories && category.subcategories.length > 0 && (
+                        <div className="pl-4">
+                          {category.subcategories.map((subcategory) => (
+                            <button
+                              key={subcategory.id}
+                              type="button"
+                              onClick={() => handleSubcategorySelect(subcategory.id)}
+                              className={`w-full text-left px-4 py-2 hover:bg-[hsl(var(--accent))] ${
+                                selectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                              }`}
+                            >
+                              &nbsp;&nbsp;→ {subcategory.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Location */}
+            <div className="relative" ref={locationDropdownRef}>
+              <Label>Location</Label>
+              <button
+                type="button"
+                onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+                className="w-full text-left px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+              >
+                {buildLocationString()}
+              </button>
+              {showLocationDropdown && (
+                <div className="absolute z-50 w-full mt-1 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-md shadow-lg max-h-96 overflow-y-auto">
+                  {(locationData.provinces || []).map((province) => (
+                    <div key={province.id}>
+                      <button
+                        type="button"
+                        onClick={() => toggleProvince(province.id)}
+                        className="w-full text-left px-4 py-2 hover:bg-[hsl(var(--accent))] flex items-center justify-between"
+                      >
+                        <span>{province.name}</span>
+                        <span>{expandedProvinces.has(province.id) ? '−' : '+'}</span>
+                      </button>
+                      {expandedProvinces.has(province.id) && (province.districts || []).map((district) => {
+                        const districtKey = `${province.id}-${district.id}`;
+                        return (
+                          <div key={district.id} className="pl-4">
+                            <button
+                              type="button"
+                              onClick={() => toggleDistrict(districtKey)}
+                              className="w-full text-left px-4 py-2 hover:bg-[hsl(var(--accent))] flex items-center justify-between"
+                            >
+                              <span>{district.name}</span>
+                              <span>{expandedDistricts.has(districtKey) ? '−' : '+'}</span>
+                            </button>
+                            {expandedDistricts.has(districtKey) && (district.localLevels || []).map((localLevel) => {
+                              const localLevelKey = `${districtKey}-${localLevel.id}`;
+                              return (
+                                <div key={localLevel.id} className="pl-4">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleLocalLevel(localLevelKey)}
+                                    className="w-full text-left px-4 py-2 hover:bg-[hsl(var(--accent))] flex items-center justify-between"
+                                  >
+                                    <span>{localLevel.name}</span>
+                                    <span>{expandedLocalLevels.has(localLevelKey) ? '−' : '+'}</span>
+                                  </button>
+                                  {expandedLocalLevels.has(localLevelKey) && (localLevel.wards || []).map((ward) => (
+                                    <div key={ward.id} className="pl-4">
+                                      <label className="flex items-center px-4 py-2 hover:bg-[hsl(var(--accent))] cursor-pointer">
+                                        <input
+                                          type="radio"
+                                          checked={selectedLocations.has(ward.id)}
+                                          onChange={() => handleLocationToggle(ward.id)}
+                                          className="mr-2"
+                                        />
+                                        <span>Ward {ward.ward_number || 'N/A'}</span>
+                                      </label>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Images */}
+            <div>
+              <Label>Images * (Up to 4 images)</Label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+                {[0, 1, 2, 3].map((index) => (
+                  <div key={index} className="relative">
+                    {images[index] ? (
+                      <div className="relative">
+                        <img
+                          src={URL.createObjectURL(images[index])}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-md border border-[hsl(var(--border))]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(index)}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-[hsl(var(--border))] rounded-md cursor-pointer hover:bg-[hsl(var(--accent))]">
+                        <span className="text-2xl mb-1">+</span>
+                        <span className="text-xs text-[hsl(var(--muted-foreground))]">Add Image</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            if (e.target.files[0]) {
+                              handleImageChange(index, e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <Button type="submit" disabled={saving} className="w-full">
+              {saving ? 'Posting...' : 'Post Ad'}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>
@@ -884,15 +1401,402 @@ function NotificationsSection({ user }) {
   );
 }
 
+// Listed Items Section Component
 function ListedItemsSection({ user }) {
+  const [ads, setAds] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+  const [editingAdId, setEditingAdId] = useState(null);
+  const [editingAdData, setEditingAdData] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [locationData, setLocationData] = useState({ provinces: [] });
+  const [selectedCategoryName, setSelectedCategoryName] = useState('');
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState('');
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [selectedLocations, setSelectedLocations] = useState(new Set());
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [expandedProvinces, setExpandedProvinces] = useState(new Set());
+  const [expandedDistricts, setExpandedDistricts] = useState(new Set());
+  const [expandedLocalLevels, setExpandedLocalLevels] = useState(new Set());
+  const [editingImages, setEditingImages] = useState([null, null, null, null]);
+  const locationDropdownRef = useRef(null);
+
+  useEffect(() => {
+    fetchAds();
+    fetchCategories();
+    fetchLocations();
+    
+    const handleClickOutside = (event) => {
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target)) {
+        setShowLocationDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchAds = async () => {
+    try {
+      setLoading(true);
+      const response = await userAdAPI.getAds();
+      setAds(response.data || []);
+    } catch (err) {
+      setError('Failed to fetch ads: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get('/api/categories');
+      setCategories(response.data || []);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+    }
+  };
+
+  const fetchLocations = async () => {
+    try {
+      const response = await axios.get('/api/locations');
+      setLocationData(response.data || { provinces: [] });
+    } catch (err) {
+      console.error('Error fetching locations:', err);
+    }
+  };
+
+  const handleEdit = (ad) => {
+    setEditingAdId(ad.id);
+    setEditingAdData({
+      title: ad.title,
+      description: ad.description,
+      price: ad.price,
+      category_id: ad.category_id?.toString() || '',
+      location_id: ad.location_id,
+    });
+    
+    // Set category selection
+    const category = categories.find(c => c.id === ad.category_id || c.subcategories?.some(s => s.id === ad.category_id));
+    if (category) {
+      const subcategory = category.subcategories?.find(s => s.id === ad.category_id);
+      if (subcategory) {
+        setSelectedCategoryName(category.name);
+        setSelectedSubcategoryId(subcategory.id.toString());
+      } else {
+        setSelectedCategoryName(category.name);
+        setSelectedSubcategoryId('');
+      }
+    }
+    
+    // Set location selection
+    if (ad.location_id) {
+      setSelectedLocations(new Set([ad.location_id]));
+    } else {
+      setSelectedLocations(new Set());
+    }
+    
+    // Set existing images
+    setEditingImages([
+      ad.image1_url ? { url: ad.image1_url, isExisting: true } : null,
+      ad.image2_url ? { url: ad.image2_url, isExisting: true } : null,
+      ad.image3_url ? { url: ad.image3_url, isExisting: true } : null,
+      ad.image4_url ? { url: ad.image4_url, isExisting: true } : null,
+    ]);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingAdId(null);
+    setEditingAdData(null);
+    setSelectedCategoryName('');
+    setSelectedSubcategoryId('');
+    setSelectedLocations(new Set());
+    setEditingImages([null, null, null, null]);
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      setError(null);
+      const locationId = selectedLocations.size > 0 ? Array.from(selectedLocations)[0] : null;
+      
+      const updateData = {
+        ...editingAdData,
+        location_id: locationId,
+        images: editingImages.filter(img => img && !img.isExisting && img instanceof File ? img : null).filter(Boolean),
+      };
+      
+      await userAdAPI.updateAd(editingAdId, updateData);
+      setSuccess('Ad updated successfully!');
+      handleCancelEdit();
+      fetchAds();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError('Failed to update ad: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this ad?')) {
+      return;
+    }
+    
+    try {
+      await userAdAPI.deleteAd(id);
+      setSuccess('Ad deleted successfully!');
+      fetchAds();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError('Failed to delete ad: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleMarkSold = async (id) => {
+    if (!window.confirm('Mark this item as sold?')) {
+      return;
+    }
+    
+    try {
+      await userAdAPI.markSold(id);
+      setSuccess('Ad marked as sold!');
+      fetchAds();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError('Failed to mark ad as sold: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleImageChange = (index, file) => {
+    const newImages = [...editingImages];
+    newImages[index] = file;
+    setEditingImages(newImages);
+  };
+
+  const handleRemoveImage = (index) => {
+    const newImages = [...editingImages];
+    newImages[index] = null;
+    setEditingImages(newImages);
+  };
+
+  const getSelectedCategory = () => {
+    if (!selectedCategoryName) return null;
+    return categories.find(c => c.name === selectedCategoryName);
+  };
+
+  const handleCategorySelect = (categoryName) => {
+    setSelectedCategoryName(categoryName);
+    setSelectedSubcategoryId('');
+    const category = categories.find(c => c.name === categoryName);
+    if (category) {
+      setEditingAdData({ ...editingAdData, category_id: category.id.toString() });
+    }
+  };
+
+  const handleSubcategorySelect = (subcategoryId) => {
+    setSelectedSubcategoryId(subcategoryId);
+    const category = getSelectedCategory();
+    if (category) {
+      const subcategory = category.subcategories?.find(s => s.id === parseInt(subcategoryId));
+      if (subcategory) {
+        setEditingAdData({ ...editingAdData, category_id: subcategory.id.toString() });
+        setShowCategoryDropdown(false);
+      }
+    }
+  };
+
+  const buildCategoryString = () => {
+    if (selectedSubcategoryId) {
+      const category = getSelectedCategory();
+      const subcategory = category?.subcategories?.find(s => s.id === parseInt(selectedSubcategoryId));
+      if (category && subcategory) {
+        return `${category.name} > ${subcategory.name}`;
+      }
+    }
+    if (selectedCategoryName) {
+      return selectedCategoryName;
+    }
+    return 'Select Category';
+  };
+
+  const handleLocationToggle = (locationId) => {
+    setSelectedLocations(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(locationId)) {
+        newSet.delete(locationId);
+      } else {
+        newSet.clear();
+        newSet.add(locationId);
+      }
+      return newSet;
+    });
+  };
+
+  const buildLocationString = () => {
+    if (selectedLocations.size === 0) {
+      return 'Select Location';
+    }
+    const locationId = Array.from(selectedLocations)[0];
+    for (const province of locationData.provinces || []) {
+      for (const district of province.districts || []) {
+        for (const localLevel of district.localLevels || []) {
+          for (const ward of localLevel.wards || []) {
+            if (ward.id === locationId) {
+              return `${province.name} > ${district.name} > ${localLevel.name}${ward.ward_number ? ' > Ward ' + ward.ward_number : ''}`;
+            }
+          }
+        }
+      }
+    }
+    return '1 location selected';
+  };
+
+  const toggleProvince = (provinceId) => {
+    setExpandedProvinces(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(provinceId)) {
+        newSet.delete(provinceId);
+      } else {
+        newSet.add(provinceId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleDistrict = (districtKey) => {
+    setExpandedDistricts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(districtKey)) {
+        newSet.delete(districtKey);
+      } else {
+        newSet.add(districtKey);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleLocalLevel = (localLevelKey) => {
+    setExpandedLocalLevels(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(localLevelKey)) {
+        newSet.delete(localLevelKey);
+      } else {
+        newSet.add(localLevelKey);
+      }
+      return newSet;
+    });
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Listed Items</h1>
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-[hsl(var(--muted-foreground))]">Loading...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Listed Items</h1>
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-[hsl(var(--muted-foreground))]">Your listings - Coming soon</p>
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-2">Listed Items</h1>
+        <p className="text-[hsl(var(--muted-foreground))]">Manage your posted ads</p>
+      </div>
+
+      {error && (
+        <Card className="border-red-500 bg-red-50">
+          <CardContent className="p-4">
+            <p className="text-red-600">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {success && (
+        <Card className="border-green-500 bg-green-50">
+          <CardContent className="p-4">
+            <p className="text-green-600">{success}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {ads.length === 0 ? (
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-[hsl(var(--muted-foreground))] mb-4">You haven't posted any ads yet.</p>
+            <Button onClick={() => window.location.href = '/dashboard/ad-post'}>Post Your First Ad</Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {ads.map((ad) => (
+            <Card key={ad.id}>
+              <CardContent className="p-6">
+                {editingAdId === ad.id ? (
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Title</Label>
+                      <Input
+                        value={editingAdData.title}
+                        onChange={(e) => setEditingAdData({ ...editingAdData, title: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Description</Label>
+                      <textarea
+                        value={editingAdData.description}
+                        onChange={(e) => setEditingAdData({ ...editingAdData, description: e.target.value })}
+                        className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--border))] rounded-md"
+                      />
+                    </div>
+                    <div>
+                      <Label>Price (Rs.)</Label>
+                      <Input
+                        type="number"
+                        value={editingAdData.price}
+                        onChange={(e) => setEditingAdData({ ...editingAdData, price: e.target.value })}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={handleSaveEdit}>Save</Button>
+                      <Button variant="outline" onClick={handleCancelEdit}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-4">
+                    <div className="flex-shrink-0">
+                      <img
+                        src={ad.image1_url || '/placeholder-image.png'}
+                        alt={ad.title}
+                        className="w-32 h-32 object-cover rounded-md"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold mb-2">{ad.title}</h3>
+                      <p className="text-sm text-[hsl(var(--muted-foreground))] mb-2 line-clamp-2">{ad.description}</p>
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="font-semibold text-[hsl(var(--foreground))]">Rs. {parseFloat(ad.price || 0).toLocaleString()}</span>
+                        <span className="text-[hsl(var(--muted-foreground))]">Views: {ad.views || 0}</span>
+                        <span className={`px-2 py-1 rounded ${ad.item_sold ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                          {ad.item_sold ? 'Sold' : 'Active'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Button variant="outline" size="sm" onClick={() => handleEdit(ad)}>Edit</Button>
+                      {!ad.item_sold && (
+                        <Button variant="outline" size="sm" onClick={() => handleMarkSold(ad.id)}>Mark Sold</Button>
+                      )}
+                      <Button variant="outline" size="sm" onClick={() => handleDelete(ad.id)} className="text-red-600">Delete</Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

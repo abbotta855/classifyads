@@ -234,3 +234,61 @@ export const dashboardAPI = {
   getStats: () => axios.get('/api/dashboard/stats'),
 };
 
+// User Ad Management API
+export const userAdAPI = {
+  getAds: () => axios.get('/api/user/ads'),
+  getAd: (id) => axios.get(`/api/user/ads/${id}`),
+  createAd: (data) => {
+    const formData = data instanceof FormData ? data : new FormData();
+    if (!(data instanceof FormData)) {
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          if (Array.isArray(data[key]) && data[key][0] instanceof File) {
+            // Handle images array
+            data[key].forEach((file, index) => {
+              formData.append(`images[${index}]`, file);
+            });
+          } else if (data[key] instanceof File) {
+            formData.append(key, data[key]);
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+    }
+    return axios.post('/api/user/ads', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  updateAd: (id, data) => {
+    const formData = data instanceof FormData ? data : new FormData();
+    if (!(data instanceof FormData)) {
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          if (Array.isArray(data[key]) && data[key][0] instanceof File) {
+            // Handle images array
+            data[key].forEach((file, index) => {
+              formData.append(`images[${index}]`, file);
+            });
+          } else if (data[key] instanceof File) {
+            formData.append(key, data[key]);
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+    }
+    formData.append('_method', 'PUT');
+    return axios.post(`/api/user/ads/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  deleteAd: (id) => axios.delete(`/api/user/ads/${id}`),
+  markSold: (id) => axios.post(`/api/user/ads/${id}/mark-sold`),
+  incrementView: (id) => axios.post(`/api/ads/${id}/view`),
+};
+
