@@ -81,6 +81,20 @@ class UserController extends Controller
       'role' => 'required|in:admin,user,vendor',
     ]);
 
+    // Prevent creating super_admin through this interface
+    if (isset($validated['role']) && $validated['role'] === 'super_admin') {
+      return response()->json(['error' => 'Cannot create super_admin through this interface. Use artisan command or seeder.'], 403);
+    }
+
+    // Check if trying to create super_admin (shouldn't happen due to validation, but double-check)
+    if ($validated['role'] === 'super_admin') {
+      // Check if super admin already exists
+      $existingSuperAdmin = User::where('role', 'super_admin')->first();
+      if ($existingSuperAdmin) {
+        return response()->json(['error' => 'Super admin already exists. Only 1 super admin is allowed.'], 403);
+      }
+    }
+
     $validated['password'] = Hash::make($validated['password']);
 
     $user = User::create($validated);
@@ -115,7 +129,12 @@ class UserController extends Controller
 
     // Prevent changing role to super_admin
     if (isset($validated['role']) && $validated['role'] === 'super_admin') {
-      return response()->json(['error' => 'Cannot set user role to super_admin through this interface.'], 403);
+      // Check if super admin already exists
+      $existingSuperAdmin = User::where('role', 'super_admin')->where('id', '!=', $id)->first();
+      if ($existingSuperAdmin) {
+        return response()->json(['error' => 'Super admin already exists. Only 1 super admin is allowed.'], 403);
+      }
+      return response()->json(['error' => 'Cannot set user role to super_admin through this interface. Use artisan command or seeder.'], 403);
     }
 
     if (isset($validated['password'])) {

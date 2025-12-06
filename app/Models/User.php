@@ -150,4 +150,35 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Location::class, 'location_id');
     }
+
+    /**
+     * Boot method to enforce single super admin rule
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Before creating a user, check if trying to create super_admin
+        static::creating(function ($user) {
+            if ($user->role === 'super_admin') {
+                $existingSuperAdmin = static::where('role', 'super_admin')->first();
+                if ($existingSuperAdmin) {
+                    throw new \Exception('Only 1 super admin is allowed in the system. An existing super admin already exists.');
+                }
+            }
+        });
+
+        // Before updating a user, check if trying to upgrade to super_admin
+        static::updating(function ($user) {
+            if ($user->isDirty('role') && $user->role === 'super_admin') {
+                // Check if another super admin exists (excluding current user)
+                $existingSuperAdmin = static::where('role', 'super_admin')
+                    ->where('id', '!=', $user->id)
+                    ->first();
+                if ($existingSuperAdmin) {
+                    throw new \Exception('Only 1 super admin is allowed in the system. An existing super admin already exists.');
+                }
+            }
+        });
+    }
 }

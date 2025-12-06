@@ -11,11 +11,30 @@ import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import axios from 'axios';
 
 function UserDashboard() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { section } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const activeSection = section || 'dashboard';
+
+  // Redirect super admin and admin to their respective panels
+  useEffect(() => {
+    if (!loading && user) {
+      if (user.role === 'super_admin') {
+        navigate('/super_admin', { replace: true });
+        return;
+      }
+      if (user.role === 'admin') {
+        navigate('/admin', { replace: true });
+        return;
+      }
+    }
+  }, [user, loading, navigate]);
+
+  // Early return if user is admin or super_admin (while redirecting)
+  if (!loading && user && (user.role === 'super_admin' || user.role === 'admin')) {
+    return null; // Don't render anything while redirecting
+  }
 
   // Dashboard menu items
   const menuItems = [

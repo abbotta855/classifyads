@@ -82,10 +82,17 @@ class AuthController extends Controller
 
     $token = $user->createToken('auth_token')->plainTextToken;
 
+    // Determine redirect path based on role
+    $redirectPath = '/dashboard';
+    if ($user->role === 'super_admin' || $user->role === 'admin') {
+      $redirectPath = $user->role === 'super_admin' ? '/super_admin' : '/admin';
+    }
+
     return response()->json([
       'user' => $user,
       'token' => $token,
       'message' => 'Login successful',
+      'redirect_path' => $redirectPath, // Include redirect path for frontend
     ]);
   }
 
