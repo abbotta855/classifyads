@@ -78,6 +78,46 @@ Route::middleware('auth:sanctum')->group(function () {
   // Increment ad view count (public but authenticated)
   Route::post('/ads/{id}/view', [App\Http\Controllers\UserAdController::class, 'incrementView']);
 
+  // Favourites routes
+  Route::get('/favourites', [App\Http\Controllers\FavouriteController::class, 'index']);
+  Route::post('/favourites', [App\Http\Controllers\FavouriteController::class, 'store']);
+  Route::delete('/favourites/{id}', [App\Http\Controllers\FavouriteController::class, 'destroy']);
+  Route::delete('/favourites/ad/{adId}', [App\Http\Controllers\FavouriteController::class, 'removeByAd']);
+  Route::get('/favourites/check/{adId}', [App\Http\Controllers\FavouriteController::class, 'check']);
+
+  // Watchlist routes
+  Route::get('/watchlists', [App\Http\Controllers\WatchlistController::class, 'index']);
+  Route::post('/watchlists', [App\Http\Controllers\WatchlistController::class, 'store']);
+  Route::delete('/watchlists/{id}', [App\Http\Controllers\WatchlistController::class, 'destroy']);
+  Route::delete('/watchlists/ad/{adId}', [App\Http\Controllers\WatchlistController::class, 'removeByAd']);
+  Route::get('/watchlists/check/{adId}', [App\Http\Controllers\WatchlistController::class, 'check']);
+
+  // Recently Viewed routes
+  Route::get('/recently-viewed', [App\Http\Controllers\RecentlyViewedController::class, 'index']);
+  Route::post('/recently-viewed/track', [App\Http\Controllers\RecentlyViewedController::class, 'track']);
+  Route::delete('/recently-viewed/{id}', [App\Http\Controllers\RecentlyViewedController::class, 'destroy']);
+  Route::delete('/recently-viewed/clear', [App\Http\Controllers\RecentlyViewedController::class, 'clear']);
+
+  // Saved Searches routes
+  Route::get('/saved-searches', [App\Http\Controllers\SavedSearchController::class, 'index']);
+  Route::post('/saved-searches', [App\Http\Controllers\SavedSearchController::class, 'store']);
+  Route::put('/saved-searches/{id}', [App\Http\Controllers\SavedSearchController::class, 'update']);
+  Route::delete('/saved-searches/{id}', [App\Http\Controllers\SavedSearchController::class, 'destroy']);
+  Route::post('/saved-searches/{id}/toggle', [App\Http\Controllers\SavedSearchController::class, 'toggleActive']);
+
+  // Notifications routes
+  Route::get('/notifications', [App\Http\Controllers\UserNotificationController::class, 'index']);
+  Route::get('/notifications/unread-count', [App\Http\Controllers\UserNotificationController::class, 'unreadCount']);
+  Route::post('/notifications/{id}/read', [App\Http\Controllers\UserNotificationController::class, 'markAsRead']);
+  Route::post('/notifications/read-all', [App\Http\Controllers\UserNotificationController::class, 'markAllAsRead']);
+  Route::delete('/notifications/{id}', [App\Http\Controllers\UserNotificationController::class, 'destroy']);
+
+  // Inbox/Messaging routes
+  Route::get('/inbox', [App\Http\Controllers\UserLiveChatController::class, 'index']);
+  Route::get('/inbox/{id}', [App\Http\Controllers\UserLiveChatController::class, 'show']);
+  Route::post('/inbox', [App\Http\Controllers\UserLiveChatController::class, 'store']);
+  Route::post('/inbox/{id}/message', [App\Http\Controllers\UserLiveChatController::class, 'sendMessage']);
+
   // Admin routes
   Route::prefix('admin')->group(function () {
     // Ads management

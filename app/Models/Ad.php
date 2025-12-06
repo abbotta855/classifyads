@@ -43,4 +43,28 @@ class Ad extends Model
   {
     return $this->hasMany(Photo::class)->orderBy('photo_order');
   }
+
+  /**
+   * Get all users who favourited this ad
+   */
+  public function favouritedBy()
+  {
+    return $this->hasMany(Favourite::class);
+  }
+
+  /**
+   * Get all users watching this ad
+   */
+  public function watchedBy()
+  {
+    return $this->hasMany(Watchlist::class);
+  }
+
+  /**
+   * Get all users who recently viewed this ad
+   */
+  public function recentlyViewedBy()
+  {
+    return $this->hasMany(RecentlyViewed::class);
+  }
 }

@@ -167,12 +167,25 @@ class UserAdController extends Controller
     }
 
     /**
-     * Increment view count for an ad
+     * Increment view count for an ad and track recently viewed
      */
-    public function incrementView($id)
+    public function incrementView(Request $request, $id)
     {
         $ad = Ad::findOrFail($id);
         $ad->increment('views');
+        
+        // Track recently viewed if user is authenticated
+        if ($request->user()) {
+            \App\Models\RecentlyViewed::updateOrCreate(
+                [
+                    'user_id' => $request->user()->id,
+                    'ad_id' => $ad->id,
+                ],
+                [
+                    'viewed_at' => now(),
+                ]
+            );
+        }
         
         return response()->json(['views' => $ad->views]);
     }

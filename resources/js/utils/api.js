@@ -234,6 +234,58 @@ export const dashboardAPI = {
   getStats: () => axios.get('/api/dashboard/stats'),
 };
 
+// Favourites API
+export const favouriteAPI = {
+  getFavourites: () => axios.get('/api/favourites'),
+  addFavourite: (adId) => axios.post('/api/favourites', { ad_id: adId }),
+  removeFavourite: (id) => axios.delete(`/api/favourites/${id}`),
+  removeFavouriteByAd: (adId) => axios.delete(`/api/favourites/ad/${adId}`),
+  checkFavourite: (adId) => axios.get(`/api/favourites/check/${adId}`),
+};
+
+// Watchlist API
+export const watchlistAPI = {
+  getWatchlists: () => axios.get('/api/watchlists'),
+  addWatchlist: (adId) => axios.post('/api/watchlists', { ad_id: adId }),
+  removeWatchlist: (id) => axios.delete(`/api/watchlists/${id}`),
+  removeWatchlistByAd: (adId) => axios.delete(`/api/watchlists/ad/${adId}`),
+  checkWatchlist: (adId) => axios.get(`/api/watchlists/check/${adId}`),
+};
+
+// Recently Viewed API
+export const recentlyViewedAPI = {
+  getRecentlyViewed: () => axios.get('/api/recently-viewed'),
+  trackView: (adId) => axios.post('/api/recently-viewed/track', { ad_id: adId }),
+  removeItem: (id) => axios.delete(`/api/recently-viewed/${id}`),
+  clearAll: () => axios.delete('/api/recently-viewed/clear'),
+};
+
+// Saved Searches API
+export const savedSearchAPI = {
+  getSearches: () => axios.get('/api/saved-searches'),
+  createSearch: (data) => axios.post('/api/saved-searches', data),
+  updateSearch: (id, data) => axios.put(`/api/saved-searches/${id}`, data),
+  deleteSearch: (id) => axios.delete(`/api/saved-searches/${id}`),
+  toggleActive: (id) => axios.post(`/api/saved-searches/${id}/toggle`),
+};
+
+// Notifications API
+export const notificationAPI = {
+  getNotifications: () => axios.get('/api/notifications'),
+  getUnreadCount: () => axios.get('/api/notifications/unread-count'),
+  markAsRead: (id) => axios.post(`/api/notifications/${id}/read`),
+  markAllAsRead: () => axios.post('/api/notifications/read-all'),
+  deleteNotification: (id) => axios.delete(`/api/notifications/${id}`),
+};
+
+// Inbox/Messaging API
+export const inboxAPI = {
+  getChats: () => axios.get('/api/inbox'),
+  getChat: (id) => axios.get(`/api/inbox/${id}`),
+  createChat: () => axios.post('/api/inbox'),
+  sendMessage: (chatId, message) => axios.post(`/api/inbox/${chatId}/message`, { message }),
+};
+
 // User Ad Management API
 export const userAdAPI = {
   getAds: () => axios.get('/api/user/ads'),

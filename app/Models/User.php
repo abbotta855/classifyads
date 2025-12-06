@@ -104,6 +104,46 @@ class User extends Authenticatable
     }
 
     /**
+     * Get all user notifications (custom notifications table)
+     */
+    public function userNotifications()
+    {
+        return $this->hasMany(UserNotification::class)->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Get all favourites for this user
+     */
+    public function favourites()
+    {
+        return $this->hasMany(Favourite::class)->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Get all watchlist items for this user
+     */
+    public function watchlists()
+    {
+        return $this->hasMany(Watchlist::class)->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Get all recently viewed items for this user
+     */
+    public function recentlyViewed()
+    {
+        return $this->hasMany(RecentlyViewed::class)->orderBy('viewed_at', 'desc');
+    }
+
+    /**
+     * Get all saved searches for this user
+     */
+    public function savedSearches()
+    {
+        return $this->hasMany(SavedSearch::class)->orderBy('created_at', 'desc');
+    }
+
+    /**
      * Get the location for this user
      */
     public function locationRelation()

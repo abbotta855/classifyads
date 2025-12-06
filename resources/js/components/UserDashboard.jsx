@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { profileAPI, dashboardAPI, userAdAPI } from '../utils/api';
+import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI } from '../utils/api';
+import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import axios from 'axios';
 
 function UserDashboard() {
@@ -300,6 +301,9 @@ function DashboardOverview({ user }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Recently Viewed */}
+      <RecentlyViewedWidget />
 
       {/* Account Info */}
       <Card>
@@ -1324,25 +1328,449 @@ function AdPostSection({ user }) {
 }
 
 function CategoriesSection({ user }) {
+  const [savedSearches, setSavedSearches] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showSearchForm, setShowSearchForm] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    search_query: '',
+    category_id: '',
+    location_id: '',
+    min_price: '',
+    max_price: '',
+    is_active: true,
+  });
+  const [categories, setCategories] = useState([]);
+  const [locations, setLocations] = useState([]);
+
+  useEffect(() => {
+    fetchSavedSearches();
+    fetchCategories();
+    fetchLocations();
+  }, []);
+
+  const fetchSavedSearches = async () => {
+    try {
+      const response = await savedSearchAPI.getSearches();
+      setSavedSearches(response.data || []);
+    } catch (err) {
+      console.error('Failed to fetch saved searches:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get('/api/categories');
+      setCategories(response.data || []);
+    } catch (err) {
+      console.error('Failed to fetch categories:', err);
+    }
+  };
+
+  const fetchLocations = async () => {
+    try {
+      const response = await axios.get('/api/locations');
+      setLocations(response.data || []);
+    } catch (err) {
+      console.error('Failed to fetch locations:', err);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await savedSearchAPI.createSearch({
+        ...formData,
+        category_id: formData.category_id || null,
+        location_id: formData.location_id || null,
+        min_price: formData.min_price || null,
+        max_price: formData.max_price || null,
+      });
+      setShowSearchForm(false);
+      setFormData({
+        name: '',
+        search_query: '',
+        category_id: '',
+        location_id: '',
+        min_price: '',
+        max_price: '',
+        is_active: true,
+      });
+      fetchSavedSearches();
+    } catch (err) {
+      console.error('Failed to save search:', err);
+    }
+  };
+
+  const handleToggle = async (id) => {
+    try {
+      await savedSearchAPI.toggleActive(id);
+      fetchSavedSearches();
+    } catch (err) {
+      console.error('Failed to toggle search:', err);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await savedSearchAPI.deleteSearch(id);
+      fetchSavedSearches();
+    } catch (err) {
+      console.error('Failed to delete search:', err);
+    }
+  };
+
   return (
     <div>
-      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Categories</h1>
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-[hsl(var(--muted-foreground))]">Browse categories - Coming soon</p>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">Saved Searches</h1>
+        <Button onClick={() => setShowSearchForm(!showSearchForm)}>
+          {showSearchForm ? 'Cancel' : '+ New Search'}
+        </Button>
+      </div>
+
+      {showSearchForm && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Save Search Alert</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="search_name">Search Name</Label>
+                <Input
+                  id="search_name"
+                  placeholder="e.g., Laptop under 50000"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="search_query">Keywords</Label>
+                <Input
+                  id="search_query"
+                  placeholder="Search keywords..."
+                  value={formData.search_query}
+                  onChange={(e) => setFormData({ ...formData, search_query: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="search_category">Category</Label>
+                  <select
+                    id="search_category"
+                    value={formData.category_id}
+                    onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-md"
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.category}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="search_location">Location</Label>
+                  <select
+                    id="search_location"
+                    value={formData.location_id}
+                    onChange={(e) => setFormData({ ...formData, location_id: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-md"
+                  >
+                    <option value="">All Locations</option>
+                    {locations.map(loc => (
+                      <option key={loc.id} value={loc.id}>{loc.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="min_price">Min Price</Label>
+                  <Input
+                    id="min_price"
+                    type="number"
+                    placeholder="0"
+                    value={formData.min_price}
+                    onChange={(e) => setFormData({ ...formData, min_price: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="max_price">Max Price</Label>
+                  <Input
+                    id="max_price"
+                    type="number"
+                    placeholder="No limit"
+                    value={formData.max_price}
+                    onChange={(e) => setFormData({ ...formData, max_price: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_active"
+                  checked={formData.is_active}
+                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                  className="rounded"
+                />
+                <Label htmlFor="is_active" className="cursor-pointer">
+                  Enable email alerts for new matches
+                </Label>
+              </div>
+              <Button type="submit" className="w-full">Save Search</Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {loading ? (
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-[hsl(var(--muted-foreground))]">Loading saved searches...</p>
+          </CardContent>
+        </Card>
+      ) : savedSearches.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <div className="text-6xl mb-4">🔍</div>
+            <h3 className="text-xl font-semibold text-[hsl(var(--foreground))] mb-2">
+              No saved searches
+            </h3>
+            <p className="text-[hsl(var(--muted-foreground))] mb-6">
+              Save your searches to get alerts when new matching ads are posted
+            </p>
+            <Button onClick={() => setShowSearchForm(true)}>Create Your First Search</Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {savedSearches.map((search) => (
+            <Card key={search.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="font-semibold text-[hsl(var(--foreground))]">
+                        {search.name}
+                      </h3>
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        search.is_active 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {search.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                    <div className="text-sm text-[hsl(var(--muted-foreground))] space-y-1">
+                      {search.search_query && <p>Keywords: {search.search_query}</p>}
+                      {search.category && <p>Category: {search.category.category}</p>}
+                      {search.location && <p>Location: {search.location.name}</p>}
+                      {(search.min_price || search.max_price) && (
+                        <p>
+                          Price: Rs. {search.min_price || '0'} - {search.max_price || '∞'}
+                        </p>
+                      )}
+                      {search.alert_count > 0 && (
+                        <p className="text-xs">Alerts sent: {search.alert_count}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleToggle(search.id)}
+                      className="text-xs"
+                    >
+                      {search.is_active ? 'Disable' : 'Enable'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDelete(search.id)}
+                      className="text-xs text-[hsl(var(--destructive))]"
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 function EWalletSection({ user }) {
+  const [transactions, setTransactions] = useState([]);
+  const [balance, setBalance] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+
+  const fetchTransactions = async () => {
+    try {
+      setLoading(true);
+      // Calculate balance from transactions
+      const response = await axios.get('/api/admin/transaction-management');
+      const userTransactions = (response.data || []).filter(t => t.user_id === user?.id);
+      
+      // Calculate balance
+      const calculatedBalance = userTransactions
+        .filter(t => t.status === 'completed')
+        .reduce((sum, t) => {
+          if (['deposit', 'payment'].includes(t.type)) {
+            return sum + parseFloat(t.amount || 0);
+          } else if (['withdraw', 'refund'].includes(t.type)) {
+            return sum - parseFloat(t.amount || 0);
+          }
+          return sum;
+        }, 0);
+      
+      setBalance(calculatedBalance);
+      setTransactions(userTransactions.slice(0, 50)); // Last 50 transactions
+    } catch (err) {
+      setError('Failed to load wallet data');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTransactionIcon = (type) => {
+    const icons = {
+      deposit: '💰',
+      withdraw: '💸',
+      payment: '💳',
+      refund: '↩️',
+      featured_listing: '⭐',
+      auction_deposit: '🔨',
+      ebook_purchase: '📚',
+    };
+    return icons[type] || '💵';
+  };
+
+  const getTransactionColor = (type) => {
+    if (['deposit', 'refund'].includes(type)) return 'text-green-600';
+    if (['withdraw', 'payment'].includes(type)) return 'text-red-600';
+    return 'text-gray-600';
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">E-Wallet</h1>
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-[hsl(var(--muted-foreground))]">Loading wallet...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">E-Wallet</h1>
-      <Card>
+      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">E-Wallet</h1>
+
+      {error && (
+        <Card className="mb-4 border-[hsl(var(--destructive))]">
+          <CardContent className="p-4">
+            <p className="text-sm text-[hsl(var(--destructive))]">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Balance Card */}
+      <Card className="mb-6 bg-gradient-to-br from-[hsl(var(--primary))]/10 to-[hsl(var(--primary))]/5">
         <CardContent className="p-6">
-          <p className="text-[hsl(var(--muted-foreground))]">E-Wallet management - Coming soon</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-[hsl(var(--muted-foreground))] mb-1">Current Balance</p>
+              <p className="text-4xl font-bold text-[hsl(var(--foreground))]">
+                Rs. {balance.toLocaleString()}
+              </p>
+            </div>
+            <div className="text-6xl opacity-20">💳</div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Actions */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button variant="outline" disabled>
+              Add Funds (Coming Soon)
+            </Button>
+            <Button variant="outline" disabled>
+              Withdraw (Coming Soon)
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Transaction History */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Transaction History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {transactions.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="text-4xl mb-2">📊</div>
+              <p className="text-[hsl(var(--muted-foreground))]">No transactions yet</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {transactions.map((transaction) => (
+                <div
+                  key={transaction.id}
+                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-[hsl(var(--accent))] transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="text-2xl">{getTransactionIcon(transaction.type)}</div>
+                    <div>
+                      <p className="font-medium text-[hsl(var(--foreground))] capitalize">
+                        {transaction.type.replace('_', ' ')}
+                      </p>
+                      <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                        {transaction.description || 'No description'}
+                      </p>
+                      <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                        {new Date(transaction.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-semibold ${getTransactionColor(transaction.type)}`}>
+                      {['deposit', 'refund'].includes(transaction.type) ? '+' : '-'}
+                      Rs. {parseFloat(transaction.amount || 0).toLocaleString()}
+                    </p>
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      transaction.status === 'completed' ? 'bg-green-100 text-green-800' :
+                      transaction.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {transaction.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -1350,53 +1778,644 @@ function EWalletSection({ user }) {
 }
 
 function FavouriteListSection({ user }) {
+  const [favourites, setFavourites] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchFavourites();
+  }, []);
+
+  const fetchFavourites = async () => {
+    try {
+      setLoading(true);
+      const response = await favouriteAPI.getFavourites();
+      setFavourites(response.data.data || response.data || []);
+    } catch (err) {
+      setError('Failed to load favourites');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemove = async (favouriteId) => {
+    try {
+      await favouriteAPI.removeFavourite(favouriteId);
+      setFavourites(favourites.filter(f => f.id !== favouriteId));
+    } catch (err) {
+      console.error('Failed to remove favourite:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">Favourite List</h1>
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-[hsl(var(--muted-foreground))]">Loading favourites...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Favourite List</h1>
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-[hsl(var(--muted-foreground))]">Favourite items - Coming soon</p>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">Favourite List</h1>
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">
+          {favourites.length} {favourites.length === 1 ? 'item' : 'items'}
+        </p>
+      </div>
+
+      {error && (
+        <Card className="mb-4 border-[hsl(var(--destructive))]">
+          <CardContent className="p-4">
+            <p className="text-sm text-[hsl(var(--destructive))]">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {favourites.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <div className="text-6xl mb-4">❤️</div>
+            <h3 className="text-xl font-semibold text-[hsl(var(--foreground))] mb-2">
+              No favourites yet
+            </h3>
+            <p className="text-[hsl(var(--muted-foreground))] mb-6">
+              Start adding items you love to your favourites list
+            </p>
+            <Button onClick={() => window.location.href = '/'} variant="outline">
+              Browse Ads
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {favourites.map((favourite) => {
+            const ad = favourite.ad || favourite;
+            return (
+              <Card key={favourite.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                <div className="relative">
+                  <img
+                    src={ad.image1_url || ad.photos?.[0]?.photo_url || '/placeholder-image.png'}
+                    alt={ad.title}
+                    className="w-full h-48 object-cover"
+                  />
+                  <button
+                    onClick={() => handleRemove(favourite.id)}
+                    className="absolute top-2 right-2 bg-white/90 hover:bg-white rounded-full p-2 transition-colors"
+                    title="Remove from favourites"
+                  >
+                    <span className="text-red-500 text-xl">❤️</span>
+                  </button>
+                </div>
+                <CardContent className="p-4">
+                  <h3 className="font-semibold text-[hsl(var(--foreground))] mb-2 line-clamp-2">
+                    {ad.title}
+                  </h3>
+                  <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
+                    Rs. {parseFloat(ad.price || 0).toLocaleString()}
+                  </p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
+                    {ad.category?.category || 'Uncategorized'}
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => window.location.href = `/ads/${ad.id}`}
+                  >
+                    View Details
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
 function WatchListSection({ user }) {
+  const [watchlists, setWatchlists] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchWatchlists();
+  }, []);
+
+  const fetchWatchlists = async () => {
+    try {
+      setLoading(true);
+      const response = await watchlistAPI.getWatchlists();
+      setWatchlists(response.data.data || response.data || []);
+    } catch (err) {
+      setError('Failed to load watchlist');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemove = async (watchlistId) => {
+    try {
+      await watchlistAPI.removeWatchlist(watchlistId);
+      setWatchlists(watchlists.filter(w => w.id !== watchlistId));
+    } catch (err) {
+      console.error('Failed to remove from watchlist:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">Watch List</h1>
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-[hsl(var(--muted-foreground))]">Loading watchlist...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Watch List</h1>
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-[hsl(var(--muted-foreground))]">Watch list items - Coming soon</p>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">Watch List</h1>
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">
+          {watchlists.length} {watchlists.length === 1 ? 'item' : 'items'}
+        </p>
+      </div>
+
+      {error && (
+        <Card className="mb-4 border-[hsl(var(--destructive))]">
+          <CardContent className="p-4">
+            <p className="text-sm text-[hsl(var(--destructive))]">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {watchlists.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <div className="text-6xl mb-4">👁️</div>
+            <h3 className="text-xl font-semibold text-[hsl(var(--foreground))] mb-2">
+              Your watchlist is empty
+            </h3>
+            <p className="text-[hsl(var(--muted-foreground))] mb-6">
+              Add items you're interested in to keep track of them
+            </p>
+            <Button onClick={() => window.location.href = '/'} variant="outline">
+              Browse Ads
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {watchlists.map((watchlist) => {
+            const ad = watchlist.ad || watchlist;
+            return (
+              <Card key={watchlist.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                <div className="relative">
+                  <img
+                    src={ad.image1_url || ad.photos?.[0]?.photo_url || '/placeholder-image.png'}
+                    alt={ad.title}
+                    className="w-full h-48 object-cover"
+                  />
+                  <button
+                    onClick={() => handleRemove(watchlist.id)}
+                    className="absolute top-2 right-2 bg-white/90 hover:bg-white rounded-full p-2 transition-colors"
+                    title="Remove from watchlist"
+                  >
+                    <span className="text-gray-600 text-xl">👁️</span>
+                  </button>
+                </div>
+                <CardContent className="p-4">
+                  <h3 className="font-semibold text-[hsl(var(--foreground))] mb-2 line-clamp-2">
+                    {ad.title}
+                  </h3>
+                  <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
+                    Rs. {parseFloat(ad.price || 0).toLocaleString()}
+                  </p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
+                    {ad.category?.category || 'Uncategorized'}
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => window.location.href = `/ads/${ad.id}`}
+                  >
+                    View Details
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
 function InboxSection({ user }) {
+  const [chats, setChats] = useState([]);
+  const [selectedChat, setSelectedChat] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    fetchChats();
+  }, []);
+
+  useEffect(() => {
+    if (selectedChat) {
+      fetchMessages(selectedChat.id);
+      // Poll for new messages every 3 seconds
+      const interval = setInterval(() => {
+        fetchMessages(selectedChat.id);
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedChat]);
+
+  const fetchChats = async () => {
+    try {
+      const response = await inboxAPI.getChats();
+      setChats(response.data || []);
+      if (response.data && response.data.length > 0 && !selectedChat) {
+        setSelectedChat(response.data[0]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch chats:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMessages = async (chatId) => {
+    try {
+      const response = await inboxAPI.getChat(chatId);
+      setMessages(response.data.messages || []);
+    } catch (err) {
+      console.error('Failed to fetch messages:', err);
+    }
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedChat) return;
+
+    try {
+      setSending(true);
+      await inboxAPI.sendMessage(selectedChat.id, newMessage);
+      setNewMessage('');
+      fetchMessages(selectedChat.id);
+      fetchChats(); // Refresh chat list
+    } catch (err) {
+      console.error('Failed to send message:', err);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleCreateChat = async () => {
+    try {
+      const response = await inboxAPI.createChat();
+      setSelectedChat(response.data.chat || response.data);
+      fetchChats();
+    } catch (err) {
+      console.error('Failed to create chat:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">Inbox</h1>
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-[hsl(var(--muted-foreground))]">Loading messages...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Inbox</h1>
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-[hsl(var(--muted-foreground))]">Messages - Coming soon</p>
-        </CardContent>
-      </Card>
+    <div className="flex h-[calc(100vh-200px)] gap-4">
+      {/* Chat List */}
+      <div className="w-1/3 border-r">
+        <div className="p-4 border-b flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Conversations</h2>
+          <Button size="sm" onClick={handleCreateChat}>+ New</Button>
+        </div>
+        <div className="overflow-y-auto">
+          {chats.length === 0 ? (
+            <div className="p-4 text-center text-[hsl(var(--muted-foreground))]">
+              <p className="mb-4">No conversations yet</p>
+              <Button size="sm" onClick={handleCreateChat}>Start a conversation</Button>
+            </div>
+          ) : (
+            chats.map((chat) => (
+              <div
+                key={chat.id}
+                onClick={() => setSelectedChat(chat)}
+                className={`p-4 border-b cursor-pointer hover:bg-[hsl(var(--accent))] transition-colors ${
+                  selectedChat?.id === chat.id ? 'bg-[hsl(var(--accent))]' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-medium text-[hsl(var(--foreground))]">Support Team</p>
+                  {chat.unread_count > 0 && (
+                    <span className="bg-[hsl(var(--primary))] text-white text-xs rounded-full px-2 py-1">
+                      {chat.unread_count}
+                    </span>
+                  )}
+                </div>
+                {chat.messages && chat.messages.length > 0 && (
+                  <p className="text-sm text-[hsl(var(--muted-foreground))] line-clamp-1">
+                    {chat.messages[0].message}
+                  </p>
+                )}
+                {chat.last_message_at && (
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                    {new Date(chat.last_message_at).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 flex flex-col">
+        {selectedChat ? (
+          <>
+            <div className="p-4 border-b">
+              <h3 className="font-semibold text-[hsl(var(--foreground))]">Support Team</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex ${message.sender_type === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[70%] rounded-lg p-3 ${
+                      message.sender_type === 'user'
+                        ? 'bg-[hsl(var(--primary))] text-white'
+                        : 'bg-[hsl(var(--muted))] text-[hsl(var(--foreground))]'
+                    }`}
+                  >
+                    <p className="text-sm">{message.message}</p>
+                    <p className={`text-xs mt-1 ${
+                      message.sender_type === 'user' ? 'text-white/70' : 'text-[hsl(var(--muted-foreground))]'
+                    }`}>
+                      {new Date(message.sent_at || message.created_at).toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <form onSubmit={handleSendMessage} className="p-4 border-t flex gap-2">
+              <Input
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Type your message..."
+                className="flex-1"
+              />
+              <Button type="submit" disabled={sending || !newMessage.trim()}>
+                Send
+              </Button>
+            </form>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-6xl mb-4">💬</div>
+              <h3 className="text-xl font-semibold text-[hsl(var(--foreground))] mb-2">
+                Select a conversation
+              </h3>
+              <p className="text-[hsl(var(--muted-foreground))]">
+                Choose a conversation from the list or start a new one
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 function NotificationsSection({ user }) {
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchNotifications();
+    fetchUnreadCount();
+    // Refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchNotifications();
+      fetchUnreadCount();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await notificationAPI.getNotifications();
+      setNotifications(response.data.notifications?.data || response.data.data || []);
+      setUnreadCount(response.data.unread_count || 0);
+    } catch (err) {
+      setError('Failed to load notifications');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUnreadCount = async () => {
+    try {
+      const response = await notificationAPI.getUnreadCount();
+      setUnreadCount(response.data.unread_count || 0);
+    } catch (err) {
+      console.error('Failed to fetch unread count:', err);
+    }
+  };
+
+  const handleMarkAsRead = async (id) => {
+    try {
+      await notificationAPI.markAsRead(id);
+      setNotifications(notifications.map(n => 
+        n.id === id ? { ...n, is_read: true } : n
+      ));
+      setUnreadCount(Math.max(0, unreadCount - 1));
+    } catch (err) {
+      console.error('Failed to mark as read:', err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await notificationAPI.markAllAsRead();
+      setNotifications(notifications.map(n => ({ ...n, is_read: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await notificationAPI.deleteNotification(id);
+      setNotifications(notifications.filter(n => n.id !== id));
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+    }
+  };
+
+  const getNotificationIcon = (type) => {
+    const icons = {
+      ad_sold: '💰',
+      new_message: '💬',
+      bid_update: '📈',
+      price_drop: '📉',
+      new_match: '✨',
+      system: '🔔',
+      payment: '💳',
+      review: '⭐',
+    };
+    return icons[type] || '🔔';
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">Notifications</h1>
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-[hsl(var(--muted-foreground))]">Loading notifications...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Notifications</h1>
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-[hsl(var(--muted-foreground))]">Notifications - Coming soon</p>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">Notifications</h1>
+          {unreadCount > 0 && (
+            <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
+              {unreadCount} unread {unreadCount === 1 ? 'notification' : 'notifications'}
+            </p>
+          )}
+        </div>
+        {unreadCount > 0 && (
+          <Button variant="outline" onClick={handleMarkAllAsRead}>
+            Mark all as read
+          </Button>
+        )}
+      </div>
+
+      {error && (
+        <Card className="mb-4 border-[hsl(var(--destructive))]">
+          <CardContent className="p-4">
+            <p className="text-sm text-[hsl(var(--destructive))]">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {notifications.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <div className="text-6xl mb-4">🔔</div>
+            <h3 className="text-xl font-semibold text-[hsl(var(--foreground))] mb-2">
+              No notifications
+            </h3>
+            <p className="text-[hsl(var(--muted-foreground))]">
+              You're all caught up! New notifications will appear here.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {notifications.map((notification) => (
+            <Card
+              key={notification.id}
+              className={`transition-all hover:shadow-md ${
+                !notification.is_read ? 'border-l-4 border-l-[hsl(var(--primary))] bg-[hsl(var(--accent))]/30' : ''
+              }`}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start gap-4">
+                  <div className="text-3xl flex-shrink-0">
+                    {getNotificationIcon(notification.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h3 className={`font-semibold mb-1 ${!notification.is_read ? 'text-[hsl(var(--foreground))]' : 'text-[hsl(var(--muted-foreground))]'}`}>
+                          {notification.title}
+                        </h3>
+                        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-2">
+                          {notification.message}
+                        </p>
+                        <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                          {new Date(notification.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        {!notification.is_read && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleMarkAsRead(notification.id)}
+                            className="text-xs"
+                          >
+                            Mark read
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(notification.id)}
+                          className="text-xs text-[hsl(var(--destructive))]"
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                    {notification.link && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="mt-2 p-0 h-auto"
+                        onClick={() => window.location.href = notification.link}
+                      >
+                        View →
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1802,12 +2821,196 @@ function ListedItemsSection({ user }) {
 }
 
 function SalesReportSection({ user }) {
+  const [salesData, setSalesData] = useState({
+    totalSales: 0,
+    totalRevenue: 0,
+    thisMonth: { sales: 0, revenue: 0 },
+    lastMonth: { sales: 0, revenue: 0 },
+    recentSales: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState('all'); // all, month, year
+
+  useEffect(() => {
+    fetchSalesData();
+  }, [period]);
+
+  const fetchSalesData = async () => {
+    try {
+      setLoading(true);
+      const statsResponse = await dashboardAPI.getStats();
+      const adsResponse = await userAdAPI.getAds();
+      
+      const soldAds = (adsResponse.data || []).filter(ad => ad.status === 'sold');
+      const now = new Date();
+      const thisMonth = soldAds.filter(ad => {
+        const adDate = new Date(ad.updated_at);
+        return adDate.getMonth() === now.getMonth() && adDate.getFullYear() === now.getFullYear();
+      });
+      const lastMonth = soldAds.filter(ad => {
+        const adDate = new Date(ad.updated_at);
+        const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1);
+        return adDate.getMonth() === lastMonthDate.getMonth() && 
+               adDate.getFullYear() === lastMonthDate.getFullYear();
+      });
+
+      setSalesData({
+        totalSales: soldAds.length,
+        totalRevenue: soldAds.reduce((sum, ad) => sum + parseFloat(ad.price || 0), 0),
+        thisMonth: {
+          sales: thisMonth.length,
+          revenue: thisMonth.reduce((sum, ad) => sum + parseFloat(ad.price || 0), 0),
+        },
+        lastMonth: {
+          sales: lastMonth.length,
+          revenue: lastMonth.reduce((sum, ad) => sum + parseFloat(ad.price || 0), 0),
+        },
+        recentSales: soldAds.slice(0, 10),
+      });
+    } catch (err) {
+      console.error('Failed to fetch sales data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const revenueChange = salesData.thisMonth.revenue - salesData.lastMonth.revenue;
+  const salesChange = salesData.thisMonth.sales - salesData.lastMonth.sales;
+
+  if (loading) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">Sales Report</h1>
+        <Card>
+          <CardContent className="p-6">
+            <p className="text-[hsl(var(--muted-foreground))]">Loading sales data...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Sales Report</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">Sales Report</h1>
+        <select
+          value={period}
+          onChange={(e) => setPeriod(e.target.value)}
+          className="px-3 py-2 border rounded-md"
+        >
+          <option value="all">All Time</option>
+          <option value="month">This Month</option>
+          <option value="year">This Year</option>
+        </select>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-[hsl(var(--muted-foreground))]">
+              Total Sales
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-[hsl(var(--foreground))]">
+              {salesData.totalSales}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-[hsl(var(--muted-foreground))]">
+              Total Revenue
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-[hsl(var(--foreground))]">
+              Rs. {salesData.totalRevenue.toLocaleString()}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-[hsl(var(--muted-foreground))]">
+              This Month
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-[hsl(var(--foreground))] mb-1">
+              {salesData.thisMonth.sales} sales
+            </p>
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+              Rs. {salesData.thisMonth.revenue.toLocaleString()}
+            </p>
+            {salesChange !== 0 && (
+              <p className={`text-xs mt-1 ${salesChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {salesChange > 0 ? '↑' : '↓'} {Math.abs(salesChange)} vs last month
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-[hsl(var(--muted-foreground))]">
+              Revenue Change
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className={`text-2xl font-bold ${revenueChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {revenueChange >= 0 ? '+' : ''}Rs. {Math.abs(revenueChange).toLocaleString()}
+            </p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+              vs last month
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Sales */}
       <Card>
-        <CardContent className="p-6">
-          <p className="text-[hsl(var(--muted-foreground))]">Sales reports - Coming soon</p>
+        <CardHeader>
+          <CardTitle>Recent Sales</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {salesData.recentSales.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="text-4xl mb-2">📊</div>
+              <p className="text-[hsl(var(--muted-foreground))]">No sales yet</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {salesData.recentSales.map((sale) => (
+                <div
+                  key={sale.id}
+                  className="flex items-center justify-between p-3 border rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={sale.image1_url || '/placeholder-image.png'}
+                      alt={sale.title}
+                      className="w-16 h-16 object-cover rounded"
+                    />
+                    <div>
+                      <p className="font-medium text-[hsl(var(--foreground))]">
+                        {sale.title}
+                      </p>
+                      <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                        Sold on {new Date(sale.updated_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="font-semibold text-[hsl(var(--primary))]">
+                    Rs. {parseFloat(sale.price || 0).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
