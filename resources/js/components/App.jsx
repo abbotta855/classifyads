@@ -36,7 +36,7 @@ function AdminRoute({ children }) {
   const location = useLocation();
   if (loading) return <LoadingCard />;
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
-  if (user.role !== 'admin' && user.role !== 'super_admin') return <Navigate to="/dashboard" replace />;
+  if (user.role !== 'admin' && user.role !== 'super_admin') return <Navigate to="/user_dashboard/dashboard" replace />;
   return children;
 }
 
@@ -45,7 +45,7 @@ function SuperAdminRoute({ children }) {
   const location = useLocation();
   if (loading) return <LoadingCard />;
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
-  if (user.role !== 'super_admin') return <Navigate to="/dashboard" replace />;
+  if (user.role !== 'super_admin') return <Navigate to="/user_dashboard/dashboard" replace />;
   return children;
 }
 
@@ -54,7 +54,7 @@ function GuestRoute({ children }) {
   const location = useLocation();
   if (loading) return <LoadingCard />;
   if (user) {
-    let redirectPath = '/dashboard';
+    let redirectPath = '/user_dashboard/dashboard';
     if (user.role === 'super_admin') {
       redirectPath = '/super_admin';
     } else if (user.role === 'admin') {
@@ -74,7 +74,13 @@ function DashboardRedirect() {
     return <Navigate to="/admin" replace />;
   }
   // Regular users go to User Dashboard
-  return <Navigate to="/dashboard/dashboard" replace />;
+  return <Navigate to="/user_dashboard/dashboard" replace />;
+}
+
+function UserDashboardRedirect() {
+  const location = useLocation();
+  const section = location.pathname.replace('/dashboard', '').replace(/^\//, '') || 'dashboard';
+  return <Navigate to={`/user_dashboard/${section}`} replace />;
 }
 
 function AppRoutes() {
@@ -111,10 +117,27 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/user_dashboard/:section?"
+        element={
+          <ProtectedRoute>
+            <UserDashboard mode="user" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/seller_dashboard/:section?"
+        element={
+          <ProtectedRoute>
+            <UserDashboard mode="seller" />
+          </ProtectedRoute>
+        }
+      />
+      {/* Keep old /dashboard/:section? route for backward compatibility, redirect to user_dashboard */}
+      <Route
         path="/dashboard/:section?"
         element={
           <ProtectedRoute>
-            <UserDashboard />
+            <UserDashboardRedirect />
           </ProtectedRoute>
         }
       />

@@ -367,3 +367,9 @@ export const boughtItemsAPI = {
   getBoughtItems: () => axios.get('/api/bought-items'),
 };
 
+// Items Selling API (Seller Dashboard)
+export const itemsSellingAPI = {
+  getItemsSelling: () => axios.get('/api/items-selling'),
+  getItemDetails: (id) => axios.get(`/api/items-selling/${id}`),
+};
+

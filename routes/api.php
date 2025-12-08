@@ -126,6 +126,10 @@ Route::middleware('auth:sanctum')->group(function () {
   // Bought Items routes
   Route::get('/bought-items', [App\Http\Controllers\BoughtItemsController::class, 'index']);
 
+  // Items Selling routes (Seller Dashboard)
+  Route::get('/items-selling', [App\Http\Controllers\ItemsSellingController::class, 'index']);
+  Route::get('/items-selling/{id}', [App\Http\Controllers\ItemsSellingController::class, 'show']);
+
   // Rating routes (user-facing)
   Route::get('/ratings/criteria', [App\Http\Controllers\RatingController::class, 'getCriteria']);
   Route::get('/ratings/seller/{sellerId}', [App\Http\Controllers\RatingController::class, 'getSellerRatings']);

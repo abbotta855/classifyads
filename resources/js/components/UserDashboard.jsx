@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import Layout from './Layout';
@@ -6,24 +6,43 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI } from '../utils/api';
+import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI } from '../utils/api';
 import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import RatingModal from './RatingModal';
 import axios from 'axios';
 
-function UserDashboard() {
+function UserDashboard({ mode: propMode }) {
   const { user, loading } = useAuth();
   const { section } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const activeSection = section || 'dashboard';
 
-  // Dashboard mode: 'user' or 'seller'
+  // Determine dashboard mode from URL path or prop
+  const getModeFromPath = useCallback(() => {
+    if (location.pathname.startsWith('/seller_dashboard')) {
+      return 'seller';
+    }
+    if (location.pathname.startsWith('/user_dashboard')) {
+      return 'user';
+    }
+    // Fallback to prop or localStorage
+    return propMode || localStorage.getItem('dashboardMode') || 'user';
+  }, [location.pathname, propMode]);
+
+  // Dashboard mode: 'user' or 'seller' - determined by URL
   const [dashboardMode, setDashboardMode] = useState(() => {
-    // Get from localStorage or default to 'user'
-    const saved = localStorage.getItem('dashboardMode');
-    return saved || 'user';
+    return getModeFromPath();
   });
+
+  // Update mode when URL changes
+  useEffect(() => {
+    const newMode = getModeFromPath();
+    if (newMode !== dashboardMode) {
+      setDashboardMode(newMode);
+      localStorage.setItem('dashboardMode', newMode);
+    }
+  }, [location.pathname, getModeFromPath, dashboardMode]);
 
   // Check if user has posted ads
   const [userAds, setUserAds] = useState([]);
@@ -78,6 +97,24 @@ function UserDashboard() {
     }
   }, [dashboardMode]);
 
+  // Handle mode change - ensure we're on the right section
+  useEffect(() => {
+    // If switching to seller mode and on a user-only section, redirect to seller dashboard
+    if (dashboardMode === 'seller' && hasPostedAds) {
+      const userOnlySections = ['ad-post', 'categories', 'e-wallet', 'favourite-list', 'watch-list', 'bought-items'];
+      if (userOnlySections.includes(activeSection)) {
+        navigate('/seller_dashboard/dashboard', { replace: true });
+      }
+    }
+    // If switching to user mode and on a seller-only section, redirect to user dashboard
+    if (dashboardMode === 'user') {
+      const sellerOnlySections = ['items-selling'];
+      if (sellerOnlySections.includes(activeSection)) {
+        navigate('/user_dashboard/dashboard', { replace: true });
+      }
+    }
+  }, [dashboardMode, activeSection, hasPostedAds, navigate]);
+
   // Early return if user is admin or super_admin (while redirecting)
   if (!loading && user && (user.role === 'super_admin' || user.role === 'admin')) {
     return null; // Don't render anything while redirecting
@@ -114,12 +151,13 @@ function UserDashboard() {
   // Get current menu items based on mode
   const menuItems = dashboardMode === 'seller' && hasPostedAds ? sellerMenuItems : userMenuItems;
 
-  // Handle navigation
+  // Handle navigation - use correct base path based on mode
   const handleSectionChange = (sectionId) => {
+    const basePath = dashboardMode === 'seller' ? '/seller_dashboard' : '/user_dashboard';
     if (sectionId === 'dashboard') {
-      navigate('/dashboard');
+      navigate(`${basePath}/dashboard`);
     } else {
-      navigate(`/dashboard/${sectionId}`);
+      navigate(`${basePath}/${sectionId}`);
     }
   };
 
@@ -195,8 +233,9 @@ function UserDashboard() {
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 font-medium">Switch Mode:</p>
                 <button
                   onClick={() => {
-                    setDashboardMode('user');
-                    navigate('/dashboard');
+                    if (dashboardMode !== 'user') {
+                      navigate('/user_dashboard/dashboard', { replace: true });
+                    }
                   }}
                   className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
                     dashboardMode === 'user'
@@ -208,14 +247,16 @@ function UserDashboard() {
                 </button>
                 <button
                   onClick={() => {
-                    setDashboardMode('seller');
-                    navigate('/dashboard');
+                    if (hasPostedAds && dashboardMode !== 'seller') {
+                      navigate('/seller_dashboard/dashboard', { replace: true });
+                    }
                   }}
+                  disabled={!hasPostedAds}
                   className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
                     dashboardMode === 'seller'
                       ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium'
                       : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
-                  }`}
+                  } ${!hasPostedAds ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   Seller Dashboard
                 </button>
@@ -425,13 +466,13 @@ function DashboardOverview({ user }) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Button onClick={() => window.location.href = '/dashboard/ad-post'}>
+            <Button onClick={() => handleSectionChange('ad-post')}>
               Post New Ad
             </Button>
-            <Button variant="outline" onClick={() => window.location.href = '/dashboard/listed-items'}>
+            <Button variant="outline" onClick={() => handleSectionChange('listed-items')}>
               View My Listings
             </Button>
-            <Button variant="outline" onClick={() => window.location.href = '/dashboard/e-wallet'}>
+            <Button variant="outline" onClick={() => handleSectionChange('e-wallet')}>
               Check E-Wallet
             </Button>
           </div>
@@ -2947,7 +2988,7 @@ function ListedItemsSection({ user }) {
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-[hsl(var(--muted-foreground))] mb-4">You haven't posted any ads yet.</p>
-            <Button onClick={() => window.location.href = '/dashboard/ad-post'}>Post Your First Ad</Button>
+            <Button onClick={() => handleSectionChange('ad-post')}>Post Your First Ad</Button>
           </CardContent>
         </Card>
       ) : (
@@ -3700,13 +3741,13 @@ function SellerDashboardOverview({ user, userAds }) {
         <CardContent className="p-6">
           <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
           <div className="flex gap-3">
-            <Button onClick={() => window.location.href = '/dashboard/items-selling'}>
+            <Button onClick={() => handleSectionChange('items-selling')}>
               View Items Selling
             </Button>
-            <Button variant="outline" onClick={() => window.location.href = '/dashboard/ad-post'}>
+            <Button variant="outline" onClick={() => handleSectionChange('ad-post')}>
               Post New Ad
             </Button>
-            <Button variant="outline" onClick={() => window.location.href = '/dashboard/sales-report'}>
+            <Button variant="outline" onClick={() => handleSectionChange('sales-report')}>
               View Sales Report
             </Button>
           </div>
@@ -3716,24 +3757,339 @@ function SellerDashboardOverview({ user, userAds }) {
   );
 }
 
-// Items Selling Section Component (Placeholder - will be fully implemented in Phase 3)
+// Items Selling Section Component
 function ItemsSellingSection({ user, userAds }) {
+  const [items, setItems] = useState([]);
+  const [summary, setSummary] = useState({
+    total_items: 0,
+    active_items: 0,
+    sold_items: 0,
+    total_views: 0,
+    total_clicks: 0,
+    total_earning: 0,
+    total_inquiries: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
+
+  useEffect(() => {
+    loadItemsSelling();
+  }, []);
+
+  const loadItemsSelling = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await itemsSellingAPI.getItemsSelling();
+      setItems(response.data.items || []);
+      setSummary(response.data.summary || {});
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load items selling data');
+      console.error('Error loading items selling:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewDetails = async (itemId) => {
+    try {
+      const response = await itemsSellingAPI.getItemDetails(itemId);
+      setSelectedItem(response.data);
+      setShowDetails(true);
+    } catch (err) {
+      console.error('Error loading item details:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Items Selling</h1>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-[hsl(var(--muted-foreground))]">Loading your selling metrics...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Items Selling</h1>
-      <p className="text-[hsl(var(--muted-foreground))] mb-6">
-        Track detailed metrics and performance for all your listed items
-      </p>
-      
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-[hsl(var(--muted-foreground))] text-center py-8">
-            Items Selling section with detailed metrics will be implemented here.
-            <br />
-            This will include: views, clicks, watchlist count, favourites, inquiries, sales, offers, and buyer information.
-          </p>
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-2">Items Selling</h1>
+        <p className="text-[hsl(var(--muted-foreground))]">Track detailed metrics and performance for all your listed items</p>
+      </div>
+
+      {error && (
+        <Card className="border-red-500 bg-red-50">
+          <CardContent className="p-4">
+            <p className="text-red-600">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">Total Items</h3>
+            <p className="text-2xl font-bold text-[hsl(var(--foreground))]">{summary.total_items}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">Active</h3>
+            <p className="text-2xl font-bold text-green-600">{summary.active_items}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">Sold</h3>
+            <p className="text-2xl font-bold text-blue-600">{summary.sold_items}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="text-xs font-medium text-[hsl(var(--muted-foreground))] mb-1">Total Earning</h3>
+            <p className="text-2xl font-bold text-[hsl(var(--primary))]">
+              Rs. {parseFloat(summary.total_earning || 0).toLocaleString()}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Items Table */}
+      {items.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-[hsl(var(--muted-foreground))] mb-4">You haven't posted any items yet.</p>
+            <Button onClick={() => handleSectionChange('ad-post')}>Post Your First Item</Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Your Listed Items</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[hsl(var(--border))]">
+                    <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--muted-foreground))]">Item Name</th>
+                    <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--muted-foreground))]">Listed Date</th>
+                    <th className="text-right p-3 text-sm font-semibold text-[hsl(var(--muted-foreground))]">Price</th>
+                    <th className="text-right p-3 text-sm font-semibold text-[hsl(var(--muted-foreground))]">Views</th>
+                    <th className="text-right p-3 text-sm font-semibold text-[hsl(var(--muted-foreground))]">Clicks</th>
+                    <th className="text-right p-3 text-sm font-semibold text-[hsl(var(--muted-foreground))]">Watchlist</th>
+                    <th className="text-right p-3 text-sm font-semibold text-[hsl(var(--muted-foreground))]">Favourites</th>
+                    <th className="text-right p-3 text-sm font-semibold text-[hsl(var(--muted-foreground))]">Saved</th>
+                    <th className="text-right p-3 text-sm font-semibold text-[hsl(var(--muted-foreground))]">Inquiries</th>
+                    <th className="text-center p-3 text-sm font-semibold text-[hsl(var(--muted-foreground))]">Status</th>
+                    <th className="text-right p-3 text-sm font-semibold text-[hsl(var(--muted-foreground))]">Earning</th>
+                    <th className="text-center p-3 text-sm font-semibold text-[hsl(var(--muted-foreground))]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={item.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
+                          {item.image_url && (
+                            <img
+                              src={item.image_url}
+                              alt={item.item_name}
+                              className="w-10 h-10 object-cover rounded"
+                            />
+                          )}
+                          <span className="font-medium text-[hsl(var(--foreground))]">{item.item_name}</span>
+                        </div>
+                      </td>
+                      <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">
+                        {new Date(item.listed_date).toLocaleDateString()}
+                      </td>
+                      <td className="p-3 text-right font-semibold text-[hsl(var(--foreground))]">
+                        Rs. {parseFloat(item.price_per_unit || 0).toLocaleString()}
+                      </td>
+                      <td className="p-3 text-right text-sm text-[hsl(var(--muted-foreground))]">
+                        {item.views || 0}
+                      </td>
+                      <td className="p-3 text-right text-sm text-[hsl(var(--muted-foreground))]">
+                        {item.clicks || 0}
+                      </td>
+                      <td className="p-3 text-right text-sm text-[hsl(var(--muted-foreground))]">
+                        {item.watchlist_count || 0}
+                      </td>
+                      <td className="p-3 text-right text-sm text-[hsl(var(--muted-foreground))]">
+                        {item.favourite_count || 0}
+                      </td>
+                      <td className="p-3 text-right text-sm text-[hsl(var(--muted-foreground))]">
+                        {item.saved_search_count || 0}
+                      </td>
+                      <td className="p-3 text-right text-sm text-[hsl(var(--muted-foreground))]">
+                        {item.inquiries_count || 0}
+                      </td>
+                      <td className="p-3 text-center">
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                          item.sold
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {item.sold ? 'Sold' : 'Active'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right font-semibold text-[hsl(var(--primary))]">
+                        Rs. {parseFloat(item.total_earning || 0).toLocaleString()}
+                      </td>
+                      <td className="p-3 text-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewDetails(item.id)}
+                        >
+                          Details
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Item Details Modal */}
+      {showDetails && selectedItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <CardHeader className="flex items-center justify-between">
+              <CardTitle>Item Details: {selectedItem.item_name}</CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setShowDetails(false)}>✕</Button>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-[hsl(var(--muted-foreground))] mb-1">Posted Date</h4>
+                  <p className="text-[hsl(var(--foreground))]">{new Date(selectedItem.posted_date).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-[hsl(var(--muted-foreground))] mb-1">Listed Date</h4>
+                  <p className="text-[hsl(var(--foreground))]">{new Date(selectedItem.listed_date).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-[hsl(var(--muted-foreground))] mb-1">Price per Unit</h4>
+                  <p className="text-[hsl(var(--foreground))] font-semibold">
+                    Rs. {parseFloat(selectedItem.price_per_unit || 0).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-[hsl(var(--muted-foreground))] mb-1">Total Earning</h4>
+                  <p className="text-[hsl(var(--primary))] font-semibold">
+                    Rs. {parseFloat(selectedItem.total_earning || 0).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Metrics */}
+              <div>
+                <h3 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-3">Metrics</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-3 bg-[hsl(var(--accent))] rounded-md">
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">Views</p>
+                    <p className="text-xl font-bold text-[hsl(var(--foreground))]">{selectedItem.views || 0}</p>
+                  </div>
+                  <div className="p-3 bg-[hsl(var(--accent))] rounded-md">
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">Clicks</p>
+                    <p className="text-xl font-bold text-[hsl(var(--foreground))]">{selectedItem.clicks || 0}</p>
+                  </div>
+                  <div className="p-3 bg-[hsl(var(--accent))] rounded-md">
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">Watchlist</p>
+                    <p className="text-xl font-bold text-[hsl(var(--foreground))]">{selectedItem.watchlist_count || 0}</p>
+                  </div>
+                  <div className="p-3 bg-[hsl(var(--accent))] rounded-md">
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">Favourites</p>
+                    <p className="text-xl font-bold text-[hsl(var(--foreground))]">{selectedItem.favourite_count || 0}</p>
+                  </div>
+                  <div className="p-3 bg-[hsl(var(--accent))] rounded-md">
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">Saved Searches</p>
+                    <p className="text-xl font-bold text-[hsl(var(--foreground))]">{selectedItem.saved_search_count || 0}</p>
+                  </div>
+                  <div className="p-3 bg-[hsl(var(--accent))] rounded-md">
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">Inquiries</p>
+                    <p className="text-xl font-bold text-[hsl(var(--foreground))]">{selectedItem.inquiries_count || 0}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Buyers */}
+              {selectedItem.buyers && selectedItem.buyers.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-3">Buyers</h3>
+                  <div className="space-y-2">
+                    {selectedItem.buyers.map((buyer, idx) => (
+                      <div key={idx} className="p-3 border border-[hsl(var(--border))] rounded-md">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-semibold text-[hsl(var(--foreground))]">{buyer.user_name}</p>
+                            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                              Purchased: {new Date(buyer.purchase_date).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-[hsl(var(--primary))]">
+                              Rs. {parseFloat(buyer.price || 0).toLocaleString()}
+                            </p>
+                            {buyer.quantity && (
+                              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                                Qty: {buyer.quantity}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Offers */}
+              {selectedItem.offers && selectedItem.offers.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-3">Offers</h3>
+                  <div className="space-y-2">
+                    {selectedItem.offers.map((offer) => (
+                      <div key={offer.id} className="p-3 border border-[hsl(var(--border))] rounded-md">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-semibold text-[hsl(var(--foreground))]">
+                              {offer.offer_percentage}% Discount
+                            </p>
+                            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                              Valid until: {new Date(offer.valid_until).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                            offer.status === 'approved'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {offer.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
