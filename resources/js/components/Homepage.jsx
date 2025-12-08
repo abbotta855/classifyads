@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Layout from './Layout';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 
 function Homepage() {
+  const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [locationData, setLocationData] = useState({ provinces: [] }); // Location data from database
   const [showCategoryFilter, setShowCategoryFilter] = useState(false); // Track if category filter section is visible
@@ -486,33 +487,10 @@ function Homepage() {
 
   // Removed generateMockAds() - now using fetchAds() to get real data from API
 
-  // Handle ad click - track view and add to recently viewed
-  const handleAdClick = async (adId) => {
-    try {
-      // Increment view count (only if user is authenticated)
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          await window.axios.post(`/api/ads/${adId}/view`);
-        } catch (err) {
-          // Silently fail if not authenticated or other error
-          console.log('Could not increment view count:', err);
-        }
-      }
-
-      // Add to recently viewed items (localStorage)
-      const recentlyViewed = JSON.parse(localStorage.getItem('recentlyViewed') || '[]');
-      const ad = allAds.find(a => a.id === adId);
-      if (ad) {
-        // Remove if already exists
-        const filtered = recentlyViewed.filter(item => item.id !== adId);
-        // Add to beginning (most recent first)
-        const updated = [{ ...ad, viewedAt: new Date().toISOString() }, ...filtered].slice(0, 20); // Keep last 20
-        localStorage.setItem('recentlyViewed', JSON.stringify(updated));
-      }
-    } catch (err) {
-      console.error('Error handling ad click:', err);
-    }
+  // Handle ad click - navigate to detail page
+  const handleAdClick = (adId) => {
+    // Navigate to ad detail page
+    navigate(`/ads/${adId}`);
   };
 
   const handleCategoryToggle = (categoryId) => {

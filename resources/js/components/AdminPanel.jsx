@@ -2743,11 +2743,20 @@ function AdminPanel() {
       formData.append('posted_by', 'admin');
 
       // Append images (only non-null ones)
+      const validImages = [];
       postAdImages.forEach((image, index) => {
         if (image) {
           formData.append(`images[${index}]`, image);
+          validImages.push(image);
         }
       });
+
+      // Ensure at least one image is provided
+      if (validImages.length === 0) {
+        setError('Please upload at least one image');
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
 
       // Use axios directly for FormData
       const token = localStorage.getItem('token');
@@ -2779,12 +2788,76 @@ function AdminPanel() {
     }
   };
 
-  // Handle image file selection
-  const handleImageChange = (index, file) => {
+  // Compress image before upload
+  const compressImage = (file, maxWidth = 1920, maxHeight = 1920, quality = 0.8) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Calculate new dimensions
+          if (width > height) {
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = (width * maxHeight) / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              const compressedFile = new File([blob], file.name, {
+                type: file.type,
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            file.type,
+            quality
+          );
+        };
+      };
+    });
+  };
+
+  // Handle image file selection with compression
+  const handleImageChange = async (index, file) => {
     if (file && file.type.startsWith('image/')) {
-      const newImages = [...postAdImages];
-      newImages[index] = file;
-      setPostAdImages(newImages);
+      // Check file size (if already small, skip compression)
+      if (file.size > 500 * 1024) { // Only compress if > 500KB
+        try {
+          const compressedFile = await compressImage(file);
+          const newImages = [...postAdImages];
+          newImages[index] = compressedFile;
+          setPostAdImages(newImages);
+        } catch (err) {
+          console.error('Error compressing image:', err);
+          // Fallback to original file
+          const newImages = [...postAdImages];
+          newImages[index] = file;
+          setPostAdImages(newImages);
+        }
+      } else {
+        const newImages = [...postAdImages];
+        newImages[index] = file;
+        setPostAdImages(newImages);
+      }
     } else {
       setError('Please select a valid image file');
       setTimeout(() => setError(null), 3000);

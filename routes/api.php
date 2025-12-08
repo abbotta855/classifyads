@@ -55,6 +55,7 @@ Route::get('/locations', [App\Http\Controllers\LocationController::class, 'index
 
 // Public ads routes (for homepage)
 Route::get('/ads', [App\Http\Controllers\AdController::class, 'index']);
+Route::get('/ads/{id}', [App\Http\Controllers\AdController::class, 'show']);
 
 // Public profile routes (no auth required)
 Route::get('/public/profile/{userId}', [App\Http\Controllers\PublicProfileController::class, 'show']);
