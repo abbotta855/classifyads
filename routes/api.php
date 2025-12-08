@@ -123,6 +123,9 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::post('/inbox', [App\Http\Controllers\UserLiveChatController::class, 'store']);
   Route::post('/inbox/{id}/message', [App\Http\Controllers\UserLiveChatController::class, 'sendMessage']);
 
+  // Bought Items routes
+  Route::get('/bought-items', [App\Http\Controllers\BoughtItemsController::class, 'index']);
+
   // Rating routes (user-facing)
   Route::get('/ratings/criteria', [App\Http\Controllers\RatingController::class, 'getCriteria']);
   Route::get('/ratings/seller/{sellerId}', [App\Http\Controllers\RatingController::class, 'getSellerRatings']);

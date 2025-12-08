@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI } from '../utils/api';
+import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI } from '../utils/api';
 import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import RatingModal from './RatingModal';
 import axios from 'axios';
@@ -17,6 +17,18 @@ function UserDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const activeSection = section || 'dashboard';
+
+  // Dashboard mode: 'user' or 'seller'
+  const [dashboardMode, setDashboardMode] = useState(() => {
+    // Get from localStorage or default to 'user'
+    const saved = localStorage.getItem('dashboardMode');
+    return saved || 'user';
+  });
+
+  // Check if user has posted ads
+  const [userAds, setUserAds] = useState([]);
+  const [hasPostedAds, setHasPostedAds] = useState(false);
+  const [loadingAds, setLoadingAds] = useState(true);
 
   // Redirect super admin and admin to their respective panels
   useEffect(() => {
@@ -32,13 +44,47 @@ function UserDashboard() {
     }
   }, [user, loading, navigate]);
 
+  // Fetch user's ads to check if they have posted any
+  useEffect(() => {
+    if (user && !loading) {
+      const fetchUserAds = async () => {
+        try {
+          setLoadingAds(true);
+          const response = await userAdAPI.getAds();
+          const ads = response.data?.data || response.data || [];
+          setUserAds(ads);
+          setHasPostedAds(ads.length > 0);
+          
+          // If user has ads and mode is 'user', suggest seller mode
+          // But don't force it - let user choose
+          if (ads.length > 0 && dashboardMode === 'user') {
+            // Keep user mode as default, but allow switching
+          }
+        } catch (err) {
+          console.error('Error fetching user ads:', err);
+          setHasPostedAds(false);
+        } finally {
+          setLoadingAds(false);
+        }
+      };
+      fetchUserAds();
+    }
+  }, [user, loading]);
+
+  // Save dashboard mode to localStorage when it changes
+  useEffect(() => {
+    if (dashboardMode) {
+      localStorage.setItem('dashboardMode', dashboardMode);
+    }
+  }, [dashboardMode]);
+
   // Early return if user is admin or super_admin (while redirecting)
   if (!loading && user && (user.role === 'super_admin' || user.role === 'admin')) {
     return null; // Don't render anything while redirecting
   }
 
-  // Dashboard menu items
-  const menuItems = [
+  // Dashboard menu items - User mode
+  const userMenuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'profile', label: 'Profile', icon: '👤' },
     { id: 'ad-post', label: 'Ad Post', icon: '📝' },
@@ -49,10 +95,24 @@ function UserDashboard() {
     { id: 'inbox', label: 'Inbox', icon: '📬' },
     { id: 'notifications', label: 'Notifications', icon: '🔔' },
     { id: 'listed-items', label: 'Listed Items', icon: '📋' },
-    { id: 'sales-report', label: 'Sales Report', icon: '📈' },
-    { id: 'job-profile', label: 'Job Profile', icon: '💼' },
+    { id: 'bought-items', label: 'Total Bought Items', icon: '🛒' },
     { id: 'my-ratings', label: 'My Ratings', icon: '⭐' },
   ];
+
+  // Dashboard menu items - Seller mode (only if has posted ads)
+  const sellerMenuItems = [
+    { id: 'dashboard', label: 'Seller Dashboard', icon: '📊' },
+    { id: 'items-selling', label: 'Items Selling', icon: '🛍️' },
+    { id: 'listed-items', label: 'Listed Items', icon: '📋' },
+    { id: 'sales-report', label: 'Sales Report', icon: '📈' },
+    { id: 'profile', label: 'Profile', icon: '👤' },
+    { id: 'inbox', label: 'Inbox', icon: '📬' },
+    { id: 'notifications', label: 'Notifications', icon: '🔔' },
+    { id: 'my-ratings', label: 'My Ratings', icon: '⭐' },
+  ];
+
+  // Get current menu items based on mode
+  const menuItems = dashboardMode === 'seller' && hasPostedAds ? sellerMenuItems : userMenuItems;
 
   // Handle navigation
   const handleSectionChange = (sectionId) => {
@@ -65,11 +125,25 @@ function UserDashboard() {
 
   // Render section content
   const renderSectionContent = () => {
+    // If seller mode but trying to access user-only sections, redirect to seller dashboard
+    if (dashboardMode === 'seller' && !hasPostedAds) {
+      setDashboardMode('user');
+      return <DashboardOverview user={user} />;
+    }
+
     switch (activeSection) {
       case 'dashboard':
-        return <DashboardOverview user={user} />;
+        return dashboardMode === 'seller' 
+          ? <SellerDashboardOverview user={user} userAds={userAds} />
+          : <DashboardOverview user={user} />;
+      case 'items-selling':
+        // Only accessible in seller mode
+        if (dashboardMode !== 'seller' || !hasPostedAds) {
+          return <DashboardOverview user={user} />;
+        }
+        return <ItemsSellingSection user={user} userAds={userAds} />;
       case 'profile':
-        return <ProfileSection user={user} />;
+        return <ProfileSection user={user} dashboardMode={dashboardMode} />;
       case 'ad-post':
         return <AdPostSection user={user} />;
       case 'categories':
@@ -85,15 +159,19 @@ function UserDashboard() {
       case 'notifications':
         return <NotificationsSection user={user} />;
       case 'listed-items':
-        return <ListedItemsSection user={user} />;
+        return <ListedItemsSection user={user} dashboardMode={dashboardMode} />;
       case 'sales-report':
-        return <SalesReportSection user={user} />;
+        return <SalesReportSection user={user} dashboardMode={dashboardMode} />;
       case 'job-profile':
         return <JobProfileSection user={user} />;
       case 'my-ratings':
         return <MyRatingsSection user={user} />;
+      case 'bought-items':
+        return <TotalBoughtItemsSection user={user} />;
       default:
-        return <DashboardOverview user={user} />;
+        return dashboardMode === 'seller'
+          ? <SellerDashboardOverview user={user} userAds={userAds} />
+          : <DashboardOverview user={user} />;
     }
   };
 
@@ -104,10 +182,45 @@ function UserDashboard() {
         <div className="w-64 bg-[hsl(var(--card))] border-r border-[hsl(var(--border))] flex flex-col">
           {/* Header */}
           <div className="p-4 border-b border-[hsl(var(--border))]">
-            <h2 className="text-xl font-bold text-[hsl(var(--foreground))]">User Dashboard</h2>
+            <h2 className="text-xl font-bold text-[hsl(var(--foreground))]">
+              {dashboardMode === 'seller' ? 'Seller Dashboard' : 'User Dashboard'}
+            </h2>
             <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
               Welcome, {user?.name}
             </p>
+            
+            {/* Role Switcher - Only show if user has posted ads */}
+            {hasPostedAds && !loadingAds && (
+              <div className="mt-3 space-y-1 border-t border-[hsl(var(--border))] pt-3">
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 font-medium">Switch Mode:</p>
+                <button
+                  onClick={() => {
+                    setDashboardMode('user');
+                    navigate('/dashboard');
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                    dashboardMode === 'user'
+                      ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium'
+                      : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
+                  }`}
+                >
+                  User Dashboard
+                </button>
+                <button
+                  onClick={() => {
+                    setDashboardMode('seller');
+                    navigate('/dashboard');
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                    dashboardMode === 'seller'
+                      ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium'
+                      : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
+                  }`}
+                >
+                  Seller Dashboard
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Menu Items */}
@@ -790,30 +903,97 @@ function ProfileSection({ user: initialUser }) {
         </CardContent>
       </Card>
 
-      {/* Account Information */}
+      {/* Profile Details Card */}
       <Card>
         <CardHeader>
-          <CardTitle>Account Information</CardTitle>
+          <CardTitle>Profile Details</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex justify-between">
-            <span className="text-[hsl(var(--muted-foreground))]">Account Created:</span>
-            <span className="text-[hsl(var(--foreground))]">
-              {profileData?.created_at ? new Date(profileData.created_at).toLocaleDateString() : 'N/A'}
-            </span>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex justify-between">
+              <span className="text-[hsl(var(--muted-foreground))]">Member Since:</span>
+              <span className="text-[hsl(var(--foreground))] font-semibold">
+                {profileData?.member_since || (profileData?.created_at ? new Date(profileData.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A')}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[hsl(var(--muted-foreground))]">Last Login:</span>
+              <span className="text-[hsl(var(--foreground))] font-semibold">
+                {profileData?.last_login_formatted || (profileData?.last_login_at ? formatLastLogin(profileData.last_login_at) : 'Never')}
+              </span>
+            </div>
+            {profileData?.response_rate !== null && profileData.response_rate !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-[hsl(var(--muted-foreground))]">Response Rate:</span>
+                <span className="text-[hsl(var(--foreground))] font-semibold">
+                  {profileData.response_rate}%
+                </span>
+              </div>
+            )}
+            {profileData?.total_sold !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-[hsl(var(--muted-foreground))]">Total Sold Items:</span>
+                <span className="text-[hsl(var(--foreground))] font-semibold">
+                  {profileData.total_sold || 0}
+                </span>
+              </div>
+            )}
           </div>
-          <div className="flex justify-between">
-            <span className="text-[hsl(var(--muted-foreground))]">Last Login:</span>
-            <span className="text-[hsl(var(--foreground))]">
-              {profileData?.last_login_at ? new Date(profileData.last_login_at).toLocaleString() : 'Never'}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[hsl(var(--muted-foreground))]">Email Verified:</span>
-            <span className="text-[hsl(var(--foreground))]">
-              {profileData?.is_verified ? '✓ Yes' : '✗ No'}
-            </span>
-          </div>
+          
+          {/* Profile Rating */}
+          {profileData?.profile_rating && (
+            <div className="border-t border-[hsl(var(--border))] pt-4 mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[hsl(var(--muted-foreground))]">Profile Rating:</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span
+                        key={star}
+                        className={`text-xl ${
+                          star <= Math.round(profileData.profile_rating.average || 0)
+                            ? 'text-yellow-400'
+                            : 'text-gray-300'
+                        }`}
+                      >
+                        ★
+                      </span>
+                    ))}
+                  </div>
+                  <span className="text-lg font-bold text-[hsl(var(--foreground))]">
+                    {profileData.profile_rating.average?.toFixed(1) || '0.0'}/5
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[hsl(var(--muted-foreground))]">
+                  {profileData.profile_rating.total || 0} review{(profileData.profile_rating.total || 0) !== 1 ? 's' : ''}
+                </span>
+                <span className="text-sm font-semibold text-[hsl(var(--foreground))]">
+                  {profileData.profile_rating.percentage?.toFixed(1) || '0.0'}%
+                </span>
+              </div>
+            </div>
+          )}
+          {(!profileData?.profile_rating || profileData.profile_rating.total === 0) && (
+            <div className="border-t border-[hsl(var(--border))] pt-4 mt-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[hsl(var(--muted-foreground))]">Profile Rating:</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span key={star} className="text-xl text-gray-300">★</span>
+                    ))}
+                  </div>
+                  <span className="text-lg font-bold text-[hsl(var(--muted-foreground))]">No ratings yet</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-sm text-[hsl(var(--muted-foreground))]">0 reviews</span>
+                <span className="text-sm font-semibold text-[hsl(var(--muted-foreground))]">0%</span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -2771,8 +2951,81 @@ function ListedItemsSection({ user }) {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {ads.map((ad) => (
+        <div className="space-y-6">
+          {/* Summary Statistics */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))] mb-2">Total Listed Items</h3>
+                <p className="text-3xl font-bold text-[hsl(var(--foreground))]">{ads.length}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))] mb-2">Active Items</h3>
+                <p className="text-3xl font-bold text-[hsl(var(--foreground))]">
+                  {ads.filter(ad => !ad.item_sold && ad.status === 'active').length}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))] mb-2">Sold Items</h3>
+                <p className="text-3xl font-bold text-[hsl(var(--foreground))]">
+                  {ads.filter(ad => ad.item_sold || ad.status === 'sold').length}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Category Breakdown */}
+          {(() => {
+            const categoryBreakdown = {};
+            ads.forEach(ad => {
+              const categoryName = ad.category?.category || 'Uncategorized';
+              const subcategoryName = ad.category?.sub_category || null;
+              const key = subcategoryName ? `${categoryName} > ${subcategoryName}` : categoryName;
+              
+              if (!categoryBreakdown[key]) {
+                categoryBreakdown[key] = {
+                  category: categoryName,
+                  subcategory: subcategoryName,
+                  count: 0,
+                };
+              }
+              categoryBreakdown[key].count++;
+            });
+
+            const breakdownEntries = Object.entries(categoryBreakdown).sort((a, b) => b[1].count - a[1].count);
+
+            return breakdownEntries.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Items by Category</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {breakdownEntries.map(([key, data]) => (
+                      <div key={key} className="flex items-center justify-between p-2 rounded-md hover:bg-[hsl(var(--accent))]">
+                        <span className="text-sm font-medium text-[hsl(var(--foreground))]">
+                          {key}
+                        </span>
+                        <span className="text-sm font-bold text-[hsl(var(--primary))]">
+                          {data.count} item{data.count !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
+          {/* Listed Items */}
+          <div>
+            <h2 className="text-xl font-semibold text-[hsl(var(--foreground))] mb-4">Your Listed Items</h2>
+            <div className="space-y-4">
+              {ads.map((ad) => (
             <Card key={ad.id}>
               <CardContent className="p-6">
                 {editingAdId === ad.id ? (
@@ -2817,12 +3070,27 @@ function ListedItemsSection({ user }) {
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold mb-2">{ad.title}</h3>
                       <p className="text-sm text-[hsl(var(--muted-foreground))] mb-2 line-clamp-2">{ad.description}</p>
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="font-semibold text-[hsl(var(--foreground))]">Rs. {parseFloat(ad.price || 0).toLocaleString()}</span>
-                        <span className="text-[hsl(var(--muted-foreground))]">Views: {ad.views || 0}</span>
-                        <span className={`px-2 py-1 rounded ${ad.item_sold ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
-                          {ad.item_sold ? 'Sold' : 'Active'}
-                        </span>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="font-semibold text-[hsl(var(--foreground))]">Rs. {parseFloat(ad.price || 0).toLocaleString()}</span>
+                          <span className="text-[hsl(var(--muted-foreground))]">Views: {ad.views || 0}</span>
+                          <span className={`px-2 py-1 rounded ${ad.item_sold ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                            {ad.item_sold ? 'Sold' : 'Active'}
+                          </span>
+                        </div>
+                        {ad.category && (
+                          <div className="text-xs text-[hsl(var(--muted-foreground))]">
+                            Category: <span className="font-semibold">{ad.category.category}</span>
+                            {ad.category.sub_category && (
+                              <span> &gt; <span className="font-semibold">{ad.category.sub_category}</span></span>
+                            )}
+                          </div>
+                        )}
+                        {ad.location && (
+                          <div className="text-xs text-[hsl(var(--muted-foreground))]">
+                            📍 Address: <span className="font-semibold">{ad.location.name || 'Not specified'}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
@@ -2836,7 +3104,9 @@ function ListedItemsSection({ user }) {
                 )}
               </CardContent>
             </Card>
-          ))}
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -3381,6 +3651,275 @@ function MyRatingsSection({ user }) {
                         Delete
                       </Button>
                     </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Seller Dashboard Overview Component
+function SellerDashboardOverview({ user, userAds }) {
+  return (
+    <div>
+      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Seller Dashboard</h1>
+      <p className="text-[hsl(var(--muted-foreground))] mb-6">
+        Manage your selling activities and track your sales performance
+      </p>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))] mb-2">Total Listed Items</h3>
+            <p className="text-3xl font-bold text-[hsl(var(--foreground))]">{userAds?.length || 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))] mb-2">Total Views</h3>
+            <p className="text-3xl font-bold text-[hsl(var(--foreground))]">
+              {userAds?.reduce((sum, ad) => sum + (ad.views || 0), 0) || 0}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))] mb-2">Active Items</h3>
+            <p className="text-3xl font-bold text-[hsl(var(--foreground))]">
+              {userAds?.filter(ad => !ad.item_sold && ad.status === 'active').length || 0}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardContent className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
+          <div className="flex gap-3">
+            <Button onClick={() => window.location.href = '/dashboard/items-selling'}>
+              View Items Selling
+            </Button>
+            <Button variant="outline" onClick={() => window.location.href = '/dashboard/ad-post'}>
+              Post New Ad
+            </Button>
+            <Button variant="outline" onClick={() => window.location.href = '/dashboard/sales-report'}>
+              View Sales Report
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Items Selling Section Component (Placeholder - will be fully implemented in Phase 3)
+function ItemsSellingSection({ user, userAds }) {
+  return (
+    <div>
+      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Items Selling</h1>
+      <p className="text-[hsl(var(--muted-foreground))] mb-6">
+        Track detailed metrics and performance for all your listed items
+      </p>
+      
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-[hsl(var(--muted-foreground))] text-center py-8">
+            Items Selling section with detailed metrics will be implemented here.
+            <br />
+            This will include: views, clicks, watchlist count, favourites, inquiries, sales, offers, and buyer information.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Total Bought Items Section Component
+function TotalBoughtItemsSection({ user }) {
+  const [boughtItems, setBoughtItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [summary, setSummary] = useState({
+    total_bought: 0,
+    total_spent: 0,
+  });
+
+  useEffect(() => {
+    loadBoughtItems();
+  }, []);
+
+  const loadBoughtItems = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await boughtItemsAPI.getBoughtItems();
+      setBoughtItems(response.data.items || []);
+      setSummary({
+        total_bought: response.data.total_bought || 0,
+        total_spent: response.data.total_spent || 0,
+      });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load bought items');
+      console.error('Error loading bought items:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Total Bought Items</h1>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-[hsl(var(--muted-foreground))]">Loading your purchase history...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Total Bought Items</h1>
+      
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))] mb-2">Total Bought Items</h3>
+            <p className="text-3xl font-bold text-[hsl(var(--foreground))]">{summary.total_bought}</p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Till date</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="text-sm font-medium text-[hsl(var(--muted-foreground))] mb-2">Total Spent Amount</h3>
+            <p className="text-3xl font-bold text-[hsl(var(--primary))]">
+              Rs. {parseFloat(summary.total_spent || 0).toLocaleString()}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {error && (
+        <Card className="border-red-500 bg-red-50 mb-6">
+          <CardContent className="p-4">
+            <p className="text-red-600">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {boughtItems.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-[hsl(var(--muted-foreground))] mb-4">
+              You haven't purchased any items yet.
+            </p>
+            <Button onClick={() => window.location.href = '/'} variant="outline">
+              Browse Items
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {boughtItems.map((item) => (
+            <Card key={item.id}>
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row gap-4">
+                  {/* Item Image */}
+                  {item.ad_image && (
+                    <div className="flex-shrink-0">
+                      <img
+                        src={item.ad_image}
+                        alt={item.item_name}
+                        className="w-32 h-32 object-cover rounded-md"
+                      />
+                    </div>
+                  )}
+
+                  {/* Item Details */}
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-2">
+                      {item.item_name}
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 text-sm">
+                      <div>
+                        <span className="text-[hsl(var(--muted-foreground))]">Category:</span>
+                        <span className="ml-2 font-semibold text-[hsl(var(--foreground))]">
+                          {item.category}
+                          {item.subcategory && ` > ${item.subcategory}`}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[hsl(var(--muted-foreground))]">Price:</span>
+                        <span className="ml-2 font-semibold text-[hsl(var(--primary))]">
+                          Rs. {parseFloat(item.price || 0).toLocaleString()}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[hsl(var(--muted-foreground))]">Purchase Date:</span>
+                        <span className="ml-2 font-semibold text-[hsl(var(--foreground))]">
+                          {new Date(item.purchase_date).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {item.payment_method && (
+                        <div>
+                          <span className="text-[hsl(var(--muted-foreground))]">Payment Method:</span>
+                          <span className="ml-2 font-semibold text-[hsl(var(--foreground))]">
+                            {item.payment_method}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Seller Information */}
+                    {item.seller_info && (
+                      <div className="border-t border-[hsl(var(--border))] pt-3 mt-3">
+                        <h4 className="text-sm font-semibold text-[hsl(var(--foreground))] mb-2">
+                          Seller Information:
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-[hsl(var(--muted-foreground))]">Name:</span>
+                            <span className="ml-2 font-semibold text-[hsl(var(--foreground))]">
+                              {item.seller_info.name}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[hsl(var(--muted-foreground))]">Email:</span>
+                            <span className="ml-2 font-semibold text-[hsl(var(--foreground))]">
+                              {item.seller_info.email}
+                            </span>
+                          </div>
+                          {(item.seller_info.address || item.seller_info.selected_local_address) && (
+                            <div className="md:col-span-2">
+                              <span className="text-[hsl(var(--muted-foreground))]">Address:</span>
+                              <span className="ml-2 font-semibold text-[hsl(var(--foreground))]">
+                                {item.seller_info.address || ''}
+                                {item.seller_info.address && item.seller_info.selected_local_address && ', '}
+                                {item.seller_info.selected_local_address || ''}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        {item.seller_id && (
+                          <div className="mt-3">
+                            <Link
+                              to={`/profile/${item.seller_id}`}
+                              className="text-sm text-[hsl(var(--primary))] hover:underline"
+                            >
+                              View Seller Profile →
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>

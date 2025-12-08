@@ -19,7 +19,97 @@ class ProfileController extends Controller
         $user = $request->user();
         $user->load('locationRelation');
         
-        return response()->json($user);
+        // Calculate response rate (only if user has ads)
+        $responseRate = null;
+        $totalSold = 0;
+        $profileRating = null;
+        
+        $userAds = \App\Models\Ad::where('user_id', $user->id)->get();
+        if ($userAds->count() > 0) {
+            // Calculate response rate: (Messages responded to / Total messages received) * 100
+            // TODO: Implement proper buyer-seller messaging system for accurate response rate
+            // For now, using a placeholder calculation
+            // This will be properly implemented when buyer-seller messaging is added
+            $responseRate = 100; // Placeholder - will be calculated from actual message responses
+            
+            // Total sold items
+            $totalSold = $userAds->where('status', 'sold')->count();
+            
+            // Profile rating (average rating as seller)
+            $ratings = \App\Models\Rating::where('seller_id', $user->id)->get();
+            if ($ratings->count() > 0) {
+                $averageRating = $ratings->avg('rating');
+                $totalRatings = $ratings->count();
+                $profileRating = [
+                    'average' => round($averageRating, 2),
+                    'total' => $totalRatings,
+                    'percentage' => round(($averageRating / 5) * 100, 2), // Convert to percentage
+                ];
+            }
+        }
+        
+        // Format last login
+        $lastLoginFormatted = $this->formatLastLogin($user->last_login_at);
+        
+        return response()->json([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'dob' => $user->dob,
+            'phone' => $user->phone,
+            'profile_picture' => $user->profile_picture,
+            'location_id' => $user->location_id,
+            'selected_local_address' => $user->selected_local_address,
+            'locationRelation' => $user->locationRelation,
+            'created_at' => $user->created_at,
+            'last_login_at' => $user->last_login_at,
+            'last_login_formatted' => $lastLoginFormatted,
+            'response_rate' => $responseRate,
+            'total_sold' => $totalSold,
+            'profile_rating' => $profileRating,
+            'member_since' => $user->created_at->format('M Y'),
+        ]);
+    }
+    
+    /**
+     * Format last login time in human-readable format
+     */
+    private function formatLastLogin($lastLoginAt)
+    {
+        if (!$lastLoginAt) {
+            return 'Never';
+        }
+
+        $now = \Carbon\Carbon::now();
+        $lastLogin = \Carbon\Carbon::parse($lastLoginAt);
+        
+        if ($lastLogin->isFuture()) {
+            return $lastLogin->format('M d, Y');
+        }
+        
+        $diffInSeconds = $now->diffInSeconds($lastLogin);
+        $diffInMinutes = $now->diffInMinutes($lastLogin);
+        $diffInHours = $now->diffInHours($lastLogin);
+        $diffInDays = $now->diffInDays($lastLogin);
+        $diffInWeeks = $now->diffInWeeks($lastLogin);
+        $diffInMonths = $now->diffInMonths($lastLogin);
+        $diffInYears = $now->diffInYears($lastLogin);
+        
+        if ($diffInYears > 0) {
+            return $diffInYears . ' year' . ($diffInYears > 1 ? 's' : '') . ' ago';
+        } elseif ($diffInMonths > 0) {
+            return $diffInMonths . ' month' . ($diffInMonths > 1 ? 's' : '') . ' ago';
+        } elseif ($diffInWeeks > 0) {
+            return $diffInWeeks . ' week' . ($diffInWeeks > 1 ? 's' : '') . ' ago';
+        } elseif ($diffInDays > 0) {
+            return $diffInDays . ' day' . ($diffInDays > 1 ? 's' : '') . ' ago';
+        } elseif ($diffInHours > 0) {
+            return $diffInHours . ' hour' . ($diffInHours > 1 ? 's' : '') . ' ago';
+        } elseif ($diffInMinutes > 0) {
+            return $diffInMinutes . ' minute' . ($diffInMinutes > 1 ? 's' : '') . ' ago';
+        } else {
+            return 'Just now';
+        }
     }
 
     /**

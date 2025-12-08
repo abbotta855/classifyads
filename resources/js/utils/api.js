@@ -362,3 +362,8 @@ export const publicProfileAPI = {
   }),
 };
 
+// Bought Items API
+export const boughtItemsAPI = {
+  getBoughtItems: () => axios.get('/api/bought-items'),
+};
+
