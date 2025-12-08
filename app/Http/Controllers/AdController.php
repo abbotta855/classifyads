@@ -60,6 +60,7 @@ class AdController extends Controller
                         'sub_category' => $subcategoryName, // For backward compatibility
                         'location' => $locationString,
                         'location_id' => $ad->location_id,
+                        'user_id' => $ad->user_id, // Add seller user ID
                         'locationHierarchy' => $ad->location ? [
                             'province' => $ad->location->province,
                             'district' => $ad->location->district,

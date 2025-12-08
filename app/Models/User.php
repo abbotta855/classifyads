@@ -144,6 +144,22 @@ class User extends Authenticatable
     }
 
     /**
+     * Get all ratings given by this user (as buyer)
+     */
+    public function ratingsGiven()
+    {
+        return $this->hasMany(Rating::class, 'user_id')->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Get all ratings received by this user (as seller)
+     */
+    public function ratingsReceived()
+    {
+        return $this->hasMany(Rating::class, 'seller_id')->orderBy('created_at', 'desc');
+    }
+
+    /**
      * Get the location for this user
      */
     public function locationRelation()

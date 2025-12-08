@@ -56,6 +56,10 @@ Route::get('/locations', [App\Http\Controllers\LocationController::class, 'index
 // Public ads routes (for homepage)
 Route::get('/ads', [App\Http\Controllers\AdController::class, 'index']);
 
+// Public profile routes (no auth required)
+Route::get('/public/profile/{userId}', [App\Http\Controllers\PublicProfileController::class, 'show']);
+Route::get('/public/profile/{userId}/ratings', [App\Http\Controllers\PublicProfileController::class, 'getRatings']);
+
 Route::middleware('auth:sanctum')->group(function () {
   Route::post('/logout', [AuthController::class, 'logout']);
   Route::get('/user', [AuthController::class, 'user']);
@@ -117,6 +121,14 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::get('/inbox/{id}', [App\Http\Controllers\UserLiveChatController::class, 'show']);
   Route::post('/inbox', [App\Http\Controllers\UserLiveChatController::class, 'store']);
   Route::post('/inbox/{id}/message', [App\Http\Controllers\UserLiveChatController::class, 'sendMessage']);
+
+  // Rating routes (user-facing)
+  Route::get('/ratings/criteria', [App\Http\Controllers\RatingController::class, 'getCriteria']);
+  Route::get('/ratings/seller/{sellerId}', [App\Http\Controllers\RatingController::class, 'getSellerRatings']);
+  Route::get('/ratings/check/{adId}', [App\Http\Controllers\RatingController::class, 'checkRating']);
+  Route::post('/ratings', [App\Http\Controllers\RatingController::class, 'store']);
+  Route::put('/ratings/{id}', [App\Http\Controllers\RatingController::class, 'update']);
+  Route::delete('/ratings/{id}', [App\Http\Controllers\RatingController::class, 'destroy']);
 
   // Admin routes
   Route::prefix('admin')->group(function () {

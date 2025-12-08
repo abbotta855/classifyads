@@ -1461,9 +1461,18 @@ function Homepage() {
                         <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 line-clamp-2">
                           {ad.description}
                         </p>
-                        <p className="text-lg font-bold text-[hsl(var(--primary))]">
+                        <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
                           Rs. {ad.price.toLocaleString()}
                         </p>
+                        {ad.user_id && (
+                          <Link
+                            to={`/profile/${ad.user_id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs text-[hsl(var(--primary))] hover:underline"
+                          >
+                            View Seller Profile →
+                          </Link>
+                        )}
                       </div>
                   </CardContent>
                 </Card>
@@ -1551,9 +1560,18 @@ function Homepage() {
                             <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 line-clamp-2">
                               {ad.description}
                             </p>
-                            <p className="text-lg font-bold text-[hsl(var(--primary))]">
+                            <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
                               Rs. {ad.price.toLocaleString()}
                             </p>
+                            {ad.user_id && (
+                              <Link
+                                to={`/profile/${ad.user_id}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-xs text-[hsl(var(--primary))] hover:underline"
+                              >
+                                View Seller Profile →
+                              </Link>
+                            )}
                           </div>
                         </CardContent>
                       </Card>

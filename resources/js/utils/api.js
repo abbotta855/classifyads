@@ -344,3 +344,21 @@ export const userAdAPI = {
   incrementView: (id) => axios.post(`/api/ads/${id}/view`),
 };
 
+// Rating API (user-facing)
+export const ratingAPI = {
+  getCriteria: () => axios.get('/api/ratings/criteria'),
+  getSellerRatings: (sellerId) => axios.get(`/api/ratings/seller/${sellerId}`),
+  checkRating: (adId) => axios.get(`/api/ratings/check/${adId}`),
+  submitRating: (data) => axios.post('/api/ratings', data),
+  updateRating: (id, data) => axios.put(`/api/ratings/${id}`, data),
+  deleteRating: (id) => axios.delete(`/api/ratings/${id}`),
+};
+
+// Public Profile API
+export const publicProfileAPI = {
+  getProfile: (userId) => axios.get(`/api/public/profile/${userId}`),
+  getRatings: (userId, page = 1, perPage = 10) => axios.get(`/api/public/profile/${userId}/ratings`, {
+    params: { page, per_page: perPage },
+  }),
+};
+

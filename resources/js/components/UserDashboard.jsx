@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI } from '../utils/api';
+import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI } from '../utils/api';
 import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
+import RatingModal from './RatingModal';
 import axios from 'axios';
 
 function UserDashboard() {
@@ -50,6 +51,7 @@ function UserDashboard() {
     { id: 'listed-items', label: 'Listed Items', icon: '📋' },
     { id: 'sales-report', label: 'Sales Report', icon: '📈' },
     { id: 'job-profile', label: 'Job Profile', icon: '💼' },
+    { id: 'my-ratings', label: 'My Ratings', icon: '⭐' },
   ];
 
   // Handle navigation
@@ -88,6 +90,8 @@ function UserDashboard() {
         return <SalesReportSection user={user} />;
       case 'job-profile':
         return <JobProfileSection user={user} />;
+      case 'my-ratings':
+        return <MyRatingsSection user={user} />;
       default:
         return <DashboardOverview user={user} />;
     }
@@ -3045,6 +3049,345 @@ function JobProfileSection({ user }) {
           <p className="text-[hsl(var(--muted-foreground))]">Job profile management - Coming soon</p>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function MyRatingsSection({ user }) {
+  const [ratings, setRatings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedAd, setSelectedAd] = useState(null);
+  const [selectedSeller, setSelectedSeller] = useState(null);
+  const [showRateForm, setShowRateForm] = useState(false);
+  const [adIdInput, setAdIdInput] = useState('');
+  const [loadingAd, setLoadingAd] = useState(false);
+  const [adError, setAdError] = useState(null);
+
+  useEffect(() => {
+    loadRatings();
+  }, []);
+
+  const loadRatings = async () => {
+    setLoading(true);
+    try {
+      // Get all ads from homepage to check which ones user has rated
+      // This is a simplified approach - in a real app, you'd track purchases
+      const response = await axios.get('/api/ads');
+      const allAds = response.data.ads || [];
+      
+      // For each ad, check if user has rated the seller
+      const ratingsData = [];
+      for (const ad of allAds) {
+        // Only check ads that are not owned by the current user
+        if (ad.user_id && ad.user_id !== user.id) {
+          try {
+            const checkRes = await ratingAPI.checkRating(ad.id);
+            if (checkRes.data.has_rated) {
+              const rating = checkRes.data.rating;
+              ratingsData.push({
+                ...rating,
+                ad: ad,
+              });
+            }
+          } catch (err) {
+            // Rating doesn't exist or error - skip
+          }
+        }
+      }
+      
+      setRatings(ratingsData);
+    } catch (err) {
+      console.error('Error loading ratings:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRateByAdId = async () => {
+    if (!adIdInput.trim()) {
+      setAdError('Please enter an ad ID');
+      return;
+    }
+
+    setLoadingAd(true);
+    setAdError(null);
+
+    try {
+      // Fetch ad details
+      const adRes = await axios.get(`/api/ads`);
+      const allAds = adRes.data.ads || [];
+      const ad = allAds.find(a => a.id === parseInt(adIdInput));
+
+      if (!ad) {
+        setAdError('Ad not found. Please check the ad ID.');
+        setLoadingAd(false);
+        return;
+      }
+
+      if (ad.user_id === user.id) {
+        setAdError('You cannot rate your own ad.');
+        setLoadingAd(false);
+        return;
+      }
+
+      // Check if already rated
+      const checkRes = await ratingAPI.checkRating(ad.id);
+      if (checkRes.data.has_rated) {
+        setAdError('You have already rated this seller for this ad.');
+        setLoadingAd(false);
+        return;
+      }
+
+      // Get seller info
+      const sellerRes = await publicProfileAPI.getProfile(ad.user_id);
+      const seller = sellerRes.data.user;
+
+      setSelectedAd({ ...ad, id: parseInt(adIdInput) });
+      setSelectedSeller(seller);
+      setShowRateForm(false);
+      setShowRatingModal(true);
+      setAdIdInput('');
+    } catch (err) {
+      setAdError(err.response?.data?.error || 'Failed to load ad. Please check the ad ID.');
+      console.error('Error loading ad:', err);
+    } finally {
+      setLoadingAd(false);
+    }
+  };
+
+  const handleRateSeller = (ad) => {
+    setSelectedAd(ad);
+    setSelectedSeller(ad.user || { id: ad.user_id, name: 'Seller' });
+    setShowRatingModal(true);
+  };
+
+  const handleRatingSuccess = () => {
+    loadRatings();
+  };
+
+  const handleDeleteRating = async (ratingId) => {
+    if (!window.confirm('Are you sure you want to delete this rating?')) {
+      return;
+    }
+
+    try {
+      await ratingAPI.deleteRating(ratingId);
+      loadRatings();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete rating');
+    }
+  };
+
+  const renderStars = (rating) => {
+    return (
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <span
+            key={star}
+            className={`text-lg ${
+              star <= rating ? 'text-yellow-400' : 'text-gray-300'
+            }`}
+          >
+            ★
+          </span>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">My Ratings</h1>
+        <Button onClick={() => setShowRateForm(!showRateForm)}>
+          {showRateForm ? 'Cancel' : '⭐ Rate a Seller'}
+        </Button>
+      </div>
+
+      {showRateForm && (
+        <Card className="mb-6">
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Rate a Seller by Ad ID</h3>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <Input
+                  type="number"
+                  placeholder="Enter Ad ID (e.g., 123)"
+                  value={adIdInput}
+                  onChange={(e) => {
+                    setAdIdInput(e.target.value);
+                    setAdError(null);
+                  }}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      handleRateByAdId();
+                    }
+                  }}
+                />
+                {adError && (
+                  <p className="text-sm text-red-600 mt-2">{adError}</p>
+                )}
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-2">
+                  Enter the ID of an ad you purchased to rate the seller. You can find the ad ID on the ad detail page.
+                </p>
+              </div>
+              <Button
+                onClick={handleRateByAdId}
+                disabled={loadingAd || !adIdInput.trim()}
+              >
+                {loadingAd ? 'Loading...' : 'Load Ad'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {showRatingModal && selectedAd && selectedSeller && (
+        <RatingModal
+          ad={selectedAd}
+          seller={selectedSeller}
+          onClose={() => {
+            setShowRatingModal(false);
+            setSelectedAd(null);
+            setSelectedSeller(null);
+          }}
+          onSuccess={handleRatingSuccess}
+        />
+      )}
+
+      {loading ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-[hsl(var(--muted-foreground))]">Loading your ratings...</p>
+          </CardContent>
+        </Card>
+      ) : ratings.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-[hsl(var(--muted-foreground))] mb-4">
+              You haven't rated any sellers yet.
+            </p>
+            <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
+              Click "Rate a Seller" above to rate a seller by entering an ad ID.
+            </p>
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              Tip: You can also view seller profiles from ad listings and rate them there.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {ratings.map((rating) => (
+            <Card key={rating.id}>
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row gap-4">
+                  {/* Ad Image */}
+                  {rating.ad && (
+                    <div className="flex-shrink-0">
+                      <img
+                        src={rating.ad.image1_url || rating.ad.photos?.[0]?.photo_url || '/placeholder-image.png'}
+                        alt={rating.ad.title}
+                        className="w-32 h-32 object-cover rounded-md"
+                      />
+                    </div>
+                  )}
+
+                  {/* Rating Details */}
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h3 className="font-semibold text-lg text-[hsl(var(--foreground))] mb-1">
+                          {rating.ad?.title || 'Ad'}
+                        </h3>
+                        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-2">
+                          Seller: {rating.seller?.name || 'Unknown'}
+                          {rating.seller?.id && (
+                            <Link
+                              to={`/profile/${rating.seller.id}`}
+                              className="ml-2 text-[hsl(var(--primary))] hover:underline"
+                            >
+                              View Profile
+                            </Link>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {renderStars(rating.rating)}
+                        <span className="text-sm font-semibold text-[hsl(var(--foreground))]">
+                          {rating.rating}/5
+                        </span>
+                      </div>
+                    </div>
+
+                    {rating.comment && (
+                      <p className="text-sm text-[hsl(var(--foreground))] mb-3">
+                        {rating.comment}
+                      </p>
+                    )}
+
+                    {rating.criteria_scores && rating.criteria_scores.length > 0 && (
+                      <div className="mb-3 space-y-1">
+                        {rating.criteria_scores.map((cs, idx) => (
+                          <div key={idx} className="flex items-center gap-2 text-xs">
+                            <span className="text-[hsl(var(--muted-foreground))]">
+                              {cs.criteria_name}:
+                            </span>
+                            <div className="flex gap-0.5">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <span
+                                  key={star}
+                                  className={`text-xs ${
+                                    star <= cs.score ? 'text-yellow-400' : 'text-gray-300'
+                                  }`}
+                                >
+                                  ★
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
+                      <span>
+                        {new Date(rating.created_at).toLocaleDateString()}
+                      </span>
+                      {rating.purchase_verified && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded">
+                          ✓ Verified Purchase
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedAd(rating.ad);
+                          setSelectedSeller(rating.seller);
+                          setShowRatingModal(true);
+                        }}
+                      >
+                        Edit Rating
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteRating(rating.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
