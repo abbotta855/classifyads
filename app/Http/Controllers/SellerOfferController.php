@@ -16,6 +16,7 @@ class SellerOfferController extends Controller
         $user = $request->user();
 
         $offers = Offer::where('vendor_id', $user->id)
+            ->with('ad')
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -32,7 +33,7 @@ class SellerOfferController extends Controller
         $validated = $request->validate([
             'ad_id' => 'required|exists:ads,id',
             'offer_percentage' => 'required|numeric|min:1|max:100',
-            'valid_until' => 'required|date|after:today',
+            'valid_until' => 'required|date|after_or_equal:today',
         ]);
 
         $ad = Ad::findOrFail($validated['ad_id']);
@@ -43,6 +44,7 @@ class SellerOfferController extends Controller
         }
 
         $offer = Offer::create([
+            'ad_id' => $ad->id,
             'item_name' => $ad->title,
             'vendor_id' => $user->id,
             'offer_percentage' => $validated['offer_percentage'],
@@ -70,7 +72,7 @@ class SellerOfferController extends Controller
 
         $validated = $request->validate([
             'offer_percentage' => 'sometimes|numeric|min:1|max:100',
-            'valid_until' => 'sometimes|date|after:today',
+            'valid_until' => 'sometimes|date|after_or_equal:today',
         ]);
 
         $offer->update($validated);
@@ -111,7 +113,7 @@ class SellerOfferController extends Controller
         }
 
         $offers = Offer::where('vendor_id', $user->id)
-            ->where('item_name', 'like', '%' . $ad->title . '%')
+            ->where('ad_id', $ad->id)
             ->orderBy('created_at', 'desc')
             ->get();
 

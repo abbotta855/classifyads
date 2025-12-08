@@ -114,18 +114,34 @@ class BuyerSellerMessageController extends Controller
                 $query->orderBy('created_at', 'desc')->limit(1);
             }])
             ->get()
-            ->map(function ($ad) {
+            ->map(function ($ad) use ($user) {
                 $unreadCount = BuyerSellerMessage::where('ad_id', $ad->id)
                     ->where('seller_id', $ad->user_id)
                     ->where('sender_type', 'buyer')
                     ->where('is_read', false)
                     ->count();
 
+                // Get unique buyers for this ad
+                $buyers = BuyerSellerMessage::where('ad_id', $ad->id)
+                    ->where('sender_type', 'buyer')
+                    ->distinct('buyer_id')
+                    ->with('buyer')
+                    ->get()
+                    ->pluck('buyer')
+                    ->unique('id')
+                    ->values();
+
+                $lastMessage = $ad->buyerSellerMessages->first();
+
+                $firstBuyer = $buyers->first();
                 return [
                     'ad_id' => $ad->id,
                     'ad_title' => $ad->title,
-                    'last_message' => $ad->buyerSellerMessages->first(),
+                    'seller_id' => $user->id,
+                    'last_message' => $lastMessage,
+                    'last_message_at' => $lastMessage ? $lastMessage->created_at : null,
                     'unread_count' => $unreadCount,
+                    'other_party_name' => $firstBuyer ? $firstBuyer->name : 'Buyer',
                 ];
             });
 
@@ -149,7 +165,7 @@ class BuyerSellerMessageController extends Controller
                 $query->where('buyer_id', $user->id)
                     ->orderBy('created_at', 'desc')
                     ->limit(1);
-            }])
+            }, 'user'])
             ->get()
             ->map(function ($ad) use ($user) {
                 $unreadCount = BuyerSellerMessage::where('ad_id', $ad->id)
@@ -158,11 +174,16 @@ class BuyerSellerMessageController extends Controller
                     ->where('is_read', false)
                     ->count();
 
+                $lastMessage = $ad->buyerSellerMessages->first();
+
                 return [
                     'ad_id' => $ad->id,
                     'ad_title' => $ad->title,
+                    'seller_id' => $ad->user_id,
                     'seller_name' => $ad->user->name ?? 'Unknown',
-                    'last_message' => $ad->buyerSellerMessages->first(),
+                    'other_party_name' => $ad->user->name ?? 'Seller',
+                    'last_message' => $lastMessage,
+                    'last_message_at' => $lastMessage ? $lastMessage->created_at : null,
                     'unread_count' => $unreadCount,
                 ];
             });

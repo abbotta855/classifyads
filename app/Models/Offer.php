@@ -9,6 +9,7 @@ class Offer extends Model
 {
     protected $fillable = [
         'item_name',
+        'ad_id',
         'vendor_id',
         'offer_percentage',
         'created_date',
@@ -25,6 +26,11 @@ class Offer extends Model
     public function vendor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'vendor_id');
+    }
+
+    public function ad(): BelongsTo
+    {
+        return $this->belongsTo(Ad::class);
     }
 }
 

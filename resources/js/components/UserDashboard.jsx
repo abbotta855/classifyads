@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI } from '../utils/api';
+import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI, sellerOfferAPI, buyerSellerMessageAPI } from '../utils/api';
 import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import RatingModal from './RatingModal';
 import PhotoCropModal from './PhotoCropModal';
@@ -2314,16 +2314,35 @@ function WatchListSection({ user }) {
 }
 
 function InboxSection({ user }) {
+  const [activeTab, setActiveTab] = useState('support'); // 'support' or 'buyer-seller'
   const [chats, setChats] = useState([]);
   const [selectedChat, setSelectedChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  
+  // Buyer-Seller Conversations
+  const [buyerSellerConversations, setBuyerSellerConversations] = useState([]);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [conversationMessages, setConversationMessages] = useState([]);
+  const [loadingConversations, setLoadingConversations] = useState(true);
+  const messagesEndRef = useRef(null);
 
   useEffect(() => {
     fetchChats();
+    fetchBuyerSellerConversations();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'buyer-seller' && selectedConversation) {
+      loadConversationMessages(selectedConversation.ad_id);
+      const interval = setInterval(() => {
+        loadConversationMessages(selectedConversation.ad_id);
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, selectedConversation]);
 
   useEffect(() => {
     if (selectedChat) {
@@ -2386,6 +2405,64 @@ function InboxSection({ user }) {
     }
   };
 
+  const fetchBuyerSellerConversations = async () => {
+    setLoadingConversations(true);
+    try {
+      let response;
+      // Check if user has any ads (seller) or is a buyer
+      const userAds = await userAdAPI.getAds();
+      if (userAds.data && userAds.data.length > 0) {
+        // User is a seller - get seller conversations
+        response = await buyerSellerMessageAPI.getSellerConversations();
+      } else {
+        // User is a buyer - get buyer conversations
+        response = await buyerSellerMessageAPI.getBuyerConversations();
+      }
+      setBuyerSellerConversations(response.data || []);
+      if (response.data && response.data.length > 0 && !selectedConversation) {
+        setSelectedConversation(response.data[0]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch buyer-seller conversations:', err);
+    } finally {
+      setLoadingConversations(false);
+    }
+  };
+
+  const loadConversationMessages = async (adId) => {
+    try {
+      const response = await buyerSellerMessageAPI.getConversation(adId);
+      setConversationMessages(response.data || []);
+      // Auto-scroll to bottom after messages load
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (err) {
+      console.error('Failed to load conversation messages:', err);
+    }
+  };
+
+  const handleSendBuyerSellerMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedConversation || sending) return;
+
+    setSending(true);
+    try {
+      await buyerSellerMessageAPI.sendMessage(selectedConversation.ad_id, {
+        message: newMessage.trim(),
+        sender_type: user.id === selectedConversation.seller_id ? 'seller' : 'buyer',
+      });
+      setNewMessage('');
+      await loadConversationMessages(selectedConversation.ad_id);
+      fetchBuyerSellerConversations();
+    } catch (err) {
+      console.error('Failed to send message:', err);
+      alert(err.response?.data?.error || 'Failed to send message');
+    } finally {
+      setSending(false);
+    }
+  };
+
   if (loading) {
     return (
       <div>
@@ -2400,54 +2477,82 @@ function InboxSection({ user }) {
   }
 
   return (
-    <div className="flex h-[calc(100vh-200px)] gap-4">
-      {/* Chat List */}
-      <div className="w-1/3 border-r">
-        <div className="p-4 border-b flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Conversations</h2>
-          <Button size="sm" onClick={handleCreateChat}>+ New</Button>
-        </div>
-        <div className="overflow-y-auto">
-          {chats.length === 0 ? (
-            <div className="p-4 text-center text-[hsl(var(--muted-foreground))]">
-              <p className="mb-4">No conversations yet</p>
-              <Button size="sm" onClick={handleCreateChat}>Start a conversation</Button>
-            </div>
-          ) : (
-            chats.map((chat) => (
-              <div
-                key={chat.id}
-                onClick={() => setSelectedChat(chat)}
-                className={`p-4 border-b cursor-pointer hover:bg-[hsl(var(--accent))] transition-colors ${
-                  selectedChat?.id === chat.id ? 'bg-[hsl(var(--accent))]' : ''
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <p className="font-medium text-[hsl(var(--foreground))]">Support Team</p>
-                  {chat.unread_count > 0 && (
-                    <span className="bg-[hsl(var(--primary))] text-white text-xs rounded-full px-2 py-1">
-                      {chat.unread_count}
-                    </span>
-                  )}
-                </div>
-                {chat.messages && chat.messages.length > 0 && (
-                  <p className="text-sm text-[hsl(var(--muted-foreground))] line-clamp-1">
-                    {chat.messages[0].message}
-                  </p>
-                )}
-                {chat.last_message_at && (
-                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                    {new Date(chat.last_message_at).toLocaleDateString()}
-                  </p>
-                )}
-              </div>
-            ))
-          )}
-        </div>
+    <div>
+      <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">Inbox</h1>
+      
+      {/* Tabs */}
+      <div className="flex gap-2 mb-4 border-b border-[hsl(var(--border))]">
+        <button
+          onClick={() => setActiveTab('support')}
+          className={`px-4 py-2 font-semibold border-b-2 transition-colors ${
+            activeTab === 'support'
+              ? 'border-[hsl(var(--primary))] text-[hsl(var(--primary))]'
+              : 'border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+          }`}
+        >
+          Support Chat
+        </button>
+        <button
+          onClick={() => setActiveTab('buyer-seller')}
+          className={`px-4 py-2 font-semibold border-b-2 transition-colors ${
+            activeTab === 'buyer-seller'
+              ? 'border-[hsl(var(--primary))] text-[hsl(var(--primary))]'
+              : 'border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+          }`}
+        >
+          Buyer-Seller Messages
+        </button>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 flex flex-col">
+      {activeTab === 'support' ? (
+        <div className="flex h-[calc(100vh-300px)] gap-4">
+          {/* Chat List */}
+          <div className="w-1/3 border-r">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Conversations</h2>
+              <Button size="sm" onClick={handleCreateChat}>+ New</Button>
+            </div>
+            <div className="overflow-y-auto">
+              {chats.length === 0 ? (
+                <div className="p-4 text-center text-[hsl(var(--muted-foreground))]">
+                  <p className="mb-4">No conversations yet</p>
+                  <Button size="sm" onClick={handleCreateChat}>Start a conversation</Button>
+                </div>
+              ) : (
+                chats.map((chat) => (
+                  <div
+                    key={chat.id}
+                    onClick={() => setSelectedChat(chat)}
+                    className={`p-4 border-b cursor-pointer hover:bg-[hsl(var(--accent))] transition-colors ${
+                      selectedChat?.id === chat.id ? 'bg-[hsl(var(--accent))]' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="font-medium text-[hsl(var(--foreground))]">Support Team</p>
+                      {chat.unread_count > 0 && (
+                        <span className="bg-[hsl(var(--primary))] text-white text-xs rounded-full px-2 py-1">
+                          {chat.unread_count}
+                        </span>
+                      )}
+                    </div>
+                    {chat.messages && chat.messages.length > 0 && (
+                      <p className="text-sm text-[hsl(var(--muted-foreground))] line-clamp-1">
+                        {chat.messages[0].message}
+                      </p>
+                    )}
+                    {chat.last_message_at && (
+                      <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                        {new Date(chat.last_message_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 flex flex-col">
         {selectedChat ? (
           <>
             <div className="p-4 border-b">
@@ -2501,7 +2606,137 @@ function InboxSection({ user }) {
             </div>
           </div>
         )}
-      </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex h-[calc(100vh-300px)] gap-4">
+          {/* Buyer-Seller Conversation List */}
+          <div className="w-1/3 border-r">
+            <div className="p-4 border-b">
+              <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Ad Conversations</h2>
+            </div>
+            <div className="overflow-y-auto">
+              {loadingConversations ? (
+                <div className="p-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading conversations...
+                </div>
+              ) : buyerSellerConversations.length === 0 ? (
+                <div className="p-4 text-center text-[hsl(var(--muted-foreground))]">
+                  <p className="mb-4">No buyer-seller conversations yet</p>
+                  <p className="text-sm">Start a conversation from an ad detail page</p>
+                </div>
+              ) : (
+                buyerSellerConversations.map((conv) => (
+                  <div
+                    key={conv.ad_id}
+                    onClick={() => setSelectedConversation(conv)}
+                    className={`p-4 border-b cursor-pointer hover:bg-[hsl(var(--accent))] transition-colors ${
+                      selectedConversation?.ad_id === conv.ad_id ? 'bg-[hsl(var(--accent))]' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="font-medium text-[hsl(var(--foreground))] line-clamp-1">
+                        {conv.ad_title || `Ad #${conv.ad_id}`}
+                      </p>
+                      {conv.unread_count > 0 && (
+                        <span className="bg-[hsl(var(--primary))] text-white text-xs rounded-full px-2 py-1 ml-2">
+                          {conv.unread_count}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                      {conv.seller_id === user.id ? 'Buyer' : 'Seller'}: {conv.other_party_name}
+                    </p>
+                    {conv.last_message_at && (
+                      <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                        {new Date(conv.last_message_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Buyer-Seller Messages */}
+          <div className="flex-1 flex flex-col">
+            {selectedConversation ? (
+              <>
+                <div className="p-4 border-b">
+                  <h3 className="font-semibold text-[hsl(var(--foreground))]">
+                    {selectedConversation.ad_title || `Ad #${selectedConversation.ad_id}`}
+                  </h3>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                    {selectedConversation.seller_id === user.id ? 'Buyer' : 'Seller'}: {selectedConversation.other_party_name}
+                  </p>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {conversationMessages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-[hsl(var(--muted-foreground))] text-center">
+                        No messages yet. Start the conversation below.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {conversationMessages.map((message) => {
+                        const isOtherParty = message.sender_type === (selectedConversation.seller_id === user.id ? 'buyer' : 'seller');
+                        return (
+                          <div
+                            key={message.id}
+                            className={`flex ${isOtherParty ? 'justify-start' : 'justify-end'}`}
+                          >
+                            <div
+                              className={`max-w-[70%] rounded-lg p-3 ${
+                                isOtherParty
+                                  ? 'bg-[hsl(var(--muted))] text-[hsl(var(--foreground))]'
+                                  : 'bg-[hsl(var(--primary))] text-white'
+                              }`}
+                            >
+                              <p className="text-sm">{message.message}</p>
+                              <p className={`text-xs mt-1 ${
+                                isOtherParty
+                                  ? 'text-[hsl(var(--muted-foreground))]'
+                                  : 'text-white/70'
+                              }`}>
+                                {new Date(message.created_at).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div ref={messagesEndRef} />
+                    </>
+                  )}
+                </div>
+                <form onSubmit={handleSendBuyerSellerMessage} className="p-4 border-t flex gap-2">
+                  <Input
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type your message..."
+                    className="flex-1"
+                  />
+                  <Button type="submit" disabled={sending || !newMessage.trim()}>
+                    Send
+                  </Button>
+                </form>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-6xl mb-4">💬</div>
+                  <h3 className="text-xl font-semibold text-[hsl(var(--foreground))] mb-2">
+                    Select a conversation
+                  </h3>
+                  <p className="text-[hsl(var(--muted-foreground))]">
+                    Choose a conversation from the list
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3819,6 +4054,14 @@ function ItemsSellingSection({ user, userAds }) {
   const [error, setError] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [showOfferForm, setShowOfferForm] = useState(false);
+  const [editingOffer, setEditingOffer] = useState(null);
+  const [offerFormData, setOfferFormData] = useState({
+    offer_percentage: '',
+    valid_until: '',
+  });
+  const [offerError, setOfferError] = useState(null);
+  const [offerSuccess, setOfferSuccess] = useState(null);
 
   useEffect(() => {
     loadItemsSelling();
@@ -3844,8 +4087,95 @@ function ItemsSellingSection({ user, userAds }) {
       const response = await itemsSellingAPI.getItemDetails(itemId);
       setSelectedItem(response.data);
       setShowDetails(true);
+      // Load offers for this ad
+      loadOffers(itemId);
     } catch (err) {
       console.error('Error loading item details:', err);
+    }
+  };
+
+  const loadOffers = async (adId) => {
+    try {
+      const response = await sellerOfferAPI.getAdOffers(adId);
+      if (selectedItem) {
+        setSelectedItem({
+          ...selectedItem,
+          offers: response.data || [],
+        });
+      }
+    } catch (err) {
+      console.error('Error loading offers:', err);
+    }
+  };
+
+  const handleCreateOffer = () => {
+    setEditingOffer(null);
+    setOfferFormData({
+      offer_percentage: '',
+      valid_until: '',
+    });
+    setOfferError(null);
+    setOfferSuccess(null);
+    setShowOfferForm(true);
+  };
+
+  const handleEditOffer = (offer) => {
+    setEditingOffer(offer);
+    setOfferFormData({
+      offer_percentage: offer.offer_percentage.toString(),
+      valid_until: new Date(offer.valid_until).toISOString().split('T')[0],
+    });
+    setOfferError(null);
+    setOfferSuccess(null);
+    setShowOfferForm(true);
+  };
+
+  const handleDeleteOffer = async (offerId) => {
+    if (!window.confirm('Are you sure you want to delete this offer?')) {
+      return;
+    }
+
+    try {
+      await sellerOfferAPI.deleteOffer(offerId);
+      setOfferSuccess('Offer deleted successfully');
+      if (selectedItem) {
+        loadOffers(selectedItem.id);
+      }
+      setTimeout(() => setOfferSuccess(null), 3000);
+    } catch (err) {
+      setOfferError(err.response?.data?.error || 'Failed to delete offer');
+      setTimeout(() => setOfferError(null), 3000);
+    }
+  };
+
+  const handleOfferSubmit = async (e) => {
+    e.preventDefault();
+    setOfferError(null);
+    setOfferSuccess(null);
+
+    if (!selectedItem) return;
+
+    try {
+      const data = {
+        ad_id: selectedItem.id,
+        offer_percentage: parseFloat(offerFormData.offer_percentage),
+        valid_until: offerFormData.valid_until,
+      };
+
+      if (editingOffer) {
+        await sellerOfferAPI.updateOffer(editingOffer.id, data);
+        setOfferSuccess('Offer updated successfully');
+      } else {
+        await sellerOfferAPI.createOffer(data);
+        setOfferSuccess('Offer created successfully');
+      }
+
+      setShowOfferForm(false);
+      loadOffers(selectedItem.id);
+      setTimeout(() => setOfferSuccess(null), 3000);
+    } catch (err) {
+      setOfferError(err.response?.data?.error || 'Failed to save offer');
+      setTimeout(() => setOfferError(null), 3000);
     }
   };
 
@@ -4104,32 +4434,137 @@ function ItemsSellingSection({ user, userAds }) {
               )}
 
               {/* Offers */}
-              {selectedItem.offers && selectedItem.offers.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-3">Offers</h3>
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Offers</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCreateOffer}
+                  >
+                    + Create Offer
+                  </Button>
+                </div>
+                
+                {offerError && (
+                  <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-sm text-red-600">{offerError}</p>
+                  </div>
+                )}
+                
+                {offerSuccess && (
+                  <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-md">
+                    <p className="text-sm text-green-600">{offerSuccess}</p>
+                  </div>
+                )}
+
+                {selectedItem.offers && selectedItem.offers.length > 0 ? (
                   <div className="space-y-2">
                     {selectedItem.offers.map((offer) => (
                       <div key={offer.id} className="p-3 border border-[hsl(var(--border))] rounded-md">
                         <div className="flex justify-between items-center">
-                          <div>
+                          <div className="flex-1">
                             <p className="font-semibold text-[hsl(var(--foreground))]">
                               {offer.offer_percentage}% Discount
+                            </p>
+                            <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                              Created: {new Date(offer.created_date).toLocaleDateString()}
                             </p>
                             <p className="text-sm text-[hsl(var(--muted-foreground))]">
                               Valid until: {new Date(offer.valid_until).toLocaleDateString()}
                             </p>
                           </div>
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                            offer.status === 'approved'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {offer.status}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                              offer.status === 'approved'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {offer.status}
+                            </span>
+                            {offer.status === 'pending' && (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEditOffer(offer)}
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDeleteOffer(offer.id)}
+                                  className="text-red-600"
+                                >
+                                  Delete
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
+                ) : (
+                  <p className="text-sm text-[hsl(var(--muted-foreground))] py-4">
+                    No offers created yet. Click "Create Offer" to add one.
+                  </p>
+                )}
+              </div>
+
+              {/* Offer Form Modal */}
+              {showOfferForm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                  <Card className="max-w-md w-full">
+                    <CardHeader>
+                      <CardTitle>{editingOffer ? 'Edit Offer' : 'Create New Offer'}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <form onSubmit={handleOfferSubmit} className="space-y-4">
+                        <div>
+                          <Label htmlFor="offer_percentage">Discount Percentage *</Label>
+                          <Input
+                            id="offer_percentage"
+                            type="number"
+                            min="1"
+                            max="100"
+                            step="0.01"
+                            value={offerFormData.offer_percentage}
+                            onChange={(e) => setOfferFormData({ ...offerFormData, offer_percentage: e.target.value })}
+                            placeholder="e.g., 25.5"
+                            required
+                          />
+                          <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                            Enter discount percentage (1-100%)
+                          </p>
+                        </div>
+                        <div>
+                          <Label htmlFor="valid_until">Valid Until *</Label>
+                          <Input
+                            id="valid_until"
+                            type="date"
+                            value={offerFormData.valid_until}
+                            onChange={(e) => setOfferFormData({ ...offerFormData, valid_until: e.target.value })}
+                            min={new Date().toISOString().split('T')[0]}
+                            required
+                          />
+                        </div>
+                        <div className="flex gap-2 pt-4">
+                          <Button type="submit" className="flex-1">
+                            {editingOffer ? 'Update Offer' : 'Create Offer'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShowOfferForm(false)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </form>
+                    </CardContent>
+                  </Card>
                 </div>
               )}
             </CardContent>

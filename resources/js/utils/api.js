@@ -378,3 +378,20 @@ export const publicAdAPI = {
   trackClick: (adId) => axios.post(`/api/ads/${adId}/click`),
 };
 
+// Buyer-Seller Messaging API
+export const buyerSellerMessageAPI = {
+  getConversation: (adId) => axios.get(`/api/messages/conversation/${adId}`),
+  sendMessage: (adId, data) => axios.post(`/api/messages/${adId}`, data),
+  getSellerConversations: () => axios.get('/api/messages/seller/conversations'),
+  getBuyerConversations: () => axios.get('/api/messages/buyer/conversations'),
+};
+
+// Seller Offer Management API
+export const sellerOfferAPI = {
+  getOffers: () => axios.get('/api/seller/offers'),
+  createOffer: (data) => axios.post('/api/seller/offers', data),
+  updateOffer: (id, data) => axios.put(`/api/seller/offers/${id}`, data),
+  deleteOffer: (id) => axios.delete(`/api/seller/offers/${id}`),
+  getAdOffers: (adId) => axios.get(`/api/seller/offers/ad/${adId}`),
+};
+

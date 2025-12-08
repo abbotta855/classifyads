@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Layout from './Layout';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
-import { ratingAPI, publicProfileAPI, favouriteAPI, watchlistAPI, userAdAPI, publicAdAPI } from '../utils/api';
+import { ratingAPI, publicProfileAPI, favouriteAPI, watchlistAPI, userAdAPI, publicAdAPI, buyerSellerMessageAPI } from '../utils/api';
 import RatingModal from './RatingModal';
 import axios from 'axios';
 
@@ -20,6 +20,11 @@ function AdDetailPage() {
   const [isWatchlist, setIsWatchlist] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [sellerRating, setSellerRating] = useState(null);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
 
   useEffect(() => {
     loadAd();
@@ -32,6 +37,12 @@ function AdDetailPage() {
       loadSellerRating();
     }
   }, [ad, user]);
+
+  useEffect(() => {
+    if (showMessageModal && ad && user) {
+      loadConversation();
+    }
+  }, [showMessageModal, ad, user]);
 
   const loadAd = async () => {
     setLoading(true);
@@ -148,6 +159,53 @@ function AdDetailPage() {
     }
 
     setShowRatingModal(true);
+  };
+
+  const loadConversation = async () => {
+    if (!ad || !user) return;
+    
+    setLoadingMessages(true);
+    try {
+      const response = await buyerSellerMessageAPI.getConversation(ad.id);
+      setMessages(response.data || []);
+    } catch (err) {
+      console.error('Error loading conversation:', err);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !ad || !user || sendingMessage) return;
+
+    setSendingMessage(true);
+    try {
+      await buyerSellerMessageAPI.sendMessage(ad.id, {
+        message: newMessage.trim(),
+        sender_type: 'buyer',
+      });
+      setNewMessage('');
+      loadConversation(); // Reload messages
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to send message');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  const handleContactSeller = () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    if (user.id === ad.user_id) {
+      alert('You cannot contact yourself.');
+      return;
+    }
+
+    setShowMessageModal(true);
   };
 
   if (loading) {
@@ -392,19 +450,87 @@ function AdDetailPage() {
                       )}
                     </div>
                   </div>
-                  <Link
-                    to={`/profile/${ad.seller.id}`}
-                    className="block"
-                  >
-                    <Button variant="outline" className="w-full">
-                      View Seller Profile →
-                    </Button>
-                  </Link>
+                  <div className="space-y-2">
+                    {user && user.id !== ad.user_id && (
+                      <Button
+                        onClick={handleContactSeller}
+                        className="w-full"
+                      >
+                        💬 Contact Seller
+                      </Button>
+                    )}
+                    <Link
+                      to={`/profile/${ad.seller.id}`}
+                      className="block"
+                    >
+                      <Button variant="outline" className="w-full">
+                        View Seller Profile →
+                      </Button>
+                    </Link>
+                  </div>
                 </CardContent>
               </Card>
             )}
           </div>
         </div>
+
+        {/* Buyer-Seller Messaging Modal */}
+        {showMessageModal && ad && user && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <Card className="max-w-2xl w-full max-h-[80vh] flex flex-col">
+              <CardHeader className="flex items-center justify-between flex-shrink-0">
+                <CardTitle>Contact Seller: {ad.seller?.name}</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => setShowMessageModal(false)}>✕</Button>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-y-auto space-y-4">
+                {loadingMessages ? (
+                  <p className="text-center text-[hsl(var(--muted-foreground))]">Loading messages...</p>
+                ) : messages.length === 0 ? (
+                  <p className="text-center text-[hsl(var(--muted-foreground))] py-8">
+                    No messages yet. Start the conversation below.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {messages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`flex ${msg.sender_type === 'buyer' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-[70%] rounded-lg p-3 ${
+                            msg.sender_type === 'buyer'
+                              ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+                              : 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))]'
+                          }`}
+                        >
+                          <p className="text-sm">{msg.message}</p>
+                          <p className="text-xs mt-1 opacity-70">
+                            {new Date(msg.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+              <CardContent className="flex-shrink-0 border-t border-[hsl(var(--border))] pt-4">
+                <form onSubmit={handleSendMessage} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type your message..."
+                    className="flex-1 px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                    disabled={sendingMessage}
+                  />
+                  <Button type="submit" disabled={sendingMessage || !newMessage.trim()}>
+                    {sendingMessage ? 'Sending...' : 'Send'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </Layout>
   );

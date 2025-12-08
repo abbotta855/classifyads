@@ -49,7 +49,7 @@ class ItemsSellingController extends Controller
             
             // Get offers for this ad
             $offers = Offer::where('vendor_id', $user->id)
-                ->where('item_name', 'like', '%' . $ad->title . '%')
+                ->where('ad_id', $ad->id)
                 ->orderBy('created_at', 'desc')
                 ->get();
             
@@ -152,7 +152,7 @@ class ItemsSellingController extends Controller
             ->count('buyer_id');
         
         $offers = Offer::where('vendor_id', $user->id)
-            ->where('item_name', 'like', '%' . $ad->title . '%')
+            ->where('ad_id', $ad->id)
             ->get();
         
         $buyers = Transaction::where('related_ad_id', $ad->id)
