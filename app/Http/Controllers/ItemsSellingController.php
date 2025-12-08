@@ -10,6 +10,7 @@ use App\Models\SavedSearch;
 use App\Models\Transaction;
 use App\Models\LiveChat;
 use App\Models\Offer;
+use App\Models\AdClick;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -31,7 +32,7 @@ class ItemsSellingController extends Controller
         $itemsSelling = $ads->map(function ($ad) use ($user) {
             // Count metrics
             $views = $ad->views ?? 0;
-            $clicks = $this->getAdClicks($ad->id); // Will implement clicks tracking
+            $clicks = AdClick::where('ad_id', $ad->id)->count();
             $watchlistCount = Watchlist::where('ad_id', $ad->id)->count();
             $favouriteCount = Favourite::where('ad_id', $ad->id)->count();
             $savedSearchCount = SavedSearch::where('search_query', 'like', '%' . $ad->title . '%')
@@ -136,7 +137,7 @@ class ItemsSellingController extends Controller
 
         // Get all the same metrics as index but for single ad
         $views = $ad->views ?? 0;
-        $clicks = $this->getAdClicks($ad->id);
+        $clicks = AdClick::where('ad_id', $ad->id)->count();
         $watchlistCount = Watchlist::where('ad_id', $ad->id)->count();
         $favouriteCount = Favourite::where('ad_id', $ad->id)->count();
         $savedSearchCount = SavedSearch::where('search_query', 'like', '%' . $ad->title . '%')
@@ -213,14 +214,5 @@ class ItemsSellingController extends Controller
         ]);
     }
 
-    /**
-     * Get ad clicks count (placeholder - will be implemented with clicks tracking)
-     */
-    private function getAdClicks($adId)
-    {
-        // TODO: Implement clicks tracking table
-        // For now, return 0 or use a placeholder
-        return 0;
-    }
 }
 

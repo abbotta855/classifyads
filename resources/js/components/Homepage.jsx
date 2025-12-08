@@ -488,7 +488,15 @@ function Homepage() {
   // Removed generateMockAds() - now using fetchAds() to get real data from API
 
   // Handle ad click - navigate to detail page
-  const handleAdClick = (adId) => {
+  const handleAdClick = async (adId) => {
+    // Track click (fire and forget - don't wait for response)
+    try {
+      await window.axios.post(`/api/ads/${adId}/click`);
+    } catch (err) {
+      // Silently fail - don't block navigation
+      console.error('Failed to track click:', err);
+    }
+    
     // Navigate to ad detail page
     navigate(`/ads/${adId}`);
   };

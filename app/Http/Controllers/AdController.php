@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ad;
+use App\Models\AdClick;
 use Illuminate\Http\Request;
 
 class AdController extends Controller
@@ -176,6 +177,38 @@ class AdController extends Controller
                 'error' => 'Ad not found',
                 'message' => $e->getMessage(),
             ], 404);
+        }
+    }
+
+    /**
+     * Track a click on an ad
+     */
+    public function trackClick(Request $request, $id)
+    {
+        try {
+            $ad = Ad::findOrFail($id);
+
+            // Get user if authenticated
+            $userId = $request->user() ? $request->user()->id : null;
+
+            // Create click record
+            AdClick::create([
+                'ad_id' => $ad->id,
+                'user_id' => $userId,
+                'clicked_at' => now(),
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+
+            return response()->json([
+                'message' => 'Click tracked',
+                'ad_id' => $ad->id,
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to track click',
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
 }

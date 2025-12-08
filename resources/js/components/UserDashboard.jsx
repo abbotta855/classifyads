@@ -9,6 +9,7 @@ import { Label } from './ui/label';
 import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI } from '../utils/api';
 import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import RatingModal from './RatingModal';
+import PhotoCropModal from './PhotoCropModal';
 import axios from 'axios';
 
 function UserDashboard({ mode: propMode }) {
@@ -1064,6 +1065,8 @@ function AdPostSection({ user }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [cropImageIndex, setCropImageIndex] = useState(null);
+  const [cropImageFile, setCropImageFile] = useState(null);
   const locationDropdownRef = useRef(null);
 
   useEffect(() => {
@@ -1149,11 +1152,19 @@ function AdPostSection({ user }) {
   const handleImageChange = async (index, file) => {
     if (!file) return;
     
+    // Open crop modal for the image
+    setCropImageIndex(index);
+    setCropImageFile(file);
+  };
+
+  const handleCropComplete = async (croppedFile) => {
+    if (cropImageIndex === null) return;
+    
     // Compress image if it's larger than 1MB
-    let processedFile = file;
-    if (file.size > 1024 * 1024) { // 1MB
+    let processedFile = croppedFile;
+    if (croppedFile.size > 1024 * 1024) { // 1MB
       try {
-        processedFile = await compressImage(file);
+        processedFile = await compressImage(croppedFile);
       } catch (err) {
         console.error('Error compressing image:', err);
         // Use original file if compression fails
@@ -1161,8 +1172,17 @@ function AdPostSection({ user }) {
     }
     
     const newImages = [...images];
-    newImages[index] = processedFile;
+    newImages[cropImageIndex] = processedFile;
     setImages(newImages);
+    
+    // Close crop modal
+    setCropImageIndex(null);
+    setCropImageFile(null);
+  };
+
+  const handleCropCancel = () => {
+    setCropImageIndex(null);
+    setCropImageFile(null);
   };
 
   const handleRemoveImage = (index) => {
@@ -1531,13 +1551,27 @@ function AdPostSection({ user }) {
                           alt={`Preview ${index + 1}`}
                           className="w-full h-32 object-cover rounded-md border border-[hsl(var(--border))]"
                         />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(index)}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
-                        >
-                          ×
-                        </button>
+                        <div className="absolute top-1 right-1 flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCropImageIndex(index);
+                              setCropImageFile(images[index]);
+                            }}
+                            className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-blue-600"
+                            title="Crop Image"
+                          >
+                            ✂️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index)}
+                            className="bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                            title="Remove Image"
+                          >
+                            ×
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-[hsl(var(--border))] rounded-md cursor-pointer hover:bg-[hsl(var(--accent))]">
@@ -1567,6 +1601,18 @@ function AdPostSection({ user }) {
           </form>
         </CardContent>
       </Card>
+
+      {/* Photo Crop Modal */}
+      {cropImageFile && cropImageIndex !== null && (
+        <PhotoCropModal
+          imageFile={cropImageFile}
+          onCropComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+          aspectRatio={null} // Free crop, can be changed to specific ratios like 1, 4/3, 16/9
+          minWidth={200}
+          minHeight={200}
+        />
+      )}
     </div>
   );
 }

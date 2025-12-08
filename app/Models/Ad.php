@@ -67,4 +67,12 @@ class Ad extends Model
   {
     return $this->hasMany(RecentlyViewed::class);
   }
+
+  /**
+   * Get all clicks on this ad
+   */
+  public function clicks()
+  {
+    return $this->hasMany(AdClick::class);
+  }
 }

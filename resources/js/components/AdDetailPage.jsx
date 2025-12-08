@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Layout from './Layout';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
-import { ratingAPI, publicProfileAPI, favouriteAPI, watchlistAPI, userAdAPI } from '../utils/api';
+import { ratingAPI, publicProfileAPI, favouriteAPI, watchlistAPI, userAdAPI, publicAdAPI } from '../utils/api';
 import RatingModal from './RatingModal';
 import axios from 'axios';
 
@@ -40,13 +40,20 @@ function AdDetailPage() {
       const response = await axios.get(`/api/ads/${id}`);
       setAd(response.data);
       
-      // Track view
+      // Track view and click
       if (user) {
         try {
           await userAdAPI.incrementView(id);
         } catch (err) {
           // Silently fail
         }
+      }
+      
+      // Track click (for both authenticated and anonymous users)
+      try {
+        await publicAdAPI.trackClick(id);
+      } catch (err) {
+        // Silently fail
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load ad');

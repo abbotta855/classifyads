@@ -373,3 +373,8 @@ export const itemsSellingAPI = {
   getItemDetails: (id) => axios.get(`/api/items-selling/${id}`),
 };
 
+// Public Ad API
+export const publicAdAPI = {
+  trackClick: (adId) => axios.post(`/api/ads/${adId}/click`),
+};
+
