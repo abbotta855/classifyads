@@ -11,6 +11,7 @@ use App\Models\Transaction;
 use App\Models\LiveChat;
 use App\Models\Offer;
 use App\Models\AdClick;
+use App\Models\BuyerSellerMessage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -39,17 +40,17 @@ class ItemsSellingController extends Controller
                 ->orWhere('search_query', 'like', '%' . ($ad->category->category ?? '') . '%')
                 ->count();
             
-            // Count inquiries (messages related to this ad)
-            // For now, we'll count live chats - in future, link chats to ads
-            $inquiriesCount = LiveChat::where('user_id', '!=', $user->id)
-                ->whereHas('messages', function ($query) use ($ad) {
-                    $query->where('message', 'like', '%' . $ad->title . '%');
-                })
-                ->count();
+            // Count inquiries (buyer messages about this ad)
+            $inquiriesCount = BuyerSellerMessage::where('ad_id', $ad->id)
+                ->where('seller_id', $user->id)
+                ->where('sender_type', 'buyer')
+                ->distinct('buyer_id')
+                ->count('buyer_id');
             
-            // Get offers for this ad (if offers table is linked to ads)
+            // Get offers for this ad
             $offers = Offer::where('vendor_id', $user->id)
                 ->where('item_name', 'like', '%' . $ad->title . '%')
+                ->orderBy('created_at', 'desc')
                 ->get();
             
             // Get buyers (transactions where this ad was purchased)
@@ -144,11 +145,11 @@ class ItemsSellingController extends Controller
             ->orWhere('search_query', 'like', '%' . ($ad->category->category ?? '') . '%')
             ->count();
         
-        $inquiriesCount = LiveChat::where('user_id', '!=', $user->id)
-            ->whereHas('messages', function ($query) use ($ad) {
-                $query->where('message', 'like', '%' . $ad->title . '%');
-            })
-            ->count();
+        $inquiriesCount = BuyerSellerMessage::where('ad_id', $ad->id)
+            ->where('seller_id', $user->id)
+            ->where('sender_type', 'buyer')
+            ->distinct('buyer_id')
+            ->count('buyer_id');
         
         $offers = Offer::where('vendor_id', $user->id)
             ->where('item_name', 'like', '%' . $ad->title . '%')

@@ -27,10 +27,32 @@ class ProfileController extends Controller
         $userAds = \App\Models\Ad::where('user_id', $user->id)->get();
         if ($userAds->count() > 0) {
             // Calculate response rate: (Messages responded to / Total messages received) * 100
-            // TODO: Implement proper buyer-seller messaging system for accurate response rate
-            // For now, using a placeholder calculation
-            // This will be properly implemented when buyer-seller messaging is added
-            $responseRate = 100; // Placeholder - will be calculated from actual message responses
+            $adIds = $userAds->pluck('id');
+            
+            // Get all buyer messages to this seller
+            $buyerMessages = \App\Models\BuyerSellerMessage::whereIn('ad_id', $adIds)
+                ->where('seller_id', $user->id)
+                ->where('sender_type', 'buyer')
+                ->get();
+            
+            // Get all seller responses (messages sent by seller after a buyer message)
+            $sellerResponses = \App\Models\BuyerSellerMessage::whereIn('ad_id', $adIds)
+                ->where('seller_id', $user->id)
+                ->where('sender_type', 'seller')
+                ->get();
+            
+            // Group buyer messages by ad_id to count unique conversations
+            $conversations = $buyerMessages->groupBy('ad_id');
+            $respondedConversations = $sellerResponses->pluck('ad_id')->unique();
+            
+            $totalInquiries = $conversations->count();
+            $respondedInquiries = $respondedConversations->count();
+            
+            if ($totalInquiries > 0) {
+                $responseRate = round(($respondedInquiries / $totalInquiries) * 100, 2);
+            } else {
+                $responseRate = null; // No inquiries yet
+            }
             
             // Total sold items
             $totalSold = $userAds->where('status', 'sold')->count();

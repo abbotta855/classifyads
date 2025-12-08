@@ -75,4 +75,12 @@ class Ad extends Model
   {
     return $this->hasMany(AdClick::class);
   }
+
+  /**
+   * Get all buyer-seller messages for this ad
+   */
+  public function buyerSellerMessages()
+  {
+    return $this->hasMany(\App\Models\BuyerSellerMessage::class);
+  }
 }

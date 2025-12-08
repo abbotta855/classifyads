@@ -131,6 +131,19 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::get('/items-selling', [App\Http\Controllers\ItemsSellingController::class, 'index']);
   Route::get('/items-selling/{id}', [App\Http\Controllers\ItemsSellingController::class, 'show']);
 
+  // Buyer-Seller Messaging routes
+  Route::get('/messages/conversation/{adId}', [App\Http\Controllers\BuyerSellerMessageController::class, 'getConversation']);
+  Route::post('/messages/{adId}', [App\Http\Controllers\BuyerSellerMessageController::class, 'sendMessage']);
+  Route::get('/messages/seller/conversations', [App\Http\Controllers\BuyerSellerMessageController::class, 'getSellerConversations']);
+  Route::get('/messages/buyer/conversations', [App\Http\Controllers\BuyerSellerMessageController::class, 'getBuyerConversations']);
+
+  // Seller Offer Management routes
+  Route::get('/seller/offers', [App\Http\Controllers\SellerOfferController::class, 'index']);
+  Route::post('/seller/offers', [App\Http\Controllers\SellerOfferController::class, 'store']);
+  Route::put('/seller/offers/{id}', [App\Http\Controllers\SellerOfferController::class, 'update']);
+  Route::delete('/seller/offers/{id}', [App\Http\Controllers\SellerOfferController::class, 'destroy']);
+  Route::get('/seller/offers/ad/{adId}', [App\Http\Controllers\SellerOfferController::class, 'getAdOffers']);
+
   // Rating routes (user-facing)
   Route::get('/ratings/criteria', [App\Http\Controllers\RatingController::class, 'getCriteria']);
   Route::get('/ratings/seller/{sellerId}', [App\Http\Controllers\RatingController::class, 'getSellerRatings']);
