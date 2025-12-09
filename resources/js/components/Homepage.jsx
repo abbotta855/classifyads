@@ -10,8 +10,6 @@ function Homepage() {
   const [categories, setCategories] = useState([]);
   const [locationData, setLocationData] = useState({ provinces: [] }); // Location data from database
   const [showCategoryFilter, setShowCategoryFilter] = useState(false); // Track if category filter section is visible
-  const [expandedCategories, setExpandedCategories] = useState([]); // Track which categories are expanded
-  const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedLocations, setSelectedLocations] = useState(new Set()); // Multiple location selections with checkboxes (for search bar)
   const [priceRange, setPriceRange] = useState({ min: '', max: '' });
   const [priceErrors, setPriceErrors] = useState({ min: '', max: '' });
@@ -20,6 +18,9 @@ function Homepage() {
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false); // For search bar category dropdown
   const [selectedCategoryName, setSelectedCategoryName] = useState(''); // Selected category name for showing subcategories
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState(''); // Selected subcategory ID
+  const [expandedCategories, setExpandedCategories] = useState(new Set()); // For category dropdown - track expanded categories
+  const [selectedCategories, setSelectedCategories] = useState(new Set()); // Selected category IDs (checkboxes)
+  const [selectedSubcategories, setSelectedSubcategories] = useState(new Set()); // Selected subcategory IDs (checkboxes)
   const [showLocationDropdown, setShowLocationDropdown] = useState(false); // For search bar
   const categoryDropdownRef = useRef(null);
   const [showSidebarLocationDropdown, setShowSidebarLocationDropdown] = useState(false); // For sidebar filter
@@ -157,6 +158,119 @@ function Homepage() {
       }
       return newSet;
     });
+  };
+
+  // Category toggle functions (similar to location toggles)
+  const toggleCategory = (categoryId) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleCategoryToggle = (categoryId) => {
+    // Find the category to get its subcategories
+    const category = categories.find(cat => cat.id === categoryId);
+    if (!category) return;
+
+    const isCurrentlySelected = selectedCategories.has(categoryId);
+    
+    // Update selectedCategories
+    setSelectedCategories(prev => {
+      const newSet = new Set(prev);
+      if (isCurrentlySelected) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
+
+    // Update selectedSubcategories - select/unselect all subcategories of this category
+    if (category.subcategories && category.subcategories.length > 0) {
+      setSelectedSubcategories(prev => {
+        const newSet = new Set(prev);
+        category.subcategories.forEach(sub => {
+          if (isCurrentlySelected) {
+            newSet.delete(sub.id);
+          } else {
+            newSet.add(sub.id);
+          }
+        });
+        return newSet;
+      });
+    }
+  };
+
+  const handleSubcategoryToggle = (subcategoryId) => {
+    // Find which category this subcategory belongs to
+    const parentCategory = categories.find(cat => 
+      cat.subcategories && cat.subcategories.some(sub => sub.id === subcategoryId)
+    );
+    
+    const isCurrentlySelected = selectedSubcategories.has(subcategoryId);
+    
+    // Update selectedSubcategories
+    setSelectedSubcategories(prev => {
+      const newSet = new Set(prev);
+      if (isCurrentlySelected) {
+        newSet.delete(subcategoryId);
+      } else {
+        newSet.add(subcategoryId);
+      }
+      
+      // If unselecting a subcategory, check if parent category should also be unselected
+      if (parentCategory && !isCurrentlySelected) {
+        // After adding, check if all subcategories are now selected
+        const allSubcategoriesSelected = parentCategory.subcategories.every(sub => 
+          newSet.has(sub.id)
+        );
+        if (allSubcategoriesSelected && !selectedCategories.has(parentCategory.id)) {
+          // Select parent category if all subcategories are selected
+          setSelectedCategories(prevCat => {
+            const newCatSet = new Set(prevCat);
+            newCatSet.add(parentCategory.id);
+            return newCatSet;
+          });
+        }
+      } else if (parentCategory && isCurrentlySelected) {
+        // After removing, check if parent category should be unselected
+        const allSubcategoriesSelected = parentCategory.subcategories.every(sub => 
+          newSet.has(sub.id)
+        );
+        if (!allSubcategoriesSelected && selectedCategories.has(parentCategory.id)) {
+          // Unselect parent category if not all subcategories are selected
+          setSelectedCategories(prevCat => {
+            const newCatSet = new Set(prevCat);
+            newCatSet.delete(parentCategory.id);
+            return newCatSet;
+          });
+        }
+      }
+      
+      return newSet;
+    });
+  };
+
+  const handleSelectAllCategories = () => {
+    setSelectedCategories(new Set());
+    setSelectedSubcategories(new Set());
+  };
+
+  const buildCategorySearchString = () => {
+    if (selectedCategories.size === 0 && selectedSubcategories.size === 0) {
+      return 'All Categories';
+    }
+    const total = selectedCategories.size + selectedSubcategories.size;
+    if (total === 1) {
+      return '1 category selected';
+    }
+    return `${total} categories selected`;
   };
 
   // Handle click outside location dropdown
@@ -420,52 +534,10 @@ function Homepage() {
     }
   };
 
-  // Helper functions for category selection (same as AdminPanel)
+  // Helper functions for category selection - keeping for backward compatibility
   const getSelectedCategory = () => {
     if (!selectedCategoryName) return null;
     return categories.find(c => c.name === selectedCategoryName);
-  };
-
-  const handleCategorySelect = (categoryName) => {
-    setSelectedCategoryName(categoryName);
-    setSelectedSubcategoryId(''); // Reset subcategory when category changes
-    setSearchCategory(categoryName);
-  };
-
-  const handleSubcategorySelect = (subcategoryId) => {
-    setSelectedSubcategoryId(subcategoryId);
-    const category = getSelectedCategory();
-    if (category) {
-      const subcategory = category.subcategories.find(s => s.id === parseInt(subcategoryId));
-      if (subcategory) {
-        setSearchCategory(`${category.name} > ${subcategory.name}`);
-        setShowCategoryDropdown(false);
-      }
-    }
-  };
-
-  const buildCategorySearchString = () => {
-    if (selectedSubcategoryId) {
-      const category = getSelectedCategory();
-      const subcategory = category?.subcategories.find(s => s.id === parseInt(selectedSubcategoryId));
-      if (category && subcategory) {
-        return `${category.name} > ${subcategory.name}`;
-      }
-    }
-    if (selectedCategoryName) {
-      const category = getSelectedCategory();
-      if (category) {
-        return category.name;
-      }
-    }
-    return '';
-  };
-
-  const handleClearCategorySelection = () => {
-    setSelectedCategoryName('');
-    setSelectedSubcategoryId('');
-    setSearchCategory('');
-    setShowCategoryDropdown(false);
   };
 
   // Handle click outside category dropdown
@@ -501,21 +573,6 @@ function Homepage() {
     navigate(`/ads/${adId}`);
   };
 
-  const handleCategoryToggle = (categoryId) => {
-    setSelectedCategories(prev =>
-      prev.includes(categoryId)
-        ? prev.filter(id => id !== categoryId)
-        : [...prev, categoryId]
-    );
-  };
-
-  const handleCategoryExpand = (categoryId) => {
-    setExpandedCategories(prev =>
-      prev.includes(categoryId)
-        ? prev.filter(id => id !== categoryId)
-        : [...prev, categoryId]
-    );
-  };
 
   // Calculate ad count for a category (including its subcategories)
   const getCategoryAdCount = (categoryId, categoryName) => {
@@ -712,78 +769,149 @@ function Homepage() {
                       <span className="ml-2">{showCategoryDropdown ? '▼' : '▶'}</span>
                     </button>
                     
-                    {/* Cascading Category Menu */}
+                    {/* Hierarchical Category Menu - Following location dropdown pattern */}
                     {showCategoryDropdown && (
-                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
-                        {/* Category Column */}
-                        <div className="min-w-[200px] max-h-96 overflow-y-auto border-r border-[hsl(var(--border))]">
-                          <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                            Category
-                          </div>
-                          <div className="py-1">
+                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[400px] max-h-[500px] overflow-y-auto">
+                        <div className="p-3">
+                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
+                            <span className="font-semibold text-sm text-[hsl(var(--foreground))]">Select Categories</span>
                             <button
-                              onClick={() => {
-                                handleClearCategorySelection();
-                              }}
-                              className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
-                                !selectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
-                              }`}
+                              onClick={handleSelectAllCategories}
+                              className="text-xs text-[hsl(var(--primary))] hover:underline"
                             >
-                              All Categories
+                              {selectedCategories.size > 0 || selectedSubcategories.size > 0 ? 'Clear All' : 'Select All'}
                             </button>
-                            {categories.map((category, index) => (
-                              <button
-                                key={category.id || `category-${index}`}
-                                onClick={() => handleCategorySelect(category.name)}
-                                onMouseEnter={() => {
-                                  if (selectedCategoryName !== category.name) {
-                                    handleCategorySelect(category.name);
-                                  }
-                                }}
-                                className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
-                                  selectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
-                                }`}
-                              >
-                                <span>{category.name}</span>
-                                {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
-                              </button>
-                            ))}
+                          </div>
+                          
+                          {/* Hierarchical Category Tree */}
+                          <div className="space-y-1">
+                            {/* All Categories button - expands to show all categories */}
+                            <div className="border-b border-[hsl(var(--border))] pb-1 mb-1">
+                              <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    // Toggle "All Categories" expansion - use a special key
+                                    const allCategoriesExpanded = expandedCategories.has('all');
+                                    if (allCategoriesExpanded) {
+                                      setExpandedCategories(prev => {
+                                        const newSet = new Set(prev);
+                                        newSet.delete('all');
+                                        // Also collapse all individual categories
+                                        categories.forEach(cat => newSet.delete(cat.id));
+                                        return newSet;
+                                      });
+                                    } else {
+                                      setExpandedCategories(prev => {
+                                        const newSet = new Set(prev);
+                                        newSet.add('all');
+                                        return newSet;
+                                      });
+                                    }
+                                  }}
+                                  className="mr-2 text-xs"
+                                >
+                                  {expandedCategories.has('all') ? '▼' : '▶'}
+                                </button>
+                                <input
+                                  type="checkbox"
+                                  className="mr-2"
+                                  checked={categories.length > 0 && categories.every(cat => selectedCategories.has(cat.id))}
+                                  onChange={() => {
+                                    const allSelected = categories.length > 0 && categories.every(cat => selectedCategories.has(cat.id));
+                                    setSelectedCategories(prev => {
+                                      const newSet = new Set(prev);
+                                      categories.forEach(cat => {
+                                        if (allSelected) {
+                                          // Unselect category and all its subcategories
+                                          newSet.delete(cat.id);
+                                          if (cat.subcategories && cat.subcategories.length > 0) {
+                                            cat.subcategories.forEach(sub => {
+                                              newSet.delete(sub.id);
+                                            });
+                                          }
+                                        } else {
+                                          // Select category and all its subcategories
+                                          newSet.add(cat.id);
+                                          if (cat.subcategories && cat.subcategories.length > 0) {
+                                            cat.subcategories.forEach(sub => {
+                                              newSet.add(sub.id);
+                                            });
+                                          }
+                                        }
+                                      });
+                                      return newSet;
+                                    });
+                                    // Also update selectedSubcategories
+                                    setSelectedSubcategories(prev => {
+                                      const newSet = new Set(prev);
+                                      categories.forEach(cat => {
+                                        if (cat.subcategories && cat.subcategories.length > 0) {
+                                          cat.subcategories.forEach(sub => {
+                                            if (allSelected) {
+                                              newSet.delete(sub.id);
+                                            } else {
+                                              newSet.add(sub.id);
+                                            }
+                                          });
+                                        }
+                                      });
+                                      return newSet;
+                                    });
+                                  }}
+                                />
+                                <span className="text-sm font-medium text-[hsl(var(--foreground))]">All Categories</span>
+                              </div>
+                              
+                              {/* All Categories - shown when expanded */}
+                              {expandedCategories.has('all') && (
+                                <div className="ml-6 mt-1 space-y-1">
+                                  {categories.map((category) => (
+                                    <div key={category.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
+                                      {/* Category Level */}
+                                      <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleCategory(category.id)}
+                                          className="mr-2 text-xs"
+                                        >
+                                          {expandedCategories.has(category.id) ? '▼' : '▶'}
+                                        </button>
+                                        <input
+                                          type="checkbox"
+                                          className="mr-2"
+                                          checked={selectedCategories.has(category.id)}
+                                          onChange={() => handleCategoryToggle(category.id)}
+                                          title={category.subcategories && category.subcategories.length > 0 
+                                            ? `Selecting this will also select all ${category.subcategories.length} subcategories` 
+                                            : ''}
+                                        />
+                                        <span className="text-sm text-[hsl(var(--foreground))]">{category.name}</span>
+                                      </div>
+                                      
+                                      {/* Subcategories - shown when category is expanded */}
+                                      {expandedCategories.has(category.id) && category.subcategories && category.subcategories.length > 0 && (
+                                        <div className="ml-6 mt-1 space-y-1">
+                                          {category.subcategories.map((subcategory) => (
+                                            <div key={subcategory.id} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                              <input
+                                                type="checkbox"
+                                                className="mr-2"
+                                                checked={selectedSubcategories.has(subcategory.id)}
+                                                onChange={() => handleSubcategoryToggle(subcategory.id)}
+                                              />
+                                              <span className="text-sm text-[hsl(var(--foreground))]">{subcategory.name}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                        
-                        {/* Subcategory Column - appears when category is selected */}
-                        {selectedCategoryName && getSelectedCategory() && getSelectedCategory().subcategories && getSelectedCategory().subcategories.length > 0 && (
-                          <div className="min-w-[200px] max-h-96 overflow-y-auto">
-                            <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                              Subcategory
-                            </div>
-                            <div className="py-1">
-                              <button
-                                onClick={() => {
-                                  setSelectedSubcategoryId('');
-                                  setSearchCategory(getSelectedCategory().name);
-                                  setShowCategoryDropdown(false);
-                                }}
-                                className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
-                                  !selectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
-                                }`}
-                              >
-                                All Subcategories
-                              </button>
-                              {getSelectedCategory().subcategories.map((subcategory) => (
-                                <button
-                                  key={subcategory.id}
-                                  onClick={() => handleSubcategorySelect(subcategory.id.toString())}
-                                  className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
-                                    selectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
-                                  }`}
-                                >
-                                  {subcategory.name}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -1102,7 +1230,7 @@ function Homepage() {
                     {getTopLevelCategories().map((category) => {
                       const subcategories = getSubcategories(category.id);
                       const hasSubcategories = subcategories.length > 0;
-                      const isExpanded = expandedCategories.includes(category.id);
+                      const isExpanded = expandedCategories.has(category.id);
                       const adCount = getCategoryAdCount(category.id, category.name);
                       
                       return (
@@ -1111,7 +1239,7 @@ function Homepage() {
                             <div className="flex items-center space-x-2 flex-1">
                               {hasSubcategories && (
                                 <button
-                                  onClick={() => handleCategoryExpand(category.id)}
+                                  onClick={() => toggleCategory(category.id)}
                                   className="w-4 h-4 flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
                                   aria-label={isExpanded ? "Collapse" : "Expand"}
                                 >
