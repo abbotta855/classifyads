@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Layout from './Layout';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
 import { ratingAPI, publicProfileAPI, favouriteAPI, watchlistAPI, userAdAPI, publicAdAPI, buyerSellerMessageAPI } from '../utils/api';
 import RatingModal from './RatingModal';
 import axios from 'axios';
@@ -25,6 +26,13 @@ function AdDetailPage() {
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  
+  // Purchase-related state
+  const [quantity, setQuantity] = useState(1);
+  const [shippingCost, setShippingCost] = useState(0);
+  const [estimatedDelivery, setEstimatedDelivery] = useState('');
+  const [textToSeller, setTextToSeller] = useState('');
+  const [sellerProfile, setSellerProfile] = useState(null);
 
   useEffect(() => {
     loadAd();
@@ -35,6 +43,9 @@ function AdDetailPage() {
       checkFavourite();
       checkWatchlist();
       loadSellerRating();
+    }
+    if (ad?.user_id) {
+      loadSellerProfile();
     }
   }, [ad, user]);
 
@@ -51,7 +62,6 @@ function AdDetailPage() {
       const response = await axios.get(`/api/ads/${id}`);
       setAd(response.data);
       
-      // Track view and click
       if (user) {
         try {
           await userAdAPI.incrementView(id);
@@ -60,7 +70,6 @@ function AdDetailPage() {
         }
       }
       
-      // Track click (for both authenticated and anonymous users)
       try {
         await publicAdAPI.trackClick(id);
       } catch (err) {
@@ -71,6 +80,16 @@ function AdDetailPage() {
       console.error('Error loading ad:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSellerProfile = async () => {
+    if (!ad?.user_id) return;
+    try {
+      const response = await publicProfileAPI.getProfile(ad.user_id);
+      setSellerProfile(response.data);
+    } catch (err) {
+      console.error('Error loading seller profile:', err);
     }
   };
 
@@ -186,7 +205,7 @@ function AdDetailPage() {
         sender_type: 'buyer',
       });
       setNewMessage('');
-      loadConversation(); // Reload messages
+      loadConversation();
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to send message');
     } finally {
@@ -206,6 +225,59 @@ function AdDetailPage() {
     }
 
     setShowMessageModal(true);
+  };
+
+  const handleQuantityChange = (delta) => {
+    setQuantity(prev => Math.max(1, prev + delta));
+  };
+
+  const calculateTotalPrice = () => {
+    const basePrice = parseFloat(ad?.price || 0);
+    return (basePrice * quantity + shippingCost).toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
+  const handleAddToCart = () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    // TODO: Implement cart functionality
+    alert('Add to Cart functionality coming soon!');
+  };
+
+  const handleBuyNow = () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    // TODO: Implement buy now functionality
+    alert('Buy Now functionality coming soon!');
+  };
+
+  const handleShare = (platform) => {
+    const url = window.location.href;
+    const title = ad?.title || '';
+    const text = ad?.description || '';
+
+    const shareUrls = {
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+      instagram: `https://www.instagram.com/`, // Instagram doesn't support direct sharing
+      whatsapp: `https://wa.me/?text=${encodeURIComponent(`${title} ${url}`)}`,
+      email: `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${text}\n\n${url}`)}`,
+    };
+
+    if (shareUrls[platform]) {
+      window.open(shareUrls[platform], '_blank', 'width=600,height=400');
+    }
+  };
+
+  const calculateShipping = () => {
+    // TODO: Implement shipping calculator
+    setShippingCost(200); // Placeholder
+    setEstimatedDelivery('3-5 business days');
   };
 
   if (loading) {
@@ -237,11 +309,13 @@ function AdDetailPage() {
     );
   }
 
-  const images = ad.images || [ad.image] || ['/placeholder-image.png'];
+  const images = ad.images || [ad.image1_url, ad.image2_url, ad.image3_url, ad.image4_url].filter(Boolean) || ['/placeholder-image.png'];
+  const pricePerUnit = parseFloat(ad.price || 0);
+  const totalPrice = pricePerUnit * quantity + shippingCost;
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
         {showRatingModal && ad.seller && (
           <RatingModal
             ad={ad}
@@ -256,29 +330,88 @@ function AdDetailPage() {
 
         {/* Back Button */}
         <Button
-          variant="outline"
+          variant="ghost"
           onClick={() => navigate(-1)}
-          className="mb-4"
+          className="mb-6 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
         >
           ← Back
         </Button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Images */}
-          <div className="lg:col-span-2">
-            {/* Main Image */}
-            <Card className="mb-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column - Images & Description */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Ad Title & Basic Info - Above Images */}
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-6">
+                <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4 leading-tight">
+                  {ad.title}
+                </h1>
+                
+                <div className="flex flex-wrap gap-4 text-sm text-[hsl(var(--muted-foreground))]">
+                  {ad.category && (
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">Category:</span>
+                      <span className="text-[hsl(var(--foreground))]">{ad.category}</span>
+                      {ad.subcategory && (
+                        <span className="text-[hsl(var(--muted-foreground))]">
+                          &gt; {ad.subcategory}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  
+                  {ad.location && (
+                    <div className="flex items-center gap-2">
+                      <span>📍</span>
+                      <span className="text-[hsl(var(--foreground))]">{ad.location}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <span>📅</span>
+                    <span className="text-[hsl(var(--foreground))]">
+                      {new Date(ad.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span>👁️</span>
+                    <span className="text-[hsl(var(--foreground))]">{ad.views || 0} views</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Main Image Gallery */}
+            <Card className="overflow-hidden border-0 shadow-lg">
               <CardContent className="p-0">
-                <div className="relative aspect-square bg-gray-100">
+                <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100">
                   <img
                     src={images[selectedImageIndex] || '/placeholder-image.png'}
                     alt={ad.title}
-                    className="w-full h-full object-cover rounded-t-lg"
+                    className="w-full h-full object-cover"
                   />
-                  {ad.item_sold && (
-                    <div className="absolute top-4 right-4 bg-red-600 text-white px-4 py-2 rounded-md font-semibold">
+                  {ad.status === 'sold' && (
+                    <div className="absolute top-6 right-6 bg-red-500/90 backdrop-blur-sm text-white px-6 py-3 rounded-full font-semibold text-sm shadow-lg">
                       SOLD
                     </div>
+                  )}
+                  {/* Image Navigation */}
+                  {images.length > 1 && (
+                    <>
+                      <button
+                        onClick={() => setSelectedImageIndex(prev => (prev - 1 + images.length) % images.length)}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white backdrop-blur-sm rounded-full p-2 shadow-lg transition-all"
+                      >
+                        ←
+                      </button>
+                      <button
+                        onClick={() => setSelectedImageIndex(prev => (prev + 1) % images.length)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white backdrop-blur-sm rounded-full p-2 shadow-lg transition-all"
+                      >
+                        →
+                      </button>
+                    </>
                   )}
                 </div>
               </CardContent>
@@ -286,14 +419,14 @@ function AdDetailPage() {
 
             {/* Thumbnail Images */}
             {images.length > 1 && (
-              <div className="grid grid-cols-4 gap-2 mb-6">
-                {images.map((img, index) => (
+              <div className="grid grid-cols-4 gap-3">
+                {images.slice(0, 4).map((img, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedImageIndex(index)}
-                    className={`aspect-square rounded-md overflow-hidden border-2 transition-all ${
+                    className={`aspect-square rounded-lg overflow-hidden border-2 transition-all hover:scale-105 ${
                       selectedImageIndex === index
-                        ? 'border-[hsl(var(--primary))]'
+                        ? 'border-[hsl(var(--primary))] shadow-md'
                         : 'border-transparent hover:border-gray-300'
                     }`}
                   >
@@ -307,118 +440,46 @@ function AdDetailPage() {
               </div>
             )}
 
-            {/* Ad Details */}
-            <Card>
+            {/* Description Section - Above seller info */}
+            <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle>Description</CardTitle>
+                <CardTitle className="text-xl">Description</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-[hsl(var(--foreground))] whitespace-pre-wrap">
+                {/* Size & Weight (if applicable) */}
+                {(ad.size || ad.weight) && (
+                  <div className="flex gap-6 mb-4 pb-4 border-b border-[hsl(var(--border))]">
+                    {ad.size && (
+                      <div>
+                        <span className="text-sm text-[hsl(var(--muted-foreground))]">Size:</span>
+                        <span className="ml-2 font-medium text-[hsl(var(--foreground))]">{ad.size}</span>
+                      </div>
+                    )}
+                    {ad.weight && (
+                      <div>
+                        <span className="text-sm text-[hsl(var(--muted-foreground))]">Weight:</span>
+                        <span className="ml-2 font-medium text-[hsl(var(--foreground))]">{ad.weight}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <p className="text-[hsl(var(--foreground))] whitespace-pre-wrap leading-relaxed">
                   {ad.description || 'No description provided.'}
                 </p>
               </CardContent>
             </Card>
-          </div>
 
-          {/* Right Column - Info & Actions */}
-          <div className="space-y-6">
-            {/* Ad Info Card */}
-            <Card>
-              <CardContent className="p-6">
-                <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">
-                  {ad.title}
-                </h1>
-                
-                <div className="text-4xl font-bold text-[hsl(var(--primary))] mb-6">
-                  Rs. {parseFloat(ad.price || 0).toLocaleString()}
-                </div>
-
-                {/* Ad Meta Info */}
-                <div className="space-y-3 mb-6 text-sm">
-                  {ad.category && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[hsl(var(--muted-foreground))]">Category:</span>
-                      <span className="font-semibold">{ad.category}</span>
-                      {ad.subcategory && (
-                        <span className="text-[hsl(var(--muted-foreground))]">
-                          &gt; {ad.subcategory}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  
-                  {ad.location && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[hsl(var(--muted-foreground))]">📍 Location:</span>
-                      <span className="font-semibold">{ad.location}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-[hsl(var(--muted-foreground))]">👁️ Views:</span>
-                    <span className="font-semibold">{ad.views || 0}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-[hsl(var(--muted-foreground))]">📅 Posted:</span>
-                    <span className="font-semibold">
-                      {new Date(ad.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="space-y-3">
-                  {user && user.id !== ad.user_id && (
-                    <>
-                      <Button
-                        onClick={handleToggleFavourite}
-                        variant={isFavourite ? 'default' : 'outline'}
-                        className="w-full"
-                      >
-                        {isFavourite ? '❤️ Remove from Favourites' : '🤍 Add to Favourites'}
-                      </Button>
-                      
-                      <Button
-                        onClick={handleToggleWatchlist}
-                        variant={isWatchlist ? 'default' : 'outline'}
-                        className="w-full"
-                      >
-                        {isWatchlist ? '👁️ Remove from Watchlist' : '👁️ Add to Watchlist'}
-                      </Button>
-
-                      <Button
-                        onClick={handleRateSeller}
-                        variant="outline"
-                        className="w-full"
-                      >
-                        ⭐ Rate Seller
-                      </Button>
-                    </>
-                  )}
-
-                  {!user && (
-                    <Button
-                      onClick={() => navigate('/login')}
-                      variant="outline"
-                      className="w-full"
-                    >
-                      Login to Interact
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Seller Info Card */}
+            {/* Seller Information - Combined with Shipping Info */}
             {ad.seller && (
-              <Card>
+              <Card className="border-0 shadow-sm">
                 <CardHeader>
-                  <CardTitle>Seller Information</CardTitle>
+                  <CardTitle className="text-lg">Seller Information</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+                <CardContent className="space-y-4">
+                  {/* Seller Name & Rating */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center flex-shrink-0">
                       {ad.seller.profile_picture ? (
                         <img
                           src={ad.seller.profile_picture}
@@ -426,31 +487,119 @@ function AdDetailPage() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <span className="text-2xl text-gray-400">
-                          {ad.seller.name.charAt(0).toUpperCase()}
+                        <span className="text-2xl text-gray-500 font-semibold">
+                          {ad.seller.name?.charAt(0).toUpperCase() || 'U'}
                         </span>
                       )}
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg text-[hsl(var(--foreground))]">
-                        {ad.seller.name}
-                      </h3>
-                      {ad.seller.location && (
-                        <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                          📍 {ad.seller.location.name}
-                        </p>
-                      )}
+                    <div className="flex-1 min-w-0">
+                      <Link
+                        to={`/profile/${ad.seller.id}`}
+                        className="block hover:underline"
+                      >
+                        <h3 className="font-semibold text-lg text-[hsl(var(--foreground))] truncate">
+                          {ad.seller.name}
+                        </h3>
+                      </Link>
                       {sellerRating && (
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-yellow-400">★</span>
-                          <span className="text-sm font-semibold">
+                          <span className="text-sm font-semibold text-[hsl(var(--foreground))]">
                             {sellerRating.average.toFixed(1)} ({sellerRating.total} reviews)
                           </span>
                         </div>
                       )}
                     </div>
                   </div>
-                  <div className="space-y-2">
+
+                  {/* Contact Information */}
+                  <div className="space-y-3 pt-4 border-t border-[hsl(var(--border))]">
+                    {/* Mobile - Only show if seller wants to share (if phone exists) */}
+                    {(sellerProfile?.user?.phone || sellerProfile?.user?.mobile) && (
+                      <div>
+                        <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-1">
+                          Mobile
+                        </label>
+                        <p className="text-sm text-[hsl(var(--foreground))]">
+                          {sellerProfile.user.phone || sellerProfile.user.mobile}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Email */}
+                    {sellerProfile?.user?.email && (
+                      <div>
+                        <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-1">
+                          Email
+                        </label>
+                        <p className="text-sm text-[hsl(var(--foreground))]">{sellerProfile.user.email}</p>
+                      </div>
+                    )}
+
+                    {/* Text to Seller */}
+                    {user && user.id !== ad.user_id && (
+                      <div>
+                        <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-2">
+                          Text to Seller
+                        </label>
+                        <textarea
+                          value={textToSeller}
+                          onChange={(e) => setTextToSeller(e.target.value)}
+                          placeholder="Type your message..."
+                          className="w-full px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm resize-none"
+                          rows="3"
+                        />
+                      </div>
+                    )}
+
+                    {/* Response Rate */}
+                    <div>
+                      <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-1">
+                        Response Rate
+                      </label>
+                      <p className="text-sm text-[hsl(var(--foreground))]">Usually responds within 24 hours</p>
+                    </div>
+                  </div>
+
+                  {/* Shipping Information - Combined with Seller Info */}
+                  <div className="space-y-3 pt-4 border-t border-[hsl(var(--border))]">
+                    <div>
+                      <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-2">
+                        Shipping Calculator
+                      </label>
+                      <Button
+                        onClick={calculateShipping}
+                        variant="outline"
+                        className="w-full"
+                      >
+                        Calculate Shipping
+                      </Button>
+                    </div>
+                    
+                    {shippingCost > 0 && (
+                      <>
+                        <div>
+                          <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-1">
+                            Shipping Cost
+                          </label>
+                          <p className="text-sm font-medium text-[hsl(var(--foreground))]">
+                            Rs. {shippingCost.toLocaleString()}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-1">
+                            Estimated Delivery Time
+                          </label>
+                          <p className="text-sm font-medium text-[hsl(var(--foreground))]">
+                            {estimatedDelivery || 'Not calculated'}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="space-y-2 pt-4 border-t border-[hsl(var(--border))]">
                     {user && user.id !== ad.user_id && (
                       <Button
                         onClick={handleContactSeller}
@@ -467,22 +616,179 @@ function AdDetailPage() {
                         View Seller Profile →
                       </Button>
                     </Link>
+                    {user && user.id !== ad.user_id && (
+                      <Button
+                        onClick={handleRateSeller}
+                        variant="outline"
+                        className="w-full"
+                      >
+                        ⭐ Rate Seller
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Share this Ad - After shipping info */}
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">Share this Ad</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => handleShare('facebook')}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                  >
+                    <span>📘</span> Facebook
+                  </button>
+                  <button
+                    onClick={() => handleShare('whatsapp')}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors"
+                  >
+                    <span>💬</span> WhatsApp
+                  </button>
+                  <button
+                    onClick={() => handleShare('email')}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 text-white transition-colors"
+                  >
+                    <span>✉️</span> Email
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Seller Location Map */}
+            {sellerProfile?.user?.location && (
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg">Seller Location</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <div className="text-center text-[hsl(var(--muted-foreground))]">
+                      <p className="mb-2">📍 {sellerProfile.user.location.name || 'Location not specified'}</p>
+                      <p className="text-sm">Google Map integration coming soon</p>
+                      {/* TODO: Integrate Google Maps API */}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             )}
           </div>
+
+          {/* Right Column - Purchase & Seller Info */}
+          <div className="space-y-6">
+            {/* Purchase Section */}
+            <Card className="border-0 shadow-lg sticky top-6">
+              <CardContent className="p-6">
+                <div className="text-4xl font-bold text-[hsl(var(--primary))] mb-6">
+                  Rs. {pricePerUnit.toLocaleString()}
+                </div>
+
+                {/* Quantity Selector */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-2">
+                    Quantity
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleQuantityChange(-1)}
+                      className="w-10 h-10 rounded-lg border border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] transition-colors flex items-center justify-center font-semibold"
+                    >
+                      −
+                    </button>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-20 text-center font-semibold"
+                    />
+                    <button
+                      onClick={() => handleQuantityChange(1)}
+                      className="w-10 h-10 rounded-lg border border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] transition-colors flex items-center justify-center font-semibold"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Price Breakdown */}
+                <div className="space-y-2 mb-6 pb-6 border-b border-[hsl(var(--border))]">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[hsl(var(--muted-foreground))]">Price per unit:</span>
+                    <span className="font-medium text-[hsl(var(--foreground))]">Rs. {pricePerUnit.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[hsl(var(--muted-foreground))]">Quantity:</span>
+                    <span className="font-medium text-[hsl(var(--foreground))]">{quantity}</span>
+                  </div>
+                  {shippingCost > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-[hsl(var(--muted-foreground))]">Shipping:</span>
+                      <span className="font-medium text-[hsl(var(--foreground))]">Rs. {shippingCost.toLocaleString()}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-lg font-bold pt-2 border-t border-[hsl(var(--border))] mt-2">
+                    <span className="text-[hsl(var(--foreground))]">Total Price:</span>
+                    <span className="text-[hsl(var(--primary))]">Rs. {totalPrice.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  <Button
+                    onClick={handleAddToCart}
+                    className="w-full bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/90 text-white h-12 text-base font-semibold shadow-md"
+                  >
+                    🛒 Add to Cart
+                  </Button>
+                  <Button
+                    onClick={handleBuyNow}
+                    variant="default"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white h-12 text-base font-semibold shadow-md"
+                  >
+                    💳 Buy Now
+                  </Button>
+                </div>
+
+                {/* Favourites & Watchlist */}
+                {user && user.id !== ad.user_id && (
+                  <div className="flex gap-2 mt-4">
+                    <Button
+                      onClick={handleToggleFavourite}
+                      variant={isFavourite ? 'default' : 'outline'}
+                      className="flex-1"
+                      size="sm"
+                    >
+                      {isFavourite ? '❤️' : '🤍'} Favourite
+                    </Button>
+                    <Button
+                      onClick={handleToggleWatchlist}
+                      variant={isWatchlist ? 'default' : 'outline'}
+                      className="flex-1"
+                      size="sm"
+                    >
+                      {isWatchlist ? '👁️' : '👁️'} Watchlist
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Buyer-Seller Messaging Modal */}
         {showMessageModal && ad && user && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card className="max-w-2xl w-full max-h-[80vh] flex flex-col">
-              <CardHeader className="flex items-center justify-between flex-shrink-0">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <Card className="max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl">
+              <CardHeader className="flex items-center justify-between flex-shrink-0 border-b border-[hsl(var(--border))]">
                 <CardTitle>Contact Seller: {ad.seller?.name}</CardTitle>
                 <Button variant="ghost" size="sm" onClick={() => setShowMessageModal(false)}>✕</Button>
               </CardHeader>
-              <CardContent className="flex-1 overflow-y-auto space-y-4">
+              <CardContent className="flex-1 overflow-y-auto space-y-4 py-4">
                 {loadingMessages ? (
                   <p className="text-center text-[hsl(var(--muted-foreground))]">Loading messages...</p>
                 ) : messages.length === 0 ? (
@@ -520,7 +826,7 @@ function AdDetailPage() {
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Type your message..."
-                    className="flex-1 px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                    className="flex-1 px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                     disabled={sendingMessage}
                   />
                   <Button type="submit" disabled={sendingMessage || !newMessage.trim()}>
@@ -537,4 +843,3 @@ function AdDetailPage() {
 }
 
 export default AdDetailPage;
-

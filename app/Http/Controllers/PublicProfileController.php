@@ -69,6 +69,8 @@ class PublicProfileController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'profile_picture' => $user->profile_picture,
+                'phone' => $user->phone, // Include phone for mobile display
+                'email' => $user->email, // Include email for contact
                 'location' => $user->locationRelation ? [
                     'id' => $user->locationRelation->id,
                     'name' => $user->locationRelation->name,
