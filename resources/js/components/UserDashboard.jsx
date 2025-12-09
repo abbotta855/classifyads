@@ -305,6 +305,20 @@ function UserDashboard({ mode: propMode }) {
 
 // Dashboard Overview Component
 function DashboardOverview({ user }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Determine dashboard mode from URL
+  const dashboardMode = location.pathname.startsWith('/seller_dashboard') ? 'seller' : 'user';
+  const basePath = dashboardMode === 'seller' ? '/seller_dashboard' : '/user_dashboard';
+  
+  const handleSectionChange = (sectionId) => {
+    if (sectionId === 'dashboard') {
+      navigate(`${basePath}/dashboard`);
+    } else {
+      navigate(`${basePath}/${sectionId}`);
+    }
+  };
   const [stats, setStats] = useState({
     listed_items: 0,
     total_sold: 0,
@@ -576,11 +590,16 @@ function ProfileSection({ user: initialUser }) {
       // Initialize location selection
       if (userData.location_id) {
         const locationSet = new Set();
-        locationSet.add(userData.location_id);
+        // If there's a local address, use that (most specific)
         if (userData.selected_local_address && userData.selected_local_address !== '__LOCAL_LEVEL_ONLY__') {
-          // Add local address ID if exists
+          // Try to find the address index in the location data
+          // For now, use the location_id with the selected_local_address
+          // The format should be: location_id-index or just use location_id if we can't determine index
           const addressId = `${userData.location_id}-${userData.selected_local_address}`;
           locationSet.add(addressId);
+        } else {
+          // Otherwise, just use the location_id (ward level)
+          locationSet.add(userData.location_id);
         }
         setSelectedLocations(locationSet);
       }
@@ -756,16 +775,97 @@ function ProfileSection({ user: initialUser }) {
     setPasswordData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Handle location toggle (simplified - single location selection)
+  // Toggle functions for location hierarchy
+  const toggleProvince = (provinceId) => {
+    setExpandedProvinces(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(provinceId)) {
+        newSet.delete(provinceId);
+      } else {
+        newSet.add(provinceId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleDistrict = (districtKey) => {
+    setExpandedDistricts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(districtKey)) {
+        newSet.delete(districtKey);
+      } else {
+        newSet.add(districtKey);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleLocalLevel = (localLevelKey) => {
+    setExpandedLocalLevels(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(localLevelKey)) {
+        newSet.delete(localLevelKey);
+      } else {
+        newSet.add(localLevelKey);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle location toggle (single location selection for profile)
   const handleLocationToggle = (locationId) => {
     setSelectedLocations(new Set([locationId]));
+    // Close dropdown after selection for better UX
+    setShowLocationDropdown(false);
   };
 
   // Build location string for display
   const buildLocationString = () => {
     if (selectedLocations.size === 0) return 'Select location';
-    // For now, just show "Location selected" - can enhance later
-    return `${selectedLocations.size} location selected`;
+    
+    const locationId = Array.from(selectedLocations)[0];
+    // Find location in hierarchy
+    for (const province of locationData.provinces || []) {
+      for (const district of province.districts || []) {
+        for (const localLevel of district.localLevels || []) {
+          if (localLevel.wards) {
+            for (const ward of localLevel.wards || []) {
+              if (ward.id === locationId) {
+                let locationString = `${province.name} > ${district.name} > ${localLevel.name}`;
+                if (ward.ward_number) {
+                  locationString += ` > Ward ${ward.ward_number}`;
+                }
+                // Check if there's a local address
+                if (typeof locationId === 'string' && locationId.includes('-')) {
+                  const parts = locationId.split('-');
+                  const wardId = parseInt(parts[0]);
+                  const addressIndex = parseInt(parts[1]);
+                  if (ward.id === wardId && ward.local_addresses && ward.local_addresses[addressIndex]) {
+                    locationString += ` > ${ward.local_addresses[addressIndex]}`;
+                  }
+                }
+                return locationString;
+              }
+              // Check local addresses
+              if (ward.local_addresses) {
+                ward.local_addresses.forEach((address, idx) => {
+                  const addressId = `${ward.id}-${idx}`;
+                  if (addressId === locationId || (typeof locationId === 'string' && locationId === addressId)) {
+                    let locationString = `${province.name} > ${district.name} > ${localLevel.name}`;
+                    if (ward.ward_number) {
+                      locationString += ` > Ward ${ward.ward_number}`;
+                    }
+                    locationString += ` > ${address}`;
+                    return locationString;
+                  }
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+    return 'Location selected';
   };
 
   // Save profile
@@ -1006,7 +1106,7 @@ function ProfileSection({ user: initialUser }) {
               />
             </div>
 
-            {/* Location - Simplified for now */}
+            {/* Location Selection */}
             <div>
               <Label>Address</Label>
               <div className="relative mt-1" ref={locationDropdownRef}>
@@ -1016,20 +1116,114 @@ function ProfileSection({ user: initialUser }) {
                   onClick={() => setShowLocationDropdown(!showLocationDropdown)}
                   className="w-full justify-between"
                 >
-                  <span>{buildLocationString()}</span>
-                  <span>{showLocationDropdown ? '▲' : '▼'}</span>
+                  <span className="truncate">{buildLocationString()}</span>
+                  <span className="ml-2 flex-shrink-0">{showLocationDropdown ? '▲' : '▼'}</span>
                 </Button>
                 {showLocationDropdown && (
                   <div className="absolute z-10 w-full mt-1 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg shadow-lg max-h-96 overflow-y-auto">
-                    <div className="p-2">
-                      <p className="text-xs text-[hsl(var(--muted-foreground))] p-2">
-                        Location selection - Full implementation coming soon
-                      </p>
-                      <p className="text-xs text-[hsl(var(--muted-foreground))] p-2">
-                        Current: {profileData?.locationRelation ? 
-                          `${profileData.locationRelation.province || ''} > ${profileData.locationRelation.district || ''} > ${profileData.locationRelation.local_level || ''}` 
-                          : 'Not set'}
-                      </p>
+                    <div className="p-3">
+                      <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
+                        <span className="font-semibold text-sm text-[hsl(var(--foreground))]">Select Location</span>
+                        {selectedLocations.size > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLocations(new Set())}
+                            className="text-xs text-[hsl(var(--primary))] hover:underline"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Hierarchical Location Tree */}
+                      <div className="space-y-1">
+                        {(locationData.provinces || []).map((province) => (
+                          <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
+                            {/* Province Level */}
+                            <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                              <button
+                                type="button"
+                                onClick={() => toggleProvince(province.id)}
+                                className="mr-2 text-xs"
+                              >
+                                {expandedProvinces.has(province.id) ? '▼' : '▶'}
+                              </button>
+                              <span className="text-sm font-medium text-[hsl(var(--foreground))]">{province.name}</span>
+                            </div>
+                            
+                            {/* Districts */}
+                            {expandedProvinces.has(province.id) && province.districts.map((district) => (
+                              <div key={district.id} className="ml-6 mt-1">
+                                <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleDistrict(`${province.id}-${district.id}`)}
+                                    className="mr-2 text-xs"
+                                  >
+                                    {expandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
+                                  </button>
+                                  <span className="text-sm text-[hsl(var(--foreground))]">{district.name}</span>
+                                </div>
+                                
+                                {/* Local Levels */}
+                                {expandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
+                                  <div key={localLevel.id} className="ml-6 mt-1">
+                                    <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
+                                        className="mr-2 text-xs"
+                                      >
+                                        {expandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
+                                      </button>
+                                      <span className="text-sm text-[hsl(var(--foreground))]">{localLevel.name}</span>
+                                    </div>
+                                    
+                                    {/* Wards */}
+                                    {expandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
+                                      <div key={ward.id} className="ml-6 mt-1">
+                                        <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                          <input
+                                            type="radio"
+                                            name="location_selection"
+                                            className="mr-2"
+                                            checked={selectedLocations.has(ward.id)}
+                                            onChange={() => handleLocationToggle(ward.id)}
+                                          />
+                                          <span className="text-sm text-[hsl(var(--foreground))]">
+                                            {ward.ward_number ? `Ward ${ward.ward_number}` : 'Ward'}
+                                          </span>
+                                        </div>
+                                        
+                                        {/* Local Addresses */}
+                                        {ward.local_addresses && ward.local_addresses.length > 0 && (
+                                          <div className="ml-6 mt-1 space-y-1">
+                                            {ward.local_addresses.map((address, idx) => {
+                                              const addressId = `${ward.id}-${idx}`;
+                                              return (
+                                                <div key={addressId} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                  <input
+                                                    type="radio"
+                                                    name="location_selection"
+                                                    className="mr-2"
+                                                    checked={selectedLocations.has(addressId)}
+                                                    onChange={() => handleLocationToggle(addressId)}
+                                                  />
+                                                  <span className="text-sm text-[hsl(var(--foreground))]">{address}</span>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1470,7 +1664,22 @@ function AdPostSection({ user }) {
       }
 
       // Get location_id from selected locations
-      const locationId = selectedLocations.size > 0 ? Array.from(selectedLocations)[0] : null;
+      // Handle both ward ID and local address ID (format: wardId-index)
+      let locationId = null;
+      let selectedLocalAddress = null;
+      
+      if (selectedLocations.size > 0) {
+        const selectedId = Array.from(selectedLocations)[0];
+        if (typeof selectedId === 'string' && selectedId.includes('-')) {
+          // It's a local address - extract ward ID and address index
+          const parts = selectedId.split('-');
+          locationId = parseInt(parts[0]);
+          selectedLocalAddress = parts.slice(1).join('-'); // Handle multi-part addresses
+        } else {
+          // It's a ward ID
+          locationId = typeof selectedId === 'number' ? selectedId : parseInt(selectedId);
+        }
+      }
 
       // Prepare form data
       const submitData = {
@@ -1479,6 +1688,7 @@ function AdPostSection({ user }) {
         price: parseFloat(formData.price),
         category_id: parseInt(formData.category_id),
         location_id: locationId,
+        selected_local_address: selectedLocalAddress || null,
         images: images.filter(img => img !== null),
       };
 
@@ -1671,12 +1881,33 @@ function AdPostSection({ user }) {
                                       <label className="flex items-center px-4 py-2 hover:bg-[hsl(var(--accent))] cursor-pointer">
                                         <input
                                           type="radio"
-                                          checked={selectedLocations.has(ward.id)}
+                                          name="ad_location_selection"
+                                          checked={selectedLocations.has(ward.id) && !Array.from(selectedLocations)[0]?.toString().includes('-')}
                                           onChange={() => handleLocationToggle(ward.id)}
                                           className="mr-2"
                                         />
                                         <span>Ward {ward.ward_number || 'N/A'}</span>
                                       </label>
+                                      {/* Local Addresses */}
+                                      {ward.local_addresses && ward.local_addresses.length > 0 && (
+                                        <div className="pl-6 mt-1 space-y-1">
+                                          {ward.local_addresses.map((address, idx) => {
+                                            const addressId = `${ward.id}-${idx}`;
+                                            return (
+                                              <label key={addressId} className="flex items-center px-4 py-2 hover:bg-[hsl(var(--accent))] cursor-pointer">
+                                                <input
+                                                  type="radio"
+                                                  name="ad_location_selection"
+                                                  checked={selectedLocations.has(addressId)}
+                                                  onChange={() => handleLocationToggle(addressId)}
+                                                  className="mr-2"
+                                                />
+                                                <span className="text-sm">{address}</span>
+                                              </label>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -3187,8 +3418,18 @@ function ListedItemsSection({ user }) {
     }
     
     // Set location selection
+    // Handle both ward ID and local address
     if (ad.location_id) {
-      setSelectedLocations(new Set([ad.location_id]));
+      const locationSet = new Set();
+      if (ad.selected_local_address && ad.selected_local_address !== '__LOCAL_LEVEL_ONLY__') {
+        // It's a local address - create address ID
+        const addressId = `${ad.location_id}-${ad.selected_local_address}`;
+        locationSet.add(addressId);
+      } else {
+        // It's just a ward ID
+        locationSet.add(ad.location_id);
+      }
+      setSelectedLocations(locationSet);
     } else {
       setSelectedLocations(new Set());
     }
@@ -3214,11 +3455,27 @@ function ListedItemsSection({ user }) {
   const handleSaveEdit = async () => {
     try {
       setError(null);
-      const locationId = selectedLocations.size > 0 ? Array.from(selectedLocations)[0] : null;
+      // Handle both ward ID and local address ID (format: wardId-index)
+      let locationId = null;
+      let selectedLocalAddress = null;
+      
+      if (selectedLocations.size > 0) {
+        const selectedId = Array.from(selectedLocations)[0];
+        if (typeof selectedId === 'string' && selectedId.includes('-')) {
+          // It's a local address - extract ward ID and address index
+          const parts = selectedId.split('-');
+          locationId = parseInt(parts[0]);
+          selectedLocalAddress = parts.slice(1).join('-'); // Handle multi-part addresses
+        } else {
+          // It's a ward ID
+          locationId = typeof selectedId === 'number' ? selectedId : parseInt(selectedId);
+        }
+      }
       
       const updateData = {
         ...editingAdData,
         location_id: locationId,
+        selected_local_address: selectedLocalAddress || null,
         images: editingImages.filter(img => img && !img.isExisting && img instanceof File ? img : null).filter(Boolean),
       };
       
@@ -3332,18 +3589,40 @@ function ListedItemsSection({ user }) {
       return 'Select Location';
     }
     const locationId = Array.from(selectedLocations)[0];
+    // Find location in hierarchy
     for (const province of locationData.provinces || []) {
       for (const district of province.districts || []) {
         for (const localLevel of district.localLevels || []) {
-          for (const ward of localLevel.wards || []) {
-            if (ward.id === locationId) {
-              return `${province.name} > ${district.name} > ${localLevel.name}${ward.ward_number ? ' > Ward ' + ward.ward_number : ''}`;
+          if (localLevel.wards) {
+            for (const ward of localLevel.wards || []) {
+              // Check if it's a local address (format: wardId-index)
+              if (typeof locationId === 'string' && locationId.includes('-')) {
+                const parts = locationId.split('-');
+                const wardId = parseInt(parts[0]);
+                const addressIndex = parseInt(parts[1]);
+                if (ward.id === wardId && ward.local_addresses && ward.local_addresses[addressIndex]) {
+                  let locationString = `${province.name} > ${district.name} > ${localLevel.name}`;
+                  if (ward.ward_number) {
+                    locationString += ` > Ward ${ward.ward_number}`;
+                  }
+                  locationString += ` > ${ward.local_addresses[addressIndex]}`;
+                  return locationString;
+                }
+              }
+              // Check if it's the ward itself
+              if (ward.id === locationId) {
+                let locationString = `${province.name} > ${district.name} > ${localLevel.name}`;
+                if (ward.ward_number) {
+                  locationString += ` > Ward ${ward.ward_number}`;
+                }
+                return locationString;
+              }
             }
           }
         }
       }
     }
-    return '1 location selected';
+    return 'Location selected';
   };
 
   const toggleProvince = (provinceId) => {
@@ -4139,6 +4418,20 @@ function MyRatingsSection({ user }) {
 
 // Seller Dashboard Overview Component
 function SellerDashboardOverview({ user, userAds }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Determine dashboard mode from URL
+  const dashboardMode = location.pathname.startsWith('/seller_dashboard') ? 'seller' : 'user';
+  const basePath = dashboardMode === 'seller' ? '/seller_dashboard' : '/user_dashboard';
+  
+  const handleSectionChange = (sectionId) => {
+    if (sectionId === 'dashboard') {
+      navigate(`${basePath}/dashboard`);
+    } else {
+      navigate(`${basePath}/${sectionId}`);
+    }
+  };
   return (
     <div>
       <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-4">Seller Dashboard</h1>

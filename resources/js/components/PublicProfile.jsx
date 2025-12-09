@@ -14,6 +14,7 @@ function PublicProfile() {
   const [error, setError] = useState(null);
   const [ratingsPage, setRatingsPage] = useState(1);
   const [ratingsLoading, setRatingsLoading] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -23,7 +24,7 @@ function PublicProfile() {
     if (profile) {
       loadRatings();
     }
-  }, [userId, ratingsPage]);
+  }, [userId, ratingsPage, profile]);
 
   const loadProfile = async () => {
     setLoading(true);
@@ -31,6 +32,10 @@ function PublicProfile() {
     try {
       const res = await publicProfileAPI.getProfile(userId);
       setProfile(res.data);
+      // If we have recent_reviews in profile data, use them as initial ratings
+      if (res.data?.recent_reviews && res.data.recent_reviews.length > 0) {
+        setRatings(res.data.recent_reviews);
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load profile');
       console.error('Error loading profile:', err);
@@ -40,16 +45,31 @@ function PublicProfile() {
   };
 
   const loadRatings = async () => {
+    if (!userId) return;
+    
     setRatingsLoading(true);
     try {
       const res = await publicProfileAPI.getRatings(userId, ratingsPage, 10);
+      // Laravel pagination returns data in 'data' property
+      // Check both res.data.data (paginated) and res.data (direct array)
+      const ratingsData = res.data?.data || (Array.isArray(res.data) ? res.data : []);
+      
       if (ratingsPage === 1) {
-        setRatings(res.data.data || []);
+        setRatings(ratingsData);
       } else {
-        setRatings(prev => [...prev, ...(res.data.data || [])]);
+        setRatings(prev => [...prev, ...ratingsData]);
       }
     } catch (err) {
       console.error('Error loading ratings:', err);
+      console.error('Error details:', err.response?.data);
+      // If there's an error on first load and we have recent_reviews from profile, use those as fallback
+      if (ratingsPage === 1) {
+        if (profile?.recent_reviews && profile.recent_reviews.length > 0) {
+          setRatings(profile.recent_reviews);
+        } else {
+          setRatings([]);
+        }
+      }
     } finally {
       setRatingsLoading(false);
     }
@@ -102,6 +122,15 @@ function PublicProfile() {
   }
 
   const { user, stats, ads, recent_reviews } = profile;
+  
+  // Use recent_reviews as fallback if ratings haven't loaded yet
+  const allRatings = ratings.length > 0 ? ratings : (recent_reviews || []);
+  
+  // Show only last 5 reviews initially, or all if showAllReviews is true
+  // Reviews are already sorted by created_at desc, so first 5 are the most recent
+  const displayRatings = showAllReviews || allRatings.length <= 5 
+    ? allRatings 
+    : allRatings.slice(0, 5);
 
   return (
     <Layout>
@@ -232,9 +261,13 @@ function PublicProfile() {
                 <CardTitle>Reviews ({stats.total_ratings})</CardTitle>
               </CardHeader>
               <CardContent>
-                {ratings.length > 0 ? (
+                {ratingsLoading && ratings.length === 0 && (!recent_reviews || recent_reviews.length === 0) ? (
+                  <p className="text-center text-[hsl(var(--muted-foreground))] py-8">
+                    Loading reviews...
+                  </p>
+                ) : displayRatings.length > 0 ? (
                   <div className="space-y-4">
-                    {ratings.map((review) => (
+                    {displayRatings.map((review) => (
                       <div
                         key={review.id}
                         className="border-b border-[hsl(var(--border))] pb-4 last:border-0 last:pb-0"
@@ -309,15 +342,45 @@ function PublicProfile() {
                         </div>
                       </div>
                     ))}
-                    {ratings.length >= 10 && (
+                    {/* Show "See More" button if there are more than 5 reviews and not showing all */}
+                    {allRatings.length > 5 && !showAllReviews && (
                       <Button
                         variant="outline"
-                        className="w-full"
+                        className="w-full mt-4"
+                        onClick={() => setShowAllReviews(true)}
+                      >
+                        See More Reviews ({allRatings.length - 5} more)
+                      </Button>
+                    )}
+                    {/* Show "Show Less" button if showing all reviews and there are more than 5 */}
+                    {allRatings.length > 5 && showAllReviews && (
+                      <Button
+                        variant="outline"
+                        className="w-full mt-4"
+                        onClick={() => {
+                          setShowAllReviews(false);
+                          // Scroll to top of reviews section
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                      >
+                        Show Less
+                      </Button>
+                    )}
+                    {/* Load More button for pagination (if using API pagination) */}
+                    {ratings.length >= 10 && showAllReviews && (
+                      <Button
+                        variant="outline"
+                        className="w-full mt-4"
                         onClick={() => setRatingsPage(prev => prev + 1)}
                         disabled={ratingsLoading}
                       >
                         {ratingsLoading ? 'Loading...' : 'Load More Reviews'}
                       </Button>
+                    )}
+                    {displayRatings.length > 0 && ratings.length === 0 && recent_reviews && recent_reviews.length > 0 && (
+                      <p className="text-center text-xs text-[hsl(var(--muted-foreground))] mt-4">
+                        Showing recent reviews. Full list loading...
+                      </p>
                     )}
                   </div>
                 ) : (
