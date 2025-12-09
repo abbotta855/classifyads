@@ -616,11 +616,134 @@ function ProfileSection({ user: initialUser }) {
     };
   }, [showLocationDropdown]);
 
+  // Compress image function for profile picture
+  const compressImage = (file, maxWidth = 1200, maxHeight = 1200, quality = 0.8) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = e.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Calculate new dimensions
+          if (width > height) {
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = (width * maxHeight) / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Always convert to JPEG for better compression
+          const outputType = 'image/jpeg';
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('Failed to compress image'));
+                return;
+              }
+              const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), {
+                type: outputType,
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            outputType,
+            quality
+          );
+        };
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+    });
+  };
+
   // Handle form input changes
-  const handleInputChange = (e) => {
+  const handleInputChange = async (e) => {
     const { name, value, files } = e.target;
     if (name === 'profile_picture' && files && files[0]) {
-      setFormData(prev => ({ ...prev, [name]: files[0] }));
+      const file = files[0];
+      
+      // Validate file type first
+      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif'];
+      if (!validTypes.includes(file.type)) {
+        setError('Invalid file type. Please upload JPEG, PNG, JPG, or GIF image.');
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+      
+      const maxSize = 2 * 1024 * 1024; // 2MB
+      
+      // Always try to compress large images, don't reject immediately
+      try {
+        let processedFile = file;
+        
+        // If file is larger than maxSize OR larger than 500KB, compress it
+        if (file.size > maxSize || file.size > 500 * 1024) {
+          setError(null); // Clear any previous errors
+          // Show loading message
+          setError('Compressing image... Please wait.');
+          
+          // First compression attempt - more aggressive for larger files
+          if (file.size > maxSize * 2) {
+            // Very large file - start with aggressive compression
+            processedFile = await compressImage(file, 800, 800, 0.7);
+          } else if (file.size > maxSize) {
+            // Large file - start with moderate compression
+            processedFile = await compressImage(file, 1000, 1000, 0.75);
+          } else {
+            // Medium file - light compression
+            processedFile = await compressImage(file, 1200, 1200, 0.8);
+          }
+          
+          // If still too large, try more aggressive compression
+          if (processedFile.size > maxSize) {
+            processedFile = await compressImage(file, 600, 600, 0.6);
+          }
+          
+          // If still too large, try even more aggressive compression
+          if (processedFile.size > maxSize) {
+            processedFile = await compressImage(file, 400, 400, 0.5);
+          }
+          
+          // Final check - if still too large after all compression attempts
+          if (processedFile.size > maxSize) {
+            setError(`Image is too large even after compression (${(processedFile.size / 1024 / 1024).toFixed(2)}MB). Please choose a smaller image.`);
+            setTimeout(() => setError(null), 5000);
+            return;
+          }
+        }
+        
+        // Validate final file size
+        if (processedFile.size > maxSize) {
+          setError('File size is too large. Maximum size is 2MB. Please choose a smaller image.');
+          setTimeout(() => setError(null), 5000);
+          return;
+        }
+        
+        setFormData(prev => ({ ...prev, [name]: processedFile }));
+        setError(null); // Clear any errors on success
+        setSuccess(`Image ready to upload! (${(processedFile.size / 1024).toFixed(0)}KB)`);
+        setTimeout(() => setSuccess(null), 3000);
+      } catch (err) {
+        console.error('Error processing image:', err);
+        setError('Failed to process image. Please try a different image.');
+        setTimeout(() => setError(null), 5000);
+      }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -652,12 +775,17 @@ function ProfileSection({ user: initialUser }) {
     setSaving(true);
 
     try {
+      // Create FormData like ad posting does
       const formDataToSend = new FormData();
       formDataToSend.append('name', formData.name);
       formDataToSend.append('email', formData.email);
       if (formData.dob) formDataToSend.append('dob', formData.dob);
       if (formData.phone) formDataToSend.append('phone', formData.phone);
-      if (formData.profile_picture) formDataToSend.append('profile_picture', formData.profile_picture);
+      
+      // Append profile picture if it exists (as File object)
+      if (formData.profile_picture && formData.profile_picture instanceof File) {
+        formDataToSend.append('profile_picture', formData.profile_picture);
+      }
 
       // Extract location_id from selected locations
       // If location was previously set, keep it; otherwise extract from selection
@@ -686,7 +814,18 @@ function ProfileSection({ user: initialUser }) {
         }
       }
 
-      const response = await profileAPI.updateProfile(formDataToSend);
+      // Use PUT method for profile update
+      formDataToSend.append('_method', 'PUT');
+
+      // Use axios directly with proper headers like ad posting does
+      const token = localStorage.getItem('token');
+      const response = await axios.post('/api/profile', formDataToSend, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
       setSuccess('Profile updated successfully!');
       setProfileData(response.data.user);
       // Update auth context if needed
@@ -695,7 +834,20 @@ function ProfileSection({ user: initialUser }) {
         window.location.reload(); // Refresh to update user context
       }, 2000);
     } catch (err) {
-      setError('Failed to update profile: ' + (err.response?.data?.message || err.message));
+      // Handle specific error codes
+      if (err.response?.status === 413) {
+        setError('File size is too large. Please compress your image to under 2MB or choose a smaller image.');
+      } else if (err.response?.status === 422) {
+        const errors = err.response?.data?.errors;
+        if (errors) {
+          const errorMessages = Object.values(errors).flat().join(', ');
+          setError('Validation error: ' + errorMessages);
+        } else {
+          setError('Failed to update profile: ' + (err.response?.data?.message || 'Invalid data provided'));
+        }
+      } else {
+        setError('Failed to update profile: ' + (err.response?.data?.message || err.message || 'Please try again'));
+      }
     } finally {
       setSaving(false);
     }
