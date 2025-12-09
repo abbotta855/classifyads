@@ -111,10 +111,16 @@ class UserController extends Controller
   public function update(Request $request, string $id)
   {
     $user = User::findOrFail($id);
+    $currentUser = Auth::user();
 
     // Prevent editing super_admin users through this endpoint
     if ($user->role === 'super_admin') {
       return response()->json(['error' => 'Super admin users cannot be edited through this interface.'], 403);
+    }
+
+    // Prevent regular admins from editing other admin accounts
+    if ($user->role === 'admin' && $currentUser->role !== 'super_admin') {
+      return response()->json(['error' => 'Regular admins cannot edit other admin accounts. Only super admins can manage admin accounts.'], 403);
     }
 
     $validated = $request->validate([
@@ -168,6 +174,11 @@ class UserController extends Controller
     $user = User::findOrFail($id);
     $admin = Auth::user();
 
+    // Prevent regular admins from adding comments to admin/super_admin accounts
+    if (($user->role === 'admin' || $user->role === 'super_admin') && $admin->role !== 'super_admin') {
+      return response()->json(['error' => 'Regular admins cannot add comments to admin accounts. Only super admins can manage admin accounts.'], 403);
+    }
+
     $validated = $request->validate([
       'comment' => 'required|string',
     ]);
@@ -193,10 +204,16 @@ class UserController extends Controller
   public function destroy(string $id)
   {
     $user = User::findOrFail($id);
+    $currentUser = Auth::user();
     
     // Prevent deleting super_admin users
     if ($user->role === 'super_admin') {
       return response()->json(['error' => 'Super admin users cannot be deleted.'], 403);
+    }
+
+    // Prevent regular admins from deleting other admin accounts
+    if ($user->role === 'admin' && $currentUser->role !== 'super_admin') {
+      return response()->json(['error' => 'Regular admins cannot delete other admin accounts. Only super admins can manage admin accounts.'], 403);
     }
 
     $user->delete();

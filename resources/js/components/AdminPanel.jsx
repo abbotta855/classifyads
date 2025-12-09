@@ -2088,6 +2088,12 @@ function AdminPanel() {
       setTimeout(() => setError(null), 5000);
       return;
     }
+    // Prevent regular admins from editing other admin accounts
+    if (user.role === 'admin' && !isSuperAdmin) {
+      setError('Regular admins cannot edit other admin accounts. Only super admins can manage admin accounts.');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
     setEditingUserId(user.id);
     setEditingUserData({
       name: user.name,
@@ -2274,6 +2280,12 @@ function AdminPanel() {
       setTimeout(() => setError(null), 5000);
       return;
     }
+    // Prevent regular admins from deleting other admin accounts
+    if (user && user.role === 'admin' && !isSuperAdmin) {
+      setError('Regular admins cannot delete other admin accounts. Only super admins can manage admin accounts.');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
 
     if (!window.confirm('Are you sure you want to delete this user?')) {
       return;
@@ -2291,8 +2303,16 @@ function AdminPanel() {
   };
 
   const handleAddComment = (userId) => {
-    setCommentingUserId(userId);
     const user = userManagementData.find(u => u.id === userId);
+    
+    // Prevent regular admins from adding comments to admin/super_admin accounts
+    if (user && (user.role === 'admin' || user.role === 'super_admin') && !isSuperAdmin) {
+      setError('Regular admins cannot add comments to admin accounts. Only super admins can manage admin accounts.');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+    
+    setCommentingUserId(userId);
     setUserComment(user?.comment || '');
   };
 
@@ -10539,14 +10559,17 @@ function AdminPanel() {
                                 ) : (
                                   <div className="space-y-1">
                                     <span className="text-[hsl(var(--foreground))]">{user.comment || '-'}</span>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 px-2 text-xs"
-                                      onClick={() => handleAddComment(user.id)}
-                                    >
-                                      {user.comment ? 'Edit Comment' : 'Add Comment'}
-                                    </Button>
+                                    {/* Only super_admin can add comments to admin accounts */}
+                                    {((user.role !== 'admin' && user.role !== 'super_admin') || isSuperAdmin) && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-2 text-xs"
+                                        onClick={() => handleAddComment(user.id)}
+                                      >
+                                        {user.comment ? 'Edit Comment' : 'Add Comment'}
+                                      </Button>
+                                    )}
                                   </div>
                                 )}
                               </td>
@@ -10573,7 +10596,8 @@ function AdminPanel() {
                                     </>
                                   ) : (
                                     <>
-                                      {user.role !== 'super_admin' && (
+                                      {/* Only super_admin can edit/delete admin accounts. Regular admins can only manage users, vendors */}
+                                      {user.role !== 'super_admin' && (user.role !== 'admin' || isSuperAdmin) && (
                                         <Button
                                           variant="outline"
                                           size="sm"
@@ -10583,7 +10607,7 @@ function AdminPanel() {
                                           Edit
                                         </Button>
                                       )}
-                                      {user.role !== 'super_admin' && (
+                                      {user.role !== 'super_admin' && (user.role !== 'admin' || isSuperAdmin) && (
                                         <Button
                                           variant="destructive"
                                           size="sm"
@@ -10593,7 +10617,7 @@ function AdminPanel() {
                                           Delete
                                         </Button>
                                       )}
-                                      {user.role === 'super_admin' && (
+                                      {(user.role === 'super_admin' || (user.role === 'admin' && !isSuperAdmin)) && (
                                         <span className="text-xs text-[hsl(var(--muted-foreground))] italic">
                                           Protected
                                         </span>
