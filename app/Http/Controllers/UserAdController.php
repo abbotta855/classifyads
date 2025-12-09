@@ -65,7 +65,6 @@ class UserAdController extends Controller
             'location_id' => $validated['location_id'] ?? null,
             'status' => 'active',
             'views' => 0,
-            'item_sold' => false,
             'image1_url' => $imageUrls[0],
             'image2_url' => $imageUrls[1],
             'image3_url' => $imageUrls[2],
@@ -159,7 +158,6 @@ class UserAdController extends Controller
         $ad = Ad::where('user_id', Auth::id())->findOrFail($id);
         
         $ad->update([
-            'item_sold' => true,
             'status' => 'sold',
         ]);
 

@@ -117,10 +117,10 @@ function AdDetailPage() {
 
     try {
       if (isFavourite) {
-        await favouriteAPI.removeByAd(ad.id);
+        await favouriteAPI.removeFavouriteByAd(ad.id);
         setIsFavourite(false);
       } else {
-        await favouriteAPI.add({ ad_id: ad.id });
+        await favouriteAPI.addFavourite(ad.id);
         setIsFavourite(true);
       }
     } catch (err) {
@@ -139,7 +139,7 @@ function AdDetailPage() {
         await watchlistAPI.removeWatchlistByAd(ad.id);
         setIsWatchlist(false);
       } else {
-        await watchlistAPI.add({ ad_id: ad.id });
+        await watchlistAPI.addWatchlist(ad.id);
         setIsWatchlist(true);
       }
     } catch (err) {

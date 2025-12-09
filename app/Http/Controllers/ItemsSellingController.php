@@ -85,7 +85,7 @@ class ItemsSellingController extends Controller
                 'favourite_count' => $favouriteCount,
                 'saved_search_count' => $savedSearchCount,
                 'inquiries_count' => $inquiriesCount,
-                'sold' => $ad->item_sold || $ad->status === 'sold',
+                'sold' => $ad->status === 'sold',
                 'offers' => $offers->map(function ($offer) {
                     return [
                         'id' => $offer->id,
@@ -188,7 +188,7 @@ class ItemsSellingController extends Controller
             'favourite_count' => $favouriteCount,
             'saved_search_count' => $savedSearchCount,
             'inquiries_count' => $inquiriesCount,
-            'sold' => $ad->item_sold || $ad->status === 'sold',
+            'sold' => $ad->status === 'sold',
             'offers' => $offers->map(function ($offer) {
                 return [
                     'id' => $offer->id,

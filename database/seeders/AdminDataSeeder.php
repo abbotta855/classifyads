@@ -84,7 +84,7 @@ class AdminDataSeeder extends Seeder
           'price' => $ad['price'],
           'views' => $ad['views'],
           'posted_by' => $ad['posted_by'],
-          'item_sold' => false,
+          'status' => 'active',
           'status' => 'active',
           'featured' => false,
           'created_at' => now(),

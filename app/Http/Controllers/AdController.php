@@ -160,7 +160,7 @@ class AdController extends Controller
                 'user_id' => $ad->user_id,
                 'seller' => $seller,
                 'views' => $ad->views ?? 0,
-                'item_sold' => $ad->item_sold ?? false,
+                'item_sold' => $ad->status === 'sold',
                 'status' => $ad->status,
                 'featured' => $ad->featured ?? false,
                 'locationHierarchy' => $ad->location ? [

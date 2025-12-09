@@ -23,7 +23,6 @@ class PublicProfileController extends Controller
         $ads = Ad::with(['category', 'location'])
             ->where('user_id', $userId)
             ->where('status', 'active')
-            ->where('item_sold', false)
             ->orderBy('created_at', 'desc')
             ->limit(12)
             ->get();
@@ -63,7 +62,7 @@ class PublicProfileController extends Controller
 
         // Get total ads count
         $totalAds = Ad::where('user_id', $userId)->count();
-        $soldAds = Ad::where('user_id', $userId)->where('item_sold', true)->count();
+        $soldAds = Ad::where('user_id', $userId)->where('status', 'sold')->count();
 
         return response()->json([
             'user' => [
