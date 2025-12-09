@@ -50,19 +50,20 @@ function UserDashboard({ mode: propMode }) {
   const [hasPostedAds, setHasPostedAds] = useState(false);
   const [loadingAds, setLoadingAds] = useState(true);
 
-  // Redirect super admin and admin to their respective panels
-  useEffect(() => {
-    if (!loading && user) {
-      if (user.role === 'super_admin') {
-        navigate('/super_admin', { replace: true });
-        return;
-      }
-      if (user.role === 'admin') {
-        navigate('/admin', { replace: true });
-        return;
-      }
-    }
-  }, [user, loading, navigate]);
+  // Don't redirect admins - they can access user dashboard from admin panel
+  // Only redirect if they're trying to access from a direct URL (optional - can be removed)
+  // useEffect(() => {
+  //   if (!loading && user) {
+  //     if (user.role === 'super_admin') {
+  //       navigate('/super_admin', { replace: true });
+  //       return;
+  //     }
+  //     if (user.role === 'admin') {
+  //       navigate('/admin', { replace: true });
+  //       return;
+  //     }
+  //   }
+  // }, [user, loading, navigate]);
 
   // Fetch user's ads to check if they have posted any
   useEffect(() => {
@@ -116,10 +117,10 @@ function UserDashboard({ mode: propMode }) {
     }
   }, [dashboardMode, activeSection, hasPostedAds, navigate]);
 
-  // Early return if user is admin or super_admin (while redirecting)
-  if (!loading && user && (user.role === 'super_admin' || user.role === 'admin')) {
-    return null; // Don't render anything while redirecting
-  }
+  // Allow admins to access user dashboard - don't block them
+  // if (!loading && user && (user.role === 'super_admin' || user.role === 'admin')) {
+  //   return null; // Don't render anything while redirecting
+  // }
 
   // Dashboard menu items - User mode
   const userMenuItems = [

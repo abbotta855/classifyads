@@ -7,7 +7,8 @@ function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isAdminPage = location.pathname.startsWith('/admin');
+  const isAdminPage = location.pathname.startsWith('/admin') || location.pathname.startsWith('/super_admin');
+  const isUserDashboardPage = location.pathname.startsWith('/user_dashboard') || location.pathname.startsWith('/seller_dashboard');
 
   const handleLogout = async () => {
     await logout();
@@ -26,7 +27,7 @@ function Header() {
           <nav className="hidden md:flex items-center space-x-6">
             {user ? (
               <>
-                {!isAdminPage && user.role !== 'admin' && (
+                {!isAdminPage && !isUserDashboardPage && user.role !== 'admin' && (
                   <Link
                     to="/dashboard"
                     className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
@@ -34,15 +35,25 @@ function Header() {
                     Dashboard
                   </Link>
                 )}
-                {user.role === 'admin' && !isAdminPage && (
+                {/* Admin Panel link - show when admin is on user dashboard */}
+                {(user.role === 'admin' || user.role === 'super_admin') && isUserDashboardPage && (
                   <Link
-                    to="/admin"
+                    to={user.role === 'super_admin' ? '/super_admin' : '/admin'}
                     className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
                   >
                     Admin Panel
                   </Link>
                 )}
-                {!isAdminPage && user.role !== 'admin' && (
+                {/* User Dashboard link - show when admin is on admin panel */}
+                {(user.role === 'admin' || user.role === 'super_admin') && isAdminPage && (
+                  <Link
+                    to="/user_dashboard/dashboard"
+                    className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                  >
+                    User Dashboard
+                  </Link>
+                )}
+                {!isAdminPage && !isUserDashboardPage && user.role !== 'admin' && (
                   <Link to="/dashboard">
                     <Button variant="outline">
                       Post Ad
