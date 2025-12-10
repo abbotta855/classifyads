@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Ad;
 use App\Models\Rating;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class PublicProfileController extends Controller
 {
@@ -64,12 +65,18 @@ class PublicProfileController extends Controller
         $totalAds = Ad::where('user_id', $userId)->count();
         $soldAds = Ad::where('user_id', $userId)->where('status', 'sold')->count();
 
+        // Safely get show_phone - check if column exists in database
+        $showPhone = true; // default value
+        if (Schema::hasColumn('users', 'show_phone')) {
+            $showPhone = $user->show_phone ?? true;
+        }
+        
         return response()->json([
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'profile_picture' => $user->profile_picture,
-                'phone' => ($user->show_phone ?? true) ? $user->phone : null, // Only include phone if user allows it
+                'phone' => $showPhone ? $user->phone : null, // Only include phone if user allows it
                 'email' => $user->email, // Include email for contact
                 'location' => $user->locationRelation ? [
                     'id' => $user->locationRelation->id,

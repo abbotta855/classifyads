@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class ProfileController extends Controller
@@ -16,82 +17,102 @@ class ProfileController extends Controller
      */
     public function show(Request $request)
     {
-        $user = $request->user();
-        $user->load('locationRelation');
-        
-        // Calculate response rate (only if user has ads)
-        $responseRate = null;
-        $totalSold = 0;
-        $profileRating = null;
-        
-        $userAds = \App\Models\Ad::where('user_id', $user->id)->get();
-        if ($userAds->count() > 0) {
-            // Calculate response rate: (Messages responded to / Total messages received) * 100
-            $adIds = $userAds->pluck('id');
+        try {
+            $user = $request->user();
+            if (!$user) {
+                return response()->json(['error' => 'User not authenticated'], 401);
+            }
+            $user->load('locationRelation');
             
-            // Get all buyer messages to this seller
-            $buyerMessages = \App\Models\BuyerSellerMessage::whereIn('ad_id', $adIds)
-                ->where('seller_id', $user->id)
-                ->where('sender_type', 'buyer')
-                ->get();
+            // Calculate response rate (only if user has ads)
+            $responseRate = null;
+            $totalSold = 0;
+            $profileRating = null;
             
-            // Get all seller responses (messages sent by seller after a buyer message)
-            $sellerResponses = \App\Models\BuyerSellerMessage::whereIn('ad_id', $adIds)
-                ->where('seller_id', $user->id)
-                ->where('sender_type', 'seller')
-                ->get();
-            
-            // Group buyer messages by ad_id to count unique conversations
-            $conversations = $buyerMessages->groupBy('ad_id');
-            $respondedConversations = $sellerResponses->pluck('ad_id')->unique();
-            
-            $totalInquiries = $conversations->count();
-            $respondedInquiries = $respondedConversations->count();
-            
-            if ($totalInquiries > 0) {
-                $responseRate = round(($respondedInquiries / $totalInquiries) * 100, 2);
-            } else {
-                $responseRate = null; // No inquiries yet
+            $userAds = \App\Models\Ad::where('user_id', $user->id)->get();
+            if ($userAds->count() > 0) {
+                // Calculate response rate: (Messages responded to / Total messages received) * 100
+                $adIds = $userAds->pluck('id');
+                
+                // Get all buyer messages to this seller
+                $buyerMessages = \App\Models\BuyerSellerMessage::whereIn('ad_id', $adIds)
+                    ->where('seller_id', $user->id)
+                    ->where('sender_type', 'buyer')
+                    ->get();
+                
+                // Get all seller responses (messages sent by seller after a buyer message)
+                $sellerResponses = \App\Models\BuyerSellerMessage::whereIn('ad_id', $adIds)
+                    ->where('seller_id', $user->id)
+                    ->where('sender_type', 'seller')
+                    ->get();
+                
+                // Group buyer messages by ad_id to count unique conversations
+                $conversations = $buyerMessages->groupBy('ad_id');
+                $respondedConversations = $sellerResponses->pluck('ad_id')->unique();
+                
+                $totalInquiries = $conversations->count();
+                $respondedInquiries = $respondedConversations->count();
+                
+                if ($totalInquiries > 0) {
+                    $responseRate = round(($respondedInquiries / $totalInquiries) * 100, 2);
+                } else {
+                    $responseRate = null; // No inquiries yet
+                }
+                
+                // Total sold items
+                $totalSold = $userAds->where('status', 'sold')->count();
+                
+                // Profile rating (average rating as seller)
+                $ratings = \App\Models\Rating::where('seller_id', $user->id)->get();
+                if ($ratings->count() > 0) {
+                    $averageRating = $ratings->avg('rating');
+                    $totalRatings = $ratings->count();
+                    $profileRating = [
+                        'average' => round($averageRating, 2),
+                        'total' => $totalRatings,
+                        'percentage' => round(($averageRating / 5) * 100, 2), // Convert to percentage
+                    ];
+                }
             }
             
-            // Total sold items
-            $totalSold = $userAds->where('status', 'sold')->count();
+            // Format last login
+            $lastLoginFormatted = $this->formatLastLogin($user->last_login_at);
             
-            // Profile rating (average rating as seller)
-            $ratings = \App\Models\Rating::where('seller_id', $user->id)->get();
-            if ($ratings->count() > 0) {
-                $averageRating = $ratings->avg('rating');
-                $totalRatings = $ratings->count();
-                $profileRating = [
-                    'average' => round($averageRating, 2),
-                    'total' => $totalRatings,
-                    'percentage' => round(($averageRating / 5) * 100, 2), // Convert to percentage
-                ];
+            // Safely get show_phone - check if column exists in database
+            $showPhone = true; // default value
+            if (Schema::hasColumn('users', 'show_phone')) {
+                $showPhone = $user->show_phone ?? true;
             }
+            
+            return response()->json([
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'dob' => $user->dob,
+                'phone' => $user->phone,
+                'show_phone' => $showPhone,
+                'profile_picture' => $user->profile_picture,
+                'location_id' => $user->location_id,
+                'selected_local_address' => $user->selected_local_address,
+                'locationRelation' => $user->locationRelation,
+                'created_at' => $user->created_at,
+                'last_login_at' => $user->last_login_at,
+                'last_login_formatted' => $lastLoginFormatted,
+                'response_rate' => $responseRate,
+                'total_sold' => $totalSold,
+                'profile_rating' => $profileRating,
+                'member_since' => $user->created_at ? $user->created_at->format('M Y') : 'N/A',
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('ProfileController::show error: ' . $e->getMessage(), [
+                'user_id' => $request->user()?->id,
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'error' => 'Failed to load profile',
+                'message' => config('app.debug') ? $e->getMessage() : 'An error occurred'
+            ], 500);
         }
-        
-        // Format last login
-        $lastLoginFormatted = $this->formatLastLogin($user->last_login_at);
-        
-        return response()->json([
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'dob' => $user->dob,
-            'phone' => $user->phone,
-            'show_phone' => $user->show_phone ?? true,
-            'profile_picture' => $user->profile_picture,
-            'location_id' => $user->location_id,
-            'selected_local_address' => $user->selected_local_address,
-            'locationRelation' => $user->locationRelation,
-            'created_at' => $user->created_at,
-            'last_login_at' => $user->last_login_at,
-            'last_login_formatted' => $lastLoginFormatted,
-            'response_rate' => $responseRate,
-            'total_sold' => $totalSold,
-            'profile_rating' => $profileRating,
-            'member_since' => $user->created_at->format('M Y'),
-        ]);
     }
     
     /**
@@ -152,6 +173,11 @@ class ProfileController extends Controller
             'selected_local_address' => 'sometimes|nullable|string|max:255',
             'profile_picture' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
+        
+        // Only include show_phone if the column exists in the database
+        if (isset($validated['show_phone']) && !Schema::hasColumn('users', 'show_phone')) {
+            unset($validated['show_phone']);
+        }
 
         // Handle profile picture upload
         if ($request->hasFile('profile_picture')) {
