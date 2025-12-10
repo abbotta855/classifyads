@@ -33,6 +33,7 @@ function AdDetailPage() {
   const [estimatedDelivery, setEstimatedDelivery] = useState('');
   const [textToSeller, setTextToSeller] = useState('');
   const [sellerProfile, setSellerProfile] = useState(null);
+  const [sendingTextToSeller, setSendingTextToSeller] = useState(false);
 
   useEffect(() => {
     loadAd();
@@ -213,7 +214,8 @@ function AdDetailPage() {
     }
   };
 
-  const handleContactSeller = () => {
+  const handleSendTextToSeller = async (e) => {
+    e.preventDefault();
     if (!user) {
       navigate('/login');
       return;
@@ -224,7 +226,23 @@ function AdDetailPage() {
       return;
     }
 
-    setShowMessageModal(true);
+    if (!textToSeller.trim() || sendingTextToSeller) {
+      return;
+    }
+
+    setSendingTextToSeller(true);
+    try {
+      await buyerSellerMessageAPI.sendMessage(ad.id, {
+        message: textToSeller.trim(),
+        sender_type: 'buyer',
+      });
+      setTextToSeller('');
+      alert('Message sent successfully!');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to send message');
+    } finally {
+      setSendingTextToSeller(false);
+    }
   };
 
   const handleQuantityChange = (delta) => {
@@ -538,7 +556,7 @@ function AdDetailPage() {
 
                     {/* Text to Seller */}
                     {user && user.id !== ad.user_id && (
-                      <div>
+                      <form onSubmit={handleSendTextToSeller}>
                         <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-2">
                           Text to Seller
                         </label>
@@ -546,10 +564,18 @@ function AdDetailPage() {
                           value={textToSeller}
                           onChange={(e) => setTextToSeller(e.target.value)}
                           placeholder="Type your message..."
-                          className="w-full px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm resize-none"
+                          className="w-full px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm resize-none mb-2"
                           rows="3"
+                          disabled={sendingTextToSeller}
                         />
-                      </div>
+                        <Button
+                          type="submit"
+                          disabled={!textToSeller.trim() || sendingTextToSeller}
+                          className="w-full"
+                        >
+                          {sendingTextToSeller ? 'Sending...' : 'Send Message'}
+                        </Button>
+                      </form>
                     )}
 
                     {/* Response Rate */}
@@ -600,14 +626,6 @@ function AdDetailPage() {
 
                   {/* Action Buttons */}
                   <div className="space-y-2 pt-4 border-t border-[hsl(var(--border))]">
-                    {user && user.id !== ad.user_id && (
-                      <Button
-                        onClick={handleContactSeller}
-                        className="w-full"
-                      >
-                        💬 Contact Seller
-                      </Button>
-                    )}
                     <Link
                       to={`/profile/${ad.seller.id}`}
                       className="block"

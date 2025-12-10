@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BuyerSellerMessage;
 use App\Models\Ad;
+use App\Models\UserNotification;
 use Illuminate\Http\Request;
 
 class BuyerSellerMessageController extends Controller
@@ -96,6 +97,47 @@ class BuyerSellerMessageController extends Controller
             'message' => $validated['message'],
             'is_read' => $validated['sender_type'] === 'seller', // Seller messages are auto-read
         ]);
+
+        // Create notification for the recipient
+        if ($validated['sender_type'] === 'buyer') {
+            // Buyer sent message - notify seller
+            $senderName = $user->name ?? 'A buyer';
+            UserNotification::create([
+                'user_id' => $sellerId,
+                'type' => 'new_message',
+                'title' => 'New Message',
+                'message' => $senderName . ' sent you a message about "' . $ad->title . '"',
+                'is_read' => false,
+                'related_ad_id' => $ad->id,
+                'link' => '/user_dashboard/inbox',
+                'metadata' => [
+                    'ad_id' => $ad->id,
+                    'ad_title' => $ad->title,
+                    'sender_id' => $user->id,
+                    'sender_name' => $senderName,
+                    'message_id' => $message->id,
+                ],
+            ]);
+        } else {
+            // Seller sent message - notify buyer
+            $senderName = $user->name ?? 'The seller';
+            UserNotification::create([
+                'user_id' => $buyerId,
+                'type' => 'new_message',
+                'title' => 'New Message',
+                'message' => $senderName . ' replied to your message about "' . $ad->title . '"',
+                'is_read' => false,
+                'related_ad_id' => $ad->id,
+                'link' => '/user_dashboard/inbox',
+                'metadata' => [
+                    'ad_id' => $ad->id,
+                    'ad_title' => $ad->title,
+                    'sender_id' => $user->id,
+                    'sender_name' => $senderName,
+                    'message_id' => $message->id,
+                ],
+            ]);
+        }
 
         return response()->json($message->load(['buyer', 'seller']), 201);
     }

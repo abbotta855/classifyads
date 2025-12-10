@@ -49,6 +49,10 @@ function UserDashboard({ mode: propMode }) {
   const [userAds, setUserAds] = useState([]);
   const [hasPostedAds, setHasPostedAds] = useState(false);
   const [loadingAds, setLoadingAds] = useState(true);
+  
+  // Unread counts for badges
+  const [inboxUnreadCount, setInboxUnreadCount] = useState(0);
+  const [notificationsUnreadCount, setNotificationsUnreadCount] = useState(0);
 
   // Don't redirect admins - they can access user dashboard from admin panel
   // Only redirect if they're trying to access from a direct URL (optional - can be removed)
@@ -98,6 +102,71 @@ function UserDashboard({ mode: propMode }) {
       localStorage.setItem('dashboardMode', dashboardMode);
     }
   }, [dashboardMode]);
+
+  // Fetch unread counts for badges
+  const fetchUnreadCounts = async () => {
+    if (!user) return;
+    
+    try {
+      // Fetch notifications unread count
+      const notificationsResponse = await notificationAPI.getUnreadCount();
+      setNotificationsUnreadCount(notificationsResponse.data.unread_count || 0);
+      
+      // Fetch inbox unread count (support chats + buyer-seller messages)
+      let totalInboxUnread = 0;
+      
+      try {
+        // Support chat unread count
+        const supportChatsResponse = await inboxAPI.getChats();
+        const supportChats = supportChatsResponse.data || [];
+        const supportUnread = supportChats.reduce((sum, chat) => sum + (chat.unread_count || 0), 0);
+        totalInboxUnread += supportUnread;
+      } catch (err) {
+        console.error('Error fetching support chats:', err);
+      }
+      
+      try {
+        // Buyer-seller messages unread count
+        const userAdsResponse = await userAdAPI.getAds();
+        const userAdsData = userAdsResponse.data?.data || userAdsResponse.data || [];
+        
+        if (userAdsData.length > 0) {
+          // User is a seller - get seller conversations
+          const sellerConvsResponse = await buyerSellerMessageAPI.getSellerConversations();
+          const sellerConvs = sellerConvsResponse.data || [];
+          const sellerUnread = sellerConvs.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
+          totalInboxUnread += sellerUnread;
+        } else {
+          // User is a buyer - get buyer conversations
+          const buyerConvsResponse = await buyerSellerMessageAPI.getBuyerConversations();
+          const buyerConvs = buyerConvsResponse.data || [];
+          const buyerUnread = buyerConvs.reduce((sum, conv) => sum + (conv.unread_count || 0), 0);
+          totalInboxUnread += buyerUnread;
+        }
+      } catch (err) {
+        console.error('Error fetching buyer-seller conversations:', err);
+      }
+      
+      setInboxUnreadCount(totalInboxUnread);
+    } catch (err) {
+      console.error('Error fetching unread counts:', err);
+    }
+  };
+
+  // Fetch unread counts on mount and periodically
+  useEffect(() => {
+    if (user && !loading) {
+      fetchUnreadCounts();
+      // Poll every 30 seconds for updates
+      const interval = setInterval(fetchUnreadCounts, 30000);
+      // Expose fetchUnreadCounts globally so child components can trigger refresh
+      window.fetchUnreadCounts = fetchUnreadCounts;
+      return () => {
+        clearInterval(interval);
+        delete window.fetchUnreadCounts;
+      };
+    }
+  }, [user, loading]);
 
   // Handle mode change - ensure we're on the right section
   useEffect(() => {
@@ -160,6 +229,11 @@ function UserDashboard({ mode: propMode }) {
       navigate(`${basePath}/dashboard`);
     } else {
       navigate(`${basePath}/${sectionId}`);
+    }
+    
+    // Refresh unread counts when navigating to inbox or notifications
+    if (sectionId === 'inbox' || sectionId === 'notifications') {
+      fetchUnreadCounts();
     }
   };
 
@@ -268,20 +342,35 @@ function UserDashboard({ mode: propMode }) {
 
           {/* Menu Items */}
           <nav className="flex-1 overflow-y-auto p-2">
-            {menuItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleSectionChange(item.id)}
-                className={`w-full text-left px-4 py-3 mb-1 rounded-lg transition-colors flex items-center gap-3 ${
-                  activeSection === item.id
-                    ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
-                    : 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]'
-                }`}
-              >
-                <span className="text-xl">{item.icon}</span>
-                <span className="font-medium">{item.label}</span>
-              </button>
-            ))}
+            {menuItems.map((item) => {
+              // Get unread count for this item
+              let unreadCount = 0;
+              if (item.id === 'inbox') {
+                unreadCount = inboxUnreadCount;
+              } else if (item.id === 'notifications') {
+                unreadCount = notificationsUnreadCount;
+              }
+              
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleSectionChange(item.id)}
+                  className={`w-full text-left px-4 py-3 mb-1 rounded-lg transition-colors flex items-center gap-3 relative ${
+                    activeSection === item.id
+                      ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+                      : 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--accent))]'
+                  }`}
+                >
+                  <span className="text-xl">{item.icon}</span>
+                  <span className="font-medium flex-1">{item.label}</span>
+                  {unreadCount > 0 && (
+                    <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </nav>
 
           {/* Footer */}
@@ -991,7 +1080,7 @@ function ProfileSection({ user: initialUser }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-2">Profile Management</h1>
         <p className="text-[hsl(var(--muted-foreground))]">Manage your account information and settings</p>
@@ -1297,32 +1386,32 @@ function ProfileSection({ user: initialUser }) {
         <CardHeader>
           <CardTitle>Profile Details</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex justify-between">
-              <span className="text-[hsl(var(--muted-foreground))]">Member Since:</span>
-              <span className="text-[hsl(var(--foreground))] font-semibold">
+        <CardContent className="space-y-6 py-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+            <div className="flex justify-between items-center py-3 px-4 bg-[hsl(var(--muted))]/30 rounded-lg">
+              <span className="text-[hsl(var(--muted-foreground))] font-medium">Member Since:</span>
+              <span className="text-[hsl(var(--foreground))] font-semibold text-lg">
                 {profileData?.member_since || (profileData?.created_at ? new Date(profileData.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'N/A')}
               </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-[hsl(var(--muted-foreground))]">Last Login:</span>
-              <span className="text-[hsl(var(--foreground))] font-semibold">
+            <div className="flex justify-between items-center py-3 px-4 bg-[hsl(var(--muted))]/30 rounded-lg">
+              <span className="text-[hsl(var(--muted-foreground))] font-medium">Last Login:</span>
+              <span className="text-[hsl(var(--foreground))] font-semibold text-lg">
                 {profileData?.last_login_formatted || (profileData?.last_login_at ? formatLastLogin(profileData.last_login_at) : 'Never')}
               </span>
             </div>
             {profileData?.response_rate !== null && profileData.response_rate !== undefined && (
-              <div className="flex justify-between">
-                <span className="text-[hsl(var(--muted-foreground))]">Response Rate:</span>
-                <span className="text-[hsl(var(--foreground))] font-semibold">
+              <div className="flex justify-between items-center py-3 px-4 bg-[hsl(var(--muted))]/30 rounded-lg">
+                <span className="text-[hsl(var(--muted-foreground))] font-medium">Response Rate:</span>
+                <span className="text-[hsl(var(--foreground))] font-semibold text-lg">
                   {profileData.response_rate}%
                 </span>
               </div>
             )}
             {profileData?.total_sold !== undefined && (
-              <div className="flex justify-between">
-                <span className="text-[hsl(var(--muted-foreground))]">Total Sold Items:</span>
-                <span className="text-[hsl(var(--foreground))] font-semibold">
+              <div className="flex justify-between items-center py-3 px-4 bg-[hsl(var(--muted))]/30 rounded-lg">
+                <span className="text-[hsl(var(--muted-foreground))] font-medium">Total Sold Items:</span>
+                <span className="text-[hsl(var(--foreground))] font-semibold text-lg">
                   {profileData.total_sold || 0}
                 </span>
               </div>
@@ -1331,15 +1420,15 @@ function ProfileSection({ user: initialUser }) {
           
           {/* Profile Rating */}
           {profileData?.profile_rating && (
-            <div className="border-t border-[hsl(var(--border))] pt-4 mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[hsl(var(--muted-foreground))]">Profile Rating:</span>
-                <div className="flex items-center gap-2">
+            <div className="border-t border-[hsl(var(--border))] pt-6 mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[hsl(var(--muted-foreground))] font-medium text-base">Profile Rating:</span>
+                <div className="flex items-center gap-3">
                   <div className="flex gap-1">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <span
                         key={star}
-                        className={`text-xl ${
+                        className={`text-2xl ${
                           star <= Math.round(profileData.profile_rating.average || 0)
                             ? 'text-yellow-400'
                             : 'text-gray-300'
@@ -1349,37 +1438,37 @@ function ProfileSection({ user: initialUser }) {
                       </span>
                     ))}
                   </div>
-                  <span className="text-lg font-bold text-[hsl(var(--foreground))]">
+                  <span className="text-xl font-bold text-[hsl(var(--foreground))]">
                     {profileData.profile_rating.average?.toFixed(1) || '0.0'}/5
                   </span>
                 </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-[hsl(var(--muted-foreground))]">
+              <div className="flex items-center justify-between mt-4">
+                <span className="text-base text-[hsl(var(--muted-foreground))]">
                   {profileData.profile_rating.total || 0} review{(profileData.profile_rating.total || 0) !== 1 ? 's' : ''}
                 </span>
-                <span className="text-sm font-semibold text-[hsl(var(--foreground))]">
+                <span className="text-base font-semibold text-[hsl(var(--foreground))]">
                   {profileData.profile_rating.percentage?.toFixed(1) || '0.0'}%
                 </span>
               </div>
             </div>
           )}
           {(!profileData?.profile_rating || profileData.profile_rating.total === 0) && (
-            <div className="border-t border-[hsl(var(--border))] pt-4 mt-4">
-              <div className="flex items-center justify-between">
-                <span className="text-[hsl(var(--muted-foreground))]">Profile Rating:</span>
-                <div className="flex items-center gap-2">
+            <div className="border-t border-[hsl(var(--border))] pt-6 mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[hsl(var(--muted-foreground))] font-medium text-base">Profile Rating:</span>
+                <div className="flex items-center gap-3">
                   <div className="flex gap-1">
                     {[1, 2, 3, 4, 5].map((star) => (
-                      <span key={star} className="text-xl text-gray-300">★</span>
+                      <span key={star} className="text-2xl text-gray-300">★</span>
                     ))}
                   </div>
-                  <span className="text-lg font-bold text-[hsl(var(--muted-foreground))]">No ratings yet</span>
+                  <span className="text-xl font-bold text-[hsl(var(--muted-foreground))]">No ratings yet</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-sm text-[hsl(var(--muted-foreground))]">0 reviews</span>
-                <span className="text-sm font-semibold text-[hsl(var(--muted-foreground))]">0%</span>
+              <div className="flex items-center justify-between mt-4">
+                <span className="text-base text-[hsl(var(--muted-foreground))]">0 reviews</span>
+                <span className="text-base font-semibold text-[hsl(var(--muted-foreground))]">0%</span>
               </div>
             </div>
           )}
@@ -2720,9 +2809,11 @@ function InboxSection({ user }) {
 
   useEffect(() => {
     if (activeTab === 'buyer-seller' && selectedConversation) {
-      loadConversationMessages(selectedConversation.ad_id);
+      // Load messages without scrolling to bottom initially
+      loadConversationMessages(selectedConversation.ad_id, false);
       const interval = setInterval(() => {
-        loadConversationMessages(selectedConversation.ad_id);
+        // When polling, don't scroll to bottom unless there are new messages
+        loadConversationMessages(selectedConversation.ad_id, false);
       }, 3000);
       return () => clearInterval(interval);
     }
@@ -2813,16 +2904,54 @@ function InboxSection({ user }) {
     }
   };
 
-  const loadConversationMessages = async (adId) => {
+  const loadConversationMessages = async (adId, shouldScrollToBottom = false) => {
     try {
       const response = await buyerSellerMessageAPI.getConversation(adId);
       setConversationMessages(response.data || []);
-      // Auto-scroll to bottom after messages load
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
+      // Only auto-scroll to bottom if explicitly requested (e.g., when sending a new message)
+      if (shouldScrollToBottom) {
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+      }
+      
+      // Mark related notifications as read when viewing the conversation
+      markMessageNotificationsAsRead(adId);
     } catch (err) {
       console.error('Failed to load conversation messages:', err);
+    }
+  };
+
+  // Mark "new_message" notifications as read when user views the conversation
+  const markMessageNotificationsAsRead = async (adId) => {
+    try {
+      // Get all notifications
+      const response = await notificationAPI.getNotifications();
+      const allNotifications = response.data.notifications?.data || response.data.data || [];
+      
+      // Find unread "new_message" notifications related to this ad
+      const relatedNotifications = allNotifications.filter(
+        n => !n.is_read && 
+        n.type === 'new_message' && 
+        n.related_ad_id === adId
+      );
+      
+      // Mark each as read
+      for (const notification of relatedNotifications) {
+        try {
+          await notificationAPI.markAsRead(notification.id);
+        } catch (err) {
+          console.error('Failed to mark notification as read:', err);
+        }
+      }
+      
+      // Refresh unread counts if any notifications were marked
+      if (relatedNotifications.length > 0 && window.fetchUnreadCounts) {
+        // Trigger parent component to refresh unread counts
+        window.fetchUnreadCounts();
+      }
+    } catch (err) {
+      console.error('Error marking message notifications as read:', err);
     }
   };
 
@@ -2837,8 +2966,11 @@ function InboxSection({ user }) {
         sender_type: user.id === selectedConversation.seller_id ? 'seller' : 'buyer',
       });
       setNewMessage('');
-      await loadConversationMessages(selectedConversation.ad_id);
+      // Scroll to bottom after sending a new message
+      await loadConversationMessages(selectedConversation.ad_id, true);
       fetchBuyerSellerConversations();
+      // Mark notifications as read when user sends a message (they've clearly seen the conversation)
+      markMessageNotificationsAsRead(selectedConversation.ad_id);
     } catch (err) {
       console.error('Failed to send message:', err);
       alert(err.response?.data?.error || 'Failed to send message');
