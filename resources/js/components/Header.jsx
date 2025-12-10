@@ -54,7 +54,7 @@ function Header() {
                   </Link>
                 )}
                 {!isAdminPage && !isUserDashboardPage && user.role !== 'admin' && (
-                  <Link to="/dashboard">
+                  <Link to="/user_dashboard/ad-post">
                     <Button variant="outline">
                       Post Ad
                     </Button>
@@ -89,7 +89,7 @@ function Header() {
                     Sign up
                   </Button>
                 </Link>
-                <Link to="/register">
+                <Link to="/user_dashboard/ad-post">
                   <Button>
                     Post Ad
                   </Button>

@@ -32,6 +32,7 @@ class User extends Authenticatable
         'is_verified',
         'dob',
         'phone',
+        'show_phone',
         'profile_picture',
         'last_login_at',
     ];
@@ -59,6 +60,7 @@ class User extends Authenticatable
             'otp_expires_at' => 'datetime',
             'is_verified' => 'boolean',
             'dob' => 'date',
+            'show_phone' => 'boolean',
             'last_login_at' => 'datetime',
         ];
     }

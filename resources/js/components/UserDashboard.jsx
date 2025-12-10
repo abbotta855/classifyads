@@ -632,6 +632,7 @@ function ProfileSection({ user: initialUser }) {
   const [changingPassword, setChangingPassword] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [locationData, setLocationData] = useState({ provinces: [] });
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [selectedLocations, setSelectedLocations] = useState(new Set());
@@ -646,6 +647,7 @@ function ProfileSection({ user: initialUser }) {
     email: '',
     dob: '',
     phone: '',
+    show_phone: true,
     profile_picture: null,
   });
 
@@ -673,6 +675,7 @@ function ProfileSection({ user: initialUser }) {
         email: userData.email || '',
         dob: userData.dob ? userData.dob.split('T')[0] : '',
         phone: userData.phone || '',
+        show_phone: userData.show_phone !== undefined ? userData.show_phone : true,
         profile_picture: null,
       });
       
@@ -971,6 +974,7 @@ function ProfileSection({ user: initialUser }) {
       formDataToSend.append('email', formData.email);
       if (formData.dob) formDataToSend.append('dob', formData.dob);
       if (formData.phone) formDataToSend.append('phone', formData.phone);
+      formDataToSend.append('show_phone', formData.show_phone ? '1' : '0');
       
       // Append profile picture if it exists (as File object)
       if (formData.profile_picture && formData.profile_picture instanceof File) {
@@ -1018,6 +1022,7 @@ function ProfileSection({ user: initialUser }) {
 
       setSuccess('Profile updated successfully!');
       setProfileData(response.data.user);
+      setIsEditingProfile(false); // Exit edit mode after successful save
       // Update auth context if needed
       setTimeout(() => {
         setSuccess(null);
@@ -1102,227 +1107,325 @@ function ProfileSection({ user: initialUser }) {
         </Card>
       )}
 
-      {/* Profile Picture and Basic Info */}
+      {/* Profile View / Edit Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Profile Information</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Profile Information</CardTitle>
+            {!isEditingProfile && (
+              <Button onClick={() => setIsEditingProfile(true)} variant="outline">
+                Edit Profile
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSaveProfile} className="space-y-6">
-            {/* Profile Picture */}
-            <div className="flex items-center gap-6">
-              <div>
-                {profileData?.profile_picture ? (
-                  <img
-                    src={profileData.profile_picture}
-                    alt="Profile"
-                    className="w-24 h-24 rounded-full object-cover border-2 border-[hsl(var(--border))]"
-                  />
-                ) : (
-                  <div className="w-24 h-24 rounded-full bg-[hsl(var(--muted))] flex items-center justify-center text-4xl">
-                    {profileData?.name?.charAt(0).toUpperCase() || 'U'}
-                  </div>
-                )}
+          {!isEditingProfile ? (
+            /* View Mode - Display Profile Information */
+            <div className="space-y-6">
+              {/* Profile Picture and Name */}
+              <div className="flex items-center gap-6">
+                <div>
+                  {profileData?.profile_picture ? (
+                    <img
+                      src={profileData.profile_picture}
+                      alt="Profile"
+                      className="w-32 h-32 rounded-full object-cover border-2 border-[hsl(var(--border))]"
+                    />
+                  ) : (
+                    <div className="w-32 h-32 rounded-full bg-[hsl(var(--muted))] flex items-center justify-center text-5xl">
+                      {profileData?.name?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-[hsl(var(--foreground))]">{profileData?.name || 'User'}</h2>
+                  {profileData?.id && (
+                    <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">ID: {profileData.id}</p>
+                  )}
+                </div>
               </div>
-              <div className="flex-1">
-                <Label htmlFor="profile_picture">Profile Picture</Label>
+
+              {/* Profile Details Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-[hsl(var(--border))]">
+                <div>
+                  <span className="text-sm text-[hsl(var(--muted-foreground))] font-medium">Email:</span>
+                  <p className="text-[hsl(var(--foreground))] mt-1">{profileData?.email || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-[hsl(var(--muted-foreground))] font-medium">Phone Number:</span>
+                  <p className="text-[hsl(var(--foreground))] mt-1">{profileData?.phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <span className="text-sm text-[hsl(var(--muted-foreground))] font-medium">Date of Birth:</span>
+                  <p className="text-[hsl(var(--foreground))] mt-1">
+                    {profileData?.dob ? new Date(profileData.dob).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-sm text-[hsl(var(--muted-foreground))] font-medium">Address:</span>
+                  <p className="text-[hsl(var(--foreground))] mt-1">
+                    {buildLocationString() !== 'Select location' ? buildLocationString() : 'Not set'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Edit Mode - Show Form */
+            <form onSubmit={handleSaveProfile} className="space-y-6">
+              {/* Profile Picture */}
+              <div className="flex items-center gap-6">
+                <div>
+                  {profileData?.profile_picture ? (
+                    <img
+                      src={profileData.profile_picture}
+                      alt="Profile"
+                      className="w-24 h-24 rounded-full object-cover border-2 border-[hsl(var(--border))]"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-[hsl(var(--muted))] flex items-center justify-center text-4xl">
+                      {profileData?.name?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <Label htmlFor="profile_picture">Profile Picture</Label>
+                  <Input
+                    id="profile_picture"
+                    name="profile_picture"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleInputChange}
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                    Max size: 2MB. Formats: JPEG, PNG, JPG, GIF
+                  </p>
+                </div>
+              </div>
+
+              {/* Name */}
+              <div>
+                <Label htmlFor="name">Name</Label>
                 <Input
-                  id="profile_picture"
-                  name="profile_picture"
-                  type="file"
-                  accept="image/*"
+                  id="name"
+                  name="name"
+                  type="text"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required
+                  className="mt-1"
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  required
+                  className="mt-1"
+                />
+              </div>
+
+              {/* Date of Birth */}
+              <div>
+                <Label htmlFor="dob">Date of Birth</Label>
+                <Input
+                  id="dob"
+                  name="dob"
+                  type="date"
+                  value={formData.dob}
                   onChange={handleInputChange}
                   className="mt-1"
                 />
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                  Max size: 2MB. Formats: JPEG, PNG, JPG, GIF
-                </p>
               </div>
-            </div>
 
-            {/* Name */}
-            <div>
-              <Label htmlFor="name">Name</Label>
-              <Input
-                id="name"
-                name="name"
-                type="text"
-                value={formData.name}
-                onChange={handleInputChange}
-                required
-                className="mt-1"
-              />
-            </div>
+              {/* Phone */}
+              <div>
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className="mt-1"
+                  placeholder="+977 98XXXXXXXX"
+                />
+              </div>
 
-            {/* Email */}
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                required
-                className="mt-1"
-              />
-            </div>
+              {/* Show Phone Number Option */}
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="show_phone"
+                  name="show_phone"
+                  checked={formData.show_phone}
+                  onChange={(e) => {
+                    setFormData(prev => ({ ...prev, show_phone: e.target.checked }));
+                  }}
+                  className="w-4 h-4 rounded border-[hsl(var(--border))] text-[hsl(var(--primary))] focus:ring-[hsl(var(--primary))]"
+                />
+                <Label htmlFor="show_phone" className="text-sm font-normal cursor-pointer">
+                  Show phone number to other users
+                </Label>
+              </div>
 
-            {/* Date of Birth */}
-            <div>
-              <Label htmlFor="dob">Date of Birth</Label>
-              <Input
-                id="dob"
-                name="dob"
-                type="date"
-                value={formData.dob}
-                onChange={handleInputChange}
-                className="mt-1"
-              />
-            </div>
-
-            {/* Phone */}
-            <div>
-              <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                name="phone"
-                type="tel"
-                value={formData.phone}
-                onChange={handleInputChange}
-                className="mt-1"
-                placeholder="+977 98XXXXXXXX"
-              />
-            </div>
-
-            {/* Location Selection */}
-            <div>
-              <Label>Address</Label>
-              <div className="relative mt-1" ref={locationDropdownRef}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowLocationDropdown(!showLocationDropdown)}
-                  className="w-full justify-between"
-                >
-                  <span className="truncate">{buildLocationString()}</span>
-                  <span className="ml-2 flex-shrink-0">{showLocationDropdown ? '▲' : '▼'}</span>
-                </Button>
-                {showLocationDropdown && (
-                  <div className="absolute z-10 w-full mt-1 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg shadow-lg max-h-96 overflow-y-auto">
-                    <div className="p-3">
-                      <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
-                        <span className="font-semibold text-sm text-[hsl(var(--foreground))]">Select Location</span>
-                        {selectedLocations.size > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedLocations(new Set())}
-                            className="text-xs text-[hsl(var(--primary))] hover:underline"
-                          >
-                            Clear
-                          </button>
-                        )}
-                      </div>
-                      
-                      {/* Hierarchical Location Tree */}
-                      <div className="space-y-1">
-                        {(locationData.provinces || []).map((province) => (
-                          <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
-                            {/* Province Level */}
-                            <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                              <button
-                                type="button"
-                                onClick={() => toggleProvince(province.id)}
-                                className="mr-2 text-xs"
-                              >
-                                {expandedProvinces.has(province.id) ? '▼' : '▶'}
-                              </button>
-                              <span className="text-sm font-medium text-[hsl(var(--foreground))]">{province.name}</span>
-                            </div>
-                            
-                            {/* Districts */}
-                            {expandedProvinces.has(province.id) && province.districts.map((district) => (
-                              <div key={district.id} className="ml-6 mt-1">
-                                <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => toggleDistrict(`${province.id}-${district.id}`)}
-                                    className="mr-2 text-xs"
-                                  >
-                                    {expandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
-                                  </button>
-                                  <span className="text-sm text-[hsl(var(--foreground))]">{district.name}</span>
-                                </div>
-                                
-                                {/* Local Levels */}
-                                {expandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
-                                  <div key={localLevel.id} className="ml-6 mt-1">
-                                    <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
-                                        className="mr-2 text-xs"
-                                      >
-                                        {expandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
-                                      </button>
-                                      <span className="text-sm text-[hsl(var(--foreground))]">{localLevel.name}</span>
-                                    </div>
-                                    
-                                    {/* Wards */}
-                                    {expandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
-                                      <div key={ward.id} className="ml-6 mt-1">
-                                        <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                          <input
-                                            type="radio"
-                                            name="location_selection"
-                                            className="mr-2"
-                                            checked={selectedLocations.has(ward.id)}
-                                            onChange={() => handleLocationToggle(ward.id)}
-                                          />
-                                          <span className="text-sm text-[hsl(var(--foreground))]">
-                                            {ward.ward_number ? `Ward ${ward.ward_number}` : 'Ward'}
-                                          </span>
-                                        </div>
-                                        
-                                        {/* Local Addresses */}
-                                        {ward.local_addresses && ward.local_addresses.length > 0 && (
-                                          <div className="ml-6 mt-1 space-y-1">
-                                            {ward.local_addresses.map((address, idx) => {
-                                              const addressId = `${ward.id}-${idx}`;
-                                              return (
-                                                <div key={addressId} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                                  <input
-                                                    type="radio"
-                                                    name="location_selection"
-                                                    className="mr-2"
-                                                    checked={selectedLocations.has(addressId)}
-                                                    onChange={() => handleLocationToggle(addressId)}
-                                                  />
-                                                  <span className="text-sm text-[hsl(var(--foreground))]">{address}</span>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                ))}
+              {/* Location Selection */}
+              <div>
+                <Label>Address</Label>
+                <div className="relative mt-1" ref={locationDropdownRef}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+                    className="w-full justify-between"
+                  >
+                    <span className="truncate">{buildLocationString()}</span>
+                    <span className="ml-2 flex-shrink-0">{showLocationDropdown ? '▲' : '▼'}</span>
+                  </Button>
+                  {showLocationDropdown && (
+                    <div className="absolute z-10 w-full mt-1 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-lg shadow-lg max-h-96 overflow-y-auto">
+                      <div className="p-3">
+                        <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
+                          <span className="font-semibold text-sm text-[hsl(var(--foreground))]">Select Location</span>
+                          {selectedLocations.size > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedLocations(new Set())}
+                              className="text-xs text-[hsl(var(--primary))] hover:underline"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        
+                        {/* Hierarchical Location Tree */}
+                        <div className="space-y-1">
+                          {(locationData.provinces || []).map((province) => (
+                            <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
+                              {/* Province Level */}
+                              <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleProvince(province.id)}
+                                  className="mr-2 text-xs"
+                                >
+                                  {expandedProvinces.has(province.id) ? '▼' : '▶'}
+                                </button>
+                                <span className="text-sm font-medium text-[hsl(var(--foreground))]">{province.name}</span>
                               </div>
-                            ))}
-                          </div>
-                        ))}
+                              
+                              {/* Districts */}
+                              {expandedProvinces.has(province.id) && province.districts.map((district) => (
+                                <div key={district.id} className="ml-6 mt-1">
+                                  <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleDistrict(`${province.id}-${district.id}`)}
+                                      className="mr-2 text-xs"
+                                    >
+                                      {expandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
+                                    </button>
+                                    <span className="text-sm text-[hsl(var(--foreground))]">{district.name}</span>
+                                  </div>
+                                  
+                                  {/* Local Levels */}
+                                  {expandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
+                                    <div key={localLevel.id} className="ml-6 mt-1">
+                                      <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
+                                          className="mr-2 text-xs"
+                                        >
+                                          {expandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
+                                        </button>
+                                        <span className="text-sm text-[hsl(var(--foreground))]">{localLevel.name}</span>
+                                      </div>
+                                      
+                                      {/* Wards */}
+                                      {expandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
+                                        <div key={ward.id} className="ml-6 mt-1">
+                                          <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                            <input
+                                              type="radio"
+                                              name="location_selection"
+                                              className="mr-2"
+                                              checked={selectedLocations.has(ward.id)}
+                                              onChange={() => handleLocationToggle(ward.id)}
+                                            />
+                                            <span className="text-sm text-[hsl(var(--foreground))]">
+                                              {ward.ward_number ? `Ward ${ward.ward_number}` : 'Ward'}
+                                            </span>
+                                          </div>
+                                          
+                                          {/* Local Addresses */}
+                                          {ward.local_addresses && ward.local_addresses.length > 0 && (
+                                            <div className="ml-6 mt-1 space-y-1">
+                                              {ward.local_addresses.map((address, idx) => {
+                                                const addressId = `${ward.id}-${idx}`;
+                                                return (
+                                                  <div key={addressId} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                    <input
+                                                      type="radio"
+                                                      name="location_selection"
+                                                      className="mr-2"
+                                                      checked={selectedLocations.has(addressId)}
+                                                      onChange={() => handleLocationToggle(addressId)}
+                                                    />
+                                                    <span className="text-sm text-[hsl(var(--foreground))]">{address}</span>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
 
-            <Button type="submit" disabled={saving} className="w-full">
-              {saving ? 'Saving...' : 'Save Profile'}
-            </Button>
-          </form>
+              <div className="flex gap-3">
+                <Button type="submit" disabled={saving} className="flex-1">
+                  {saving ? 'Saving...' : 'Save Profile'}
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setIsEditingProfile(false);
+                    // Reset form data to original profile data
+                    setFormData({
+                      name: profileData?.name || '',
+                      email: profileData?.email || '',
+                      dob: profileData?.dob ? profileData.dob.split('T')[0] : '',
+                      phone: profileData?.phone || '',
+                      show_phone: profileData?.show_phone !== undefined ? profileData.show_phone : true,
+                      profile_picture: null,
+                    });
+                    setError(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          )}
         </CardContent>
       </Card>
 
