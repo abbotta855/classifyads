@@ -35,8 +35,8 @@ function Header() {
                     Dashboard
                   </Link>
                 )}
-                {/* Admin Panel link - show when admin is on user dashboard */}
-                {(user.role === 'admin' || user.role === 'super_admin') && isUserDashboardPage && (
+                {/* Admin Panel link - show when admin is NOT on admin panel */}
+                {(user.role === 'admin' || user.role === 'super_admin') && !isAdminPage && (
                   <Link
                     to={user.role === 'super_admin' ? '/super_admin' : '/admin'}
                     className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
@@ -44,8 +44,8 @@ function Header() {
                     Admin Panel
                   </Link>
                 )}
-                {/* User Dashboard link - show when admin is on admin panel */}
-                {(user.role === 'admin' || user.role === 'super_admin') && isAdminPage && (
+                {/* User Dashboard link - show when admin is NOT on user dashboard */}
+                {(user.role === 'admin' || user.role === 'super_admin') && !isUserDashboardPage && (
                   <Link
                     to="/user_dashboard/dashboard"
                     className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
