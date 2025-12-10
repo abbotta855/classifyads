@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import Layout from './Layout';
-import { Card, CardContent } from './ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { Label } from './ui/label';
 import { adminAPI } from '../utils/api';
 import axios from 'axios';
 
@@ -329,7 +330,16 @@ function AdminPanel() {
   const [transactionManagementLoading, setTransactionManagementLoading] = useState(false);
   const [editingTransactionId, setEditingTransactionId] = useState(null);
   const [editingTransactionData, setEditingTransactionData] = useState(null);
+  const [showEditTransactionModal, setShowEditTransactionModal] = useState(false);
   const [showPostAdTransactionForm, setShowPostAdTransactionForm] = useState(false);
+  
+  // Modal states for edit modals
+  const [showEditAdModal, setShowEditAdModal] = useState(false);
+  const [showEditJobApplicantModal, setShowEditJobApplicantModal] = useState(false);
+  const [showEditOfferModal, setShowEditOfferModal] = useState(false);
+  const [showEditStockModal, setShowEditStockModal] = useState(false);
+  const [showEditSupportModal, setShowEditSupportModal] = useState(false);
+  const [showEditUserModal, setShowEditUserModal] = useState(false);
   const [postAdTransactionFormData, setPostAdTransactionFormData] = useState({
     vendor_id: '',
     num_of_posted_ad: '',
@@ -1285,6 +1295,7 @@ function AdminPanel() {
       interview_date: applicant.interview_date || '',
       job_progress: applicant.job_progress,
     });
+    setShowEditJobApplicantModal(true);
   };
 
   const handleSaveJobApplicant = async (applicantId) => {
@@ -1300,6 +1311,7 @@ function AdminPanel() {
       setSuccessMessage('Job applicant updated successfully');
       setEditingJobApplicantId(null);
       setEditingJobApplicantData(null);
+      setShowEditJobApplicantModal(false);
       fetchJobApplicants();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -1312,6 +1324,7 @@ function AdminPanel() {
   const handleCancelEditJobApplicant = () => {
     setEditingJobApplicantId(null);
     setEditingJobApplicantData(null);
+    setShowEditJobApplicantModal(false);
   };
 
   const handleDeleteJobApplicant = async (applicantId) => {
@@ -1370,6 +1383,7 @@ function AdminPanel() {
       valid_until: offer.valid_until,
       status: offer.status,
     });
+    setShowEditOfferModal(true);
   };
 
   const handleSaveOffer = async (offerId) => {
@@ -1382,6 +1396,7 @@ function AdminPanel() {
       setSuccessMessage('Offer updated successfully');
       setEditingOfferId(null);
       setEditingOfferData(null);
+      setShowEditOfferModal(false);
       fetchOffers();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -1394,6 +1409,7 @@ function AdminPanel() {
   const handleCancelEditOffer = () => {
     setEditingOfferId(null);
     setEditingOfferData(null);
+    setShowEditOfferModal(false);
   };
 
   const handleDeleteOffer = async (offerId) => {
@@ -1683,11 +1699,13 @@ function AdminPanel() {
         sold_item_qty: stock.sold_item_qty?.toString() || '0',
         low_stock_threshold: stock.low_stock_threshold?.toString() || '10',
       });
+      setShowEditStockModal(true);
     } catch (err) {
       console.error('Error setting up edit stock:', err);
       setError('Failed to initialize edit mode: ' + (err.message || 'Unknown error'));
       setEditingStockId(null);
       setEditingStockData(null);
+      setShowEditStockModal(false);
     }
   };
 
@@ -1707,6 +1725,7 @@ function AdminPanel() {
       setSuccessMessage('Stock item updated successfully');
       setEditingStockId(null);
       setEditingStockData(null);
+      setShowEditStockModal(false);
       fetchStockManagement();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -1740,6 +1759,7 @@ function AdminPanel() {
   const handleCancelEditStock = () => {
     setEditingStockId(null);
     setEditingStockData(null);
+    setShowEditStockModal(false);
   };
 
   const handleDeleteStock = async (stockId) => {
@@ -1917,6 +1937,7 @@ function AdminPanel() {
       error_status: support.error_status || 'pending',
       note_solution: support.note_solution || '',
     });
+    setShowEditSupportModal(true);
   };
 
   const handleSaveSupport = async (supportId) => {
@@ -1931,6 +1952,7 @@ function AdminPanel() {
       setSuccessMessage('Support issue updated successfully');
       setEditingSupportId(null);
       setEditingSupportData(null);
+      setShowEditSupportModal(false);
       fetchSupportManagement();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -1943,6 +1965,7 @@ function AdminPanel() {
   const handleCancelEditSupport = () => {
     setEditingSupportId(null);
     setEditingSupportData(null);
+    setShowEditSupportModal(false);
   };
 
   const handleDeleteSupport = async (supportId) => {
@@ -2047,6 +2070,8 @@ function AdminPanel() {
       setTransactionSelectedCategoryName('');
       setTransactionSelectedSubcategoryId('');
     }
+    
+    setShowEditTransactionModal(true);
   };
 
   const handleSaveTransaction = async (transactionId) => {
@@ -2065,6 +2090,7 @@ function AdminPanel() {
       setEditingTransactionData(null);
       setTransactionSelectedCategoryName('');
       setTransactionSelectedSubcategoryId('');
+      setShowEditTransactionModal(false);
       fetchTransactionManagement();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -2079,6 +2105,7 @@ function AdminPanel() {
     setEditingTransactionData(null);
     setTransactionSelectedCategoryName('');
     setTransactionSelectedSubcategoryId('');
+    setShowEditTransactionModal(false);
   };
 
   const handleEditUser = (user) => {
@@ -2095,6 +2122,7 @@ function AdminPanel() {
       return;
     }
     setEditingUserId(user.id);
+    setShowEditUserModal(true);
     setEditingUserData({
       name: user.name,
       email: user.email,
@@ -2253,6 +2281,7 @@ function AdminPanel() {
       setEditingUserExpandedProvinces(new Set());
       setEditingUserExpandedDistricts(new Set());
       setEditingUserExpandedLocalLevels(new Set());
+      setShowEditUserModal(false);
       fetchUserManagement();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -2269,6 +2298,7 @@ function AdminPanel() {
     setEditingUserExpandedProvinces(new Set());
     setEditingUserExpandedDistricts(new Set());
     setEditingUserExpandedLocalLevels(new Set());
+    setShowEditUserModal(false);
   };
 
   const handleDeleteUser = async (userId) => {
@@ -2587,7 +2617,7 @@ function AdminPanel() {
     }
   };
 
-  // Handle edit ad - start inline editing
+  // Handle edit ad - show modal
   const handleEditAd = (ad) => {
     setEditingAdId(ad.id);
     setEditingAdData({
@@ -2641,6 +2671,8 @@ function AdminPanel() {
     } else {
       setEditingAdSelectedLocations(new Set());
     }
+    
+    setShowEditAdModal(true);
   };
 
   // Handle save ad - save changes
@@ -2682,6 +2714,7 @@ function AdminPanel() {
       setEditingAdSelectedCategoryName('');
       setEditingAdSelectedSubcategoryId('');
       setEditingAdSelectedLocations(new Set());
+      setShowEditAdModal(false);
       fetchAds(); // Refresh the list
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -2697,6 +2730,7 @@ function AdminPanel() {
     setEditingAdSelectedCategoryName('');
     setEditingAdSelectedSubcategoryId('');
     setEditingAdSelectedLocations(new Set());
+    setShowEditAdModal(false);
   };
 
   // Handle Post Ad form submission
@@ -4656,7 +4690,7 @@ function AdminPanel() {
 
   return (
     <Layout showFooter={false}>
-      <div className="flex gap-6 max-w-7xl mx-auto">
+      <div className="flex gap-6 mx-auto">
         {/* Left Sidebar - Admin Navigation */}
         <aside className="w-64 flex-shrink-0 hidden lg:block">
           <Card>
@@ -6299,480 +6333,45 @@ function AdminPanel() {
                         </thead>
                         <tbody>
                           {sortedAds.map((ad, index) => (
-                            <tr key={ad.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingAdId === ad.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
+                            <tr key={ad.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm">
-                                {editingAdId === ad.id ? (
-                                  <Input
-                                    value={editingAdData.title}
-                                    onChange={(e) => setEditingAdData({...editingAdData, title: e.target.value})}
-                                    className="w-full text-sm"
-                                  />
-                                ) : (
-                                  <span className="font-medium">{ad.title}</span>
-                                )}
+                                <span className="font-medium">{ad.title}</span>
                               </td>
                               <td className="p-3 text-sm">
-                                {editingAdId === ad.id ? (
-                                  <div className="relative" ref={editingAdCategoryDropdownRef}>
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditingAdShowCategoryDropdown(!editingAdShowCategoryDropdown)}
-                                      className="w-full px-2 py-1 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between text-xs"
-                                    >
-                                      <span>{buildEditingAdCategoryString() || 'Select Category'}</span>
-                                      <span className="ml-1 text-xs">{editingAdShowCategoryDropdown ? '▼' : '▶'}</span>
-                                    </button>
-                                    
-                                    {/* Cascading Category Menu */}
-                                    {editingAdShowCategoryDropdown && (
-                                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
-                                        {/* Category Column */}
-                                        <div className="min-w-[150px] max-h-64 overflow-y-auto border-r border-[hsl(var(--border))]">
-                                          <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                                            Category
-                                          </div>
-                                          <div className="py-1">
-                                            <button
-                                              type="button"
-                                              onClick={() => handleEditingAdClearCategorySelection()}
-                                              className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
-                                                !editingAdSelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
-                                              }`}
-                                            >
-                                              All Categories
-                                            </button>
-                                            {categories.map((category, index) => (
-                                              <button
-                                                key={category.id || `category-${index}`}
-                                                type="button"
-                                                onClick={() => handleEditingAdCategorySelect(category.name)}
-                                                onMouseEnter={() => {
-                                                  if (editingAdSelectedCategoryName !== category.name) {
-                                                    handleEditingAdCategorySelect(category.name);
-                                                  }
-                                                }}
-                                                className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
-                                                  editingAdSelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
-                                                }`}
-                                              >
-                                                <span>{category.name}</span>
-                                                {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Subcategory Column */}
-                                        {editingAdSelectedCategoryName && getEditingAdSelectedCategory() && getEditingAdSelectedCategory().subcategories && getEditingAdSelectedCategory().subcategories.length > 0 && (
-                                          <div className="min-w-[150px] max-h-64 overflow-y-auto">
-                                            <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                                              Subcategory
-                                            </div>
-                                            <div className="py-1">
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setEditingAdSelectedSubcategoryId('');
-                                                  const category = getEditingAdSelectedCategory();
-                                                  if (category) {
-                                                    setEditingAdData({...editingAdData, category_id: category.id.toString()});
-                                                  }
-                                                  setEditingAdShowCategoryDropdown(false);
-                                                }}
-                                                className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
-                                                  !editingAdSelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
-                                                }`}
-                                              >
-                                                All Subcategories
-                                              </button>
-                                              {getEditingAdSelectedCategory().subcategories.map((subcategory) => (
-                                                <button
-                                                  key={subcategory.id}
-                                                  type="button"
-                                                  onClick={() => handleEditingAdSubcategorySelect(subcategory.id.toString())}
-                                                  className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
-                                                    editingAdSelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
-                                                  }`}
-                                                >
-                                                  {subcategory.name}
-                                                </button>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-[hsl(var(--foreground))]">{ad.category}</span>
-                                )}
+                                <span className="text-[hsl(var(--foreground))]">{ad.category}</span>
                               </td>
                               <td className="p-3 text-sm max-w-xs">
-                                {editingAdId === ad.id ? (
-                                  <div className="relative" ref={editingAdLocationDropdownRef}>
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditingAdShowLocationDropdown(!editingAdShowLocationDropdown)}
-                                      className="w-full px-2 py-1 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between text-xs"
-                                    >
-                                      <span>{buildEditingAdLocationString()}</span>
-                                      <span className="ml-1 text-xs">{editingAdShowLocationDropdown ? '▼' : '▶'}</span>
-                                    </button>
-                                    
-                                    {/* Hierarchical Checkbox Menu */}
-                                    {editingAdShowLocationDropdown && (
-                                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[500px] max-h-[400px] overflow-y-auto">
-                                        <div className="p-3">
-                                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
-                                            <span className="font-semibold text-xs text-[hsl(var(--foreground))]">Select Location</span>
-                                            <button
-                                              type="button"
-                                              onClick={handleEditingAdSelectAllLocations}
-                                              className="text-xs text-[hsl(var(--primary))] hover:underline"
-                                            >
-                                              {editingAdSelectedLocations.size > 0 ? 'Clear All' : 'Select All'}
-                                            </button>
-                                          </div>
-                                          
-                                          {/* Hierarchical Location Tree */}
-                                          <div className="space-y-1">
-                                            {locationData?.provinces && locationData.provinces.length > 0 ? (
-                                              locationData.provinces.map((province) => (
-                                              <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
-                                                {/* Province Level */}
-                                                <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => toggleEditingAdProvince(province.id)}
-                                                    className="mr-2 text-xs"
-                                                  >
-                                                    {editingAdExpandedProvinces.has(province.id) ? '▼' : '▶'}
-                                                  </button>
-                                                  <input
-                                                    type="checkbox"
-                                                    className="mr-2"
-                                                    checked={(() => {
-                                                      const allLocationIds = [];
-                                                      province.districts.forEach(d => {
-                                                        d.localLevels.forEach(ll => {
-                                                          if (ll.wards) {
-                                                            ll.wards.forEach(w => {
-                                                              allLocationIds.push(w.id);
-                                                              if (w.local_addresses) {
-                                                                w.local_addresses.forEach((_, idx) => {
-                                                                  allLocationIds.push(`${w.id}-${idx}`);
-                                                                });
-                                                              }
-                                                            });
-                                                          }
-                                                        });
-                                                      });
-                                                      return allLocationIds.length > 0 && allLocationIds.every(id => editingAdSelectedLocations.has(id));
-                                                    })()}
-                                                    onChange={() => {
-                                                      const allLocationIds = [];
-                                                      province.districts.forEach(d => {
-                                                        d.localLevels.forEach(ll => {
-                                                          if (ll.wards) {
-                                                            ll.wards.forEach(w => {
-                                                              allLocationIds.push(w.id);
-                                                              if (w.local_addresses) {
-                                                                w.local_addresses.forEach((_, idx) => {
-                                                                  allLocationIds.push(`${w.id}-${idx}`);
-                                                                });
-                                                              }
-                                                            });
-                                                          }
-                                                        });
-                                                      });
-                                                      setEditingAdSelectedLocations(prev => {
-                                                        const newSet = new Set(prev);
-                                                        const allSelected = allLocationIds.every(id => newSet.has(id));
-                                                        allLocationIds.forEach(id => {
-                                                          if (allSelected) {
-                                                            newSet.delete(id);
-                                                          } else {
-                                                            newSet.add(id);
-                                                          }
-                                                        });
-                                                        return newSet;
-                                                      });
-                                                    }}
-                                                  />
-                                                  <span className="text-xs font-medium text-[hsl(var(--foreground))]">{province.name}</span>
-                                                </div>
-                                                
-                                                {/* Districts */}
-                                                {editingAdExpandedProvinces.has(province.id) && province.districts.map((district) => (
-                                                  <div key={district.id} className="ml-4 mt-1">
-                                                    <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => toggleEditingAdDistrict(`${province.id}-${district.id}`)}
-                                                        className="mr-2 text-xs"
-                                                      >
-                                                        {editingAdExpandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
-                                                      </button>
-                                                      <input
-                                                        type="checkbox"
-                                                        className="mr-2"
-                                                        checked={(() => {
-                                                          const allLocationIds = [];
-                                                          district.localLevels.forEach(ll => {
-                                                            if (ll.wards) {
-                                                              ll.wards.forEach(w => {
-                                                                allLocationIds.push(w.id);
-                                                                if (w.local_addresses) {
-                                                                  w.local_addresses.forEach((_, idx) => {
-                                                                    allLocationIds.push(`${w.id}-${idx}`);
-                                                                  });
-                                                                }
-                                                              });
-                                                            }
-                                                          });
-                                                          return allLocationIds.length > 0 && allLocationIds.every(id => editingAdSelectedLocations.has(id));
-                                                        })()}
-                                                        onChange={() => {
-                                                          const allLocationIds = [];
-                                                          district.localLevels.forEach(ll => {
-                                                            if (ll.wards) {
-                                                              ll.wards.forEach(w => {
-                                                                allLocationIds.push(w.id);
-                                                                if (w.local_addresses) {
-                                                                  w.local_addresses.forEach((_, idx) => {
-                                                                    allLocationIds.push(`${w.id}-${idx}`);
-                                                                  });
-                                                                }
-                                                              });
-                                                            }
-                                                          });
-                                                          setEditingAdSelectedLocations(prev => {
-                                                            const newSet = new Set(prev);
-                                                            const allSelected = allLocationIds.every(id => newSet.has(id));
-                                                            allLocationIds.forEach(id => {
-                                                              if (allSelected) {
-                                                                newSet.delete(id);
-                                                              } else {
-                                                                newSet.add(id);
-                                                              }
-                                                            });
-                                                            return newSet;
-                                                          });
-                                                        }}
-                                                      />
-                                                      <span className="text-xs text-[hsl(var(--foreground))]">{district.name}</span>
-                                                    </div>
-                                                    
-                                                    {/* Local Levels */}
-                                                    {editingAdExpandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
-                                                      <div key={localLevel.id} className="ml-4 mt-1">
-                                                        <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                                          <button
-                                                            type="button"
-                                                            onClick={() => toggleEditingAdLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
-                                                            className="mr-2 text-xs"
-                                                          >
-                                                            {editingAdExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
-                                                          </button>
-                                                          <input
-                                                            type="checkbox"
-                                                            className="mr-2"
-                                                            checked={(() => {
-                                                              if (!localLevel.wards) return false;
-                                                              const allLocationIds = [];
-                                                              localLevel.wards.forEach(w => {
-                                                                allLocationIds.push(w.id);
-                                                                if (w.local_addresses) {
-                                                                  w.local_addresses.forEach((_, idx) => {
-                                                                    allLocationIds.push(`${w.id}-${idx}`);
-                                                                  });
-                                                                }
-                                                              });
-                                                              return allLocationIds.length > 0 && allLocationIds.every(id => editingAdSelectedLocations.has(id));
-                                                            })()}
-                                                            onChange={() => {
-                                                              if (localLevel.wards) {
-                                                                const allLocationIds = [];
-                                                                localLevel.wards.forEach(w => {
-                                                                  allLocationIds.push(w.id);
-                                                                  if (w.local_addresses) {
-                                                                    w.local_addresses.forEach((_, idx) => {
-                                                                      allLocationIds.push(`${w.id}-${idx}`);
-                                                                    });
-                                                                  }
-                                                                });
-                                                                setEditingAdSelectedLocations(prev => {
-                                                                  const newSet = new Set(prev);
-                                                                  const allSelected = allLocationIds.every(id => newSet.has(id));
-                                                                  allLocationIds.forEach(id => {
-                                                                    if (allSelected) {
-                                                                      newSet.delete(id);
-                                                                    } else {
-                                                                      newSet.add(id);
-                                                                    }
-                                                                  });
-                                                                  return newSet;
-                                                                });
-                                                              }
-                                                            }}
-                                                          />
-                                                          <span className="text-xs text-[hsl(var(--foreground))]">
-                                                            {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
-                                                          </span>
-                                                        </div>
-                                                        
-                                                        {/* Wards and Local Addresses */}
-                                                        {editingAdExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
-                                                          <div key={ward.id} className="ml-4 mt-1">
-                                                            <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                                              <input
-                                                                type="checkbox"
-                                                                className="mr-2"
-                                                                checked={(() => {
-                                                                  const allIds = [ward.id];
-                                                                  if (ward.local_addresses) {
-                                                                    ward.local_addresses.forEach((_, idx) => {
-                                                                      allIds.push(`${ward.id}-${idx}`);
-                                                                    });
-                                                                  }
-                                                                  return allIds.every(id => editingAdSelectedLocations.has(id));
-                                                                })()}
-                                                                onChange={() => {
-                                                                  const allIds = [ward.id];
-                                                                  if (ward.local_addresses) {
-                                                                    ward.local_addresses.forEach((_, idx) => {
-                                                                      allIds.push(`${ward.id}-${idx}`);
-                                                                    });
-                                                                  }
-                                                                  const allSelected = allIds.every(id => editingAdSelectedLocations.has(id));
-                                                                  setEditingAdSelectedLocations(prev => {
-                                                                    const newSet = new Set(prev);
-                                                                    allIds.forEach(id => {
-                                                                      if (allSelected) {
-                                                                        newSet.delete(id);
-                                                                      } else {
-                                                                        newSet.add(id);
-                                                                      }
-                                                                    });
-                                                                    return newSet;
-                                                                  });
-                                                                }}
-                                                              />
-                                                              <span className="text-xs text-[hsl(var(--foreground))]">
-                                                                Ward {ward.ward_number}
-                                                              </span>
-                                                            </div>
-                                                            
-                                                            {/* Local Addresses */}
-                                                            {ward.local_addresses && ward.local_addresses.length > 0 && (
-                                                              <div className="ml-4 mt-1 space-y-1">
-                                                                {ward.local_addresses.map((address, idx) => {
-                                                                  const addressId = `${ward.id}-${idx}`;
-                                                                  return (
-                                                                    <div key={addressId} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                                                      <input
-                                                                        type="checkbox"
-                                                                        className="mr-2"
-                                                                        checked={editingAdSelectedLocations.has(addressId)}
-                                                                        onChange={() => handleEditingAdLocationToggle(addressId)}
-                                                                      />
-                                                                      <span className="text-xs text-[hsl(var(--muted-foreground))]">{address}</span>
-                                                                    </div>
-                                                                  );
-                                                                })}
-                                                              </div>
-                                                            )}
-                                                          </div>
-                                                        ))}
-                                                      </div>
-                                                    ))}
-                                                  </div>
-                                                ))}
-                                              </div>
-                                              ))
-                                            ) : (
-                                              <div className="p-4 text-center text-xs text-[hsl(var(--muted-foreground))]">
-                                                No locations available.
-                                              </div>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block">
-                                    {ad.location || '-'}
-                                  </span>
-                                )}
+                                <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block">
+                                  {ad.location || '-'}
+                                </span>
                               </td>
                               <td className="p-3 text-sm max-w-xs">
-                                {editingAdId === ad.id ? (
-                                  <Input
-                                    value={editingAdData.description}
-                                    onChange={(e) => setEditingAdData({...editingAdData, description: e.target.value})}
-                                    className="w-full text-sm"
-                                  />
-                                ) : (
-                                  <span className="text-[hsl(var(--muted-foreground))] truncate block">{ad.description}</span>
-                                )}
+                                <span className="text-[hsl(var(--muted-foreground))] truncate block">{ad.description}</span>
                               </td>
                               <td className="p-3 text-sm">
-                                {editingAdId === ad.id ? (
-                                  <Input
-                                    type="number"
-                                    value={editingAdData.price}
-                                    onChange={(e) => setEditingAdData({...editingAdData, price: e.target.value})}
-                                    className="w-full text-sm"
-                                  />
-                                ) : (
-                                  <span className="font-semibold">Rs. {ad.price.toLocaleString()}</span>
-                                )}
+                                <span className="font-semibold">Rs. {ad.price.toLocaleString()}</span>
                               </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views}</td>
                               <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(ad.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
                               <td className="p-3 text-sm">
                                 <div className="flex gap-2">
-                                  {editingAdId === ad.id ? (
-                                    <>
-                                      <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleSaveAd(ad.id)}
-                                      >
-                                        Save
-                                      </Button>
-                                      <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        className="h-7 px-2 text-xs"
-                                        onClick={handleCancelEditAd}
-                                      >
-                                        Cancel
-                                      </Button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleEditAd(ad)}
-                                      >
-                                        Edit
-                                      </Button>
-                                      <Button 
-                                        variant="destructive" 
-                                        size="sm" 
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleDeleteAd(ad.id)}
-                                      >
-                                        Delete
-                                      </Button>
-                                    </>
-                                  )}
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => handleEditAd(ad)}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button 
+                                    variant="destructive" 
+                                    size="sm" 
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => handleDeleteAd(ad.id)}
+                                  >
+                                    Delete
+                                  </Button>
                                 </div>
                               </td>
                             </tr>
@@ -6824,43 +6423,17 @@ function AdminPanel() {
                           ads
                             .filter(ad => ad.postedBy === 'admin')
                             .map((ad, index) => (
-                              <tr key={ad.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingAdId === ad.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
+                              <tr key={ad.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                                 <td className="p-3 text-sm">
-                                  {editingAdId === ad.id ? (
-                                    <Input
-                                      value={editingAdData.title}
-                                      onChange={(e) => setEditingAdData({...editingAdData, title: e.target.value})}
-                                      className="w-full text-sm"
-                                    />
-                                  ) : (
-                                    <span className="font-medium">{ad.title}</span>
-                                  )}
+                                  <span className="font-medium">{ad.title}</span>
                                 </td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.category}</td>
                                 <td className="p-3 text-sm max-w-xs">
-                                  {editingAdId === ad.id ? (
-                                    <Input
-                                      value={editingAdData.description}
-                                      onChange={(e) => setEditingAdData({...editingAdData, description: e.target.value})}
-                                      className="w-full text-sm"
-                                    />
-                                  ) : (
-                                    <span className="text-[hsl(var(--muted-foreground))] truncate block">{ad.description}</span>
-                                  )}
+                                  <span className="text-[hsl(var(--muted-foreground))] truncate block">{ad.description}</span>
                                 </td>
                                 <td className="p-3 text-sm">
-                                  {editingAdId === ad.id ? (
-                                    <Input
-                                      type="number"
-                                      value={editingAdData.price}
-                                      onChange={(e) => setEditingAdData({...editingAdData, price: e.target.value})}
-                                      className="w-full text-sm"
-                                      step="0.01"
-                                    />
-                                  ) : (
-                                    <span className="text-[hsl(var(--foreground))]">Rs. {ad.price.toLocaleString()}</span>
-                                  )}
+                                  <span className="text-[hsl(var(--foreground))]">Rs. {ad.price.toLocaleString()}</span>
                                 </td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">
                                   {ad.date ? new Date(ad.date).toLocaleDateString() : 'N/A'}
@@ -6868,45 +6441,24 @@ function AdminPanel() {
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views || 0}</td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">No</td>
                                 <td className="p-3 text-sm">
-                                  {editingAdId === ad.id ? (
-                                    <div className="flex gap-2">
-                                      <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleSaveAd(ad.id)}
-                                      >
-                                        Save
-                                      </Button>
-                                      <Button 
-                                        variant="destructive" 
-                                        size="sm" 
-                                        className="h-7 px-2 text-xs"
-                                        onClick={handleCancelEditAd}
-                                      >
-                                        Cancel
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <div className="flex gap-2">
-                                      <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleEditAd(ad)}
-                                      >
-                                        Edit
-                                      </Button>
-                                      <Button 
-                                        variant="destructive" 
-                                        size="sm" 
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleDeleteAd(ad.id)}
-                                      >
-                                        Delete
-                                      </Button>
-                                    </div>
-                                  )}
+                                  <div className="flex gap-2">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => handleEditAd(ad)}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button 
+                                      variant="destructive" 
+                                      size="sm" 
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => handleDeleteAd(ad.id)}
+                                    >
+                                      Delete
+                                    </Button>
+                                  </div>
                                 </td>
                               </tr>
                             ))
@@ -7001,45 +6553,24 @@ function AdminPanel() {
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views || 0}</td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">No</td>
                                 <td className="p-3 text-sm">
-                                  {editingAdId === ad.id ? (
-                                    <div className="flex gap-2">
-                                      <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleSaveAd(ad.id)}
-                                      >
-                                        Save
-                                      </Button>
-                                      <Button 
-                                        variant="destructive" 
-                                        size="sm" 
-                                        className="h-7 px-2 text-xs"
-                                        onClick={handleCancelEditAd}
-                                      >
-                                        Cancel
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <div className="flex gap-2">
-                                      <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleEditAd(ad)}
-                                      >
-                                        Edit
-                                      </Button>
-                                      <Button 
-                                        variant="destructive" 
-                                        size="sm" 
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleDeleteAd(ad.id)}
-                                      >
-                                        Delete
-                                      </Button>
-                                    </div>
-                                  )}
+                                  <div className="flex gap-2">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => handleEditAd(ad)}
+                                    >
+                                      Edit
+                                    </Button>
+                                    <Button 
+                                      variant="destructive" 
+                                      size="sm" 
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => handleDeleteAd(ad.id)}
+                                    >
+                                      Delete
+                                    </Button>
+                                  </div>
                                 </td>
                               </tr>
                             ))
@@ -7183,6 +6714,403 @@ function AdminPanel() {
                 </CardContent>
               </Card>
             </section>
+          )}
+
+          {/* Edit Ad Modal */}
+          {showEditAdModal && editingAdData && editingAdId && (
+            <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+              <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto px-4 mx-auto">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Edit Ad</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={handleCancelEditAd}>✕</Button>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <form onSubmit={(e) => { e.preventDefault(); handleSaveAd(editingAdId); }} className="space-y-4">
+                    <div>
+                      <Label htmlFor="edit-ad-title">Title *</Label>
+                      <Input
+                        id="edit-ad-title"
+                        value={editingAdData.title}
+                        onChange={(e) => setEditingAdData({...editingAdData, title: e.target.value})}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-ad-description">Description *</Label>
+                      <textarea
+                        id="edit-ad-description"
+                        value={editingAdData.description}
+                        onChange={(e) => setEditingAdData({...editingAdData, description: e.target.value})}
+                        required
+                        rows={4}
+                        className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-ad-price">Price *</Label>
+                      <Input
+                        id="edit-ad-price"
+                        type="number"
+                        step="0.01"
+                        value={editingAdData.price}
+                        onChange={(e) => setEditingAdData({...editingAdData, price: e.target.value})}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label>Category *</Label>
+                      <div className="relative mt-1" ref={editingAdCategoryDropdownRef}>
+                        <button
+                          type="button"
+                          onClick={() => setEditingAdShowCategoryDropdown(!editingAdShowCategoryDropdown)}
+                          className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                        >
+                          <span>{buildEditingAdCategoryString() || 'Select Category'}</span>
+                          <span>{editingAdShowCategoryDropdown ? '▼' : '▶'}</span>
+                        </button>
+                        {editingAdShowCategoryDropdown && (
+                          <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
+                            <div className="min-w-[150px] max-h-64 overflow-y-auto border-r border-[hsl(var(--border))]">
+                              <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">Category</div>
+                              <div className="py-1">
+                                <button
+                                  type="button"
+                                  onClick={handleEditingAdClearCategorySelection}
+                                  className="w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))]"
+                                >
+                                  All Categories
+                                </button>
+                                {categories.map((category) => (
+                                  <button
+                                    key={category.id}
+                                    type="button"
+                                    onClick={() => handleEditingAdCategorySelect(category.name)}
+                                    className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
+                                      editingAdSelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
+                                    }`}
+                                  >
+                                    <span>{category.name}</span>
+                                    {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            {editingAdSelectedCategoryName && getEditingAdSelectedCategory() && getEditingAdSelectedCategory().subcategories && getEditingAdSelectedCategory().subcategories.length > 0 && (
+                              <div className="min-w-[150px] max-h-64 overflow-y-auto">
+                                <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">Subcategory</div>
+                                <div className="py-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingAdSelectedSubcategoryId('');
+                                      const category = getEditingAdSelectedCategory();
+                                      if (category) {
+                                        setEditingAdData({...editingAdData, category_id: category.id.toString()});
+                                      }
+                                      setEditingAdShowCategoryDropdown(false);
+                                    }}
+                                    className="w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))]"
+                                  >
+                                    All Subcategories
+                                  </button>
+                                  {getEditingAdSelectedCategory().subcategories.map((subcategory) => (
+                                    <button
+                                      key={subcategory.id}
+                                      type="button"
+                                      onClick={() => handleEditingAdSubcategorySelect(subcategory.id.toString())}
+                                      className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
+                                        editingAdSelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                      }`}
+                                    >
+                                      {subcategory.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Location *</Label>
+                      <div className="relative mt-1" ref={editingAdLocationDropdownRef}>
+                        <button
+                          type="button"
+                          onClick={() => setEditingAdShowLocationDropdown(!editingAdShowLocationDropdown)}
+                          className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                        >
+                          <span>{buildEditingAdLocationString()}</span>
+                          <span>{editingAdShowLocationDropdown ? '▼' : '▶'}</span>
+                        </button>
+                        {editingAdShowLocationDropdown && locationData?.provinces && (
+                          <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[500px] max-h-[400px] overflow-y-auto">
+                            <div className="p-3">
+                              <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
+                                <span className="font-semibold text-xs text-[hsl(var(--foreground))]">Select Location</span>
+                                <button
+                                  type="button"
+                                  onClick={handleEditingAdSelectAllLocations}
+                                  className="text-xs text-[hsl(var(--primary))] hover:underline"
+                                >
+                                  {editingAdSelectedLocations.size > 0 ? 'Clear All' : 'Select All'}
+                                </button>
+                              </div>
+                              {locationData.provinces.map((province) => (
+                                <div key={province.id} className="mb-2">
+                                  <div className="flex items-center py-1">
+                                    <input
+                                      type="checkbox"
+                                      className="mr-2"
+                                      checked={(() => {
+                                        const allLocationIds = [];
+                                        province.districts.forEach(d => {
+                                          d.localLevels.forEach(ll => {
+                                            if (ll.wards) {
+                                              ll.wards.forEach(w => {
+                                                allLocationIds.push(w.id.toString());
+                                                if (w.local_addresses) {
+                                                  w.local_addresses.forEach((_, idx) => {
+                                                    allLocationIds.push(`${w.id}-${idx}`);
+                                                  });
+                                                }
+                                              });
+                                            }
+                                          });
+                                        });
+                                        return allLocationIds.length > 0 && allLocationIds.every(id => editingAdSelectedLocations.has(id));
+                                      })()}
+                                      onChange={() => {
+                                        const allLocationIds = [];
+                                        province.districts.forEach(d => {
+                                          d.localLevels.forEach(ll => {
+                                            if (ll.wards) {
+                                              ll.wards.forEach(w => {
+                                                allLocationIds.push(w.id.toString());
+                                                if (w.local_addresses) {
+                                                  w.local_addresses.forEach((_, idx) => {
+                                                    allLocationIds.push(`${w.id}-${idx}`);
+                                                  });
+                                                }
+                                              });
+                                            }
+                                          });
+                                        });
+                                        setEditingAdSelectedLocations(prev => {
+                                          const newSet = new Set(prev);
+                                          const allSelected = allLocationIds.every(id => newSet.has(id));
+                                          allLocationIds.forEach(id => {
+                                            if (allSelected) {
+                                              newSet.delete(id);
+                                            } else {
+                                              newSet.add(id);
+                                            }
+                                          });
+                                          return newSet;
+                                        });
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleEditingAdProvince(province.id)}
+                                      className="mr-2 text-xs"
+                                    >
+                                      {editingAdExpandedProvinces.has(province.id) ? '▼' : '▶'}
+                                    </button>
+                                    <span className="text-xs font-medium">{province.name}</span>
+                                  </div>
+                                  {editingAdExpandedProvinces.has(province.id) && province.districts.map((district) => (
+                                    <div key={district.id} className="ml-4 mt-1">
+                                      <div className="flex items-center py-1">
+                                        <input
+                                          type="checkbox"
+                                          className="mr-2"
+                                          checked={(() => {
+                                            const allLocationIds = [];
+                                            district.localLevels.forEach(ll => {
+                                              if (ll.wards) {
+                                                ll.wards.forEach(w => {
+                                                  allLocationIds.push(w.id.toString());
+                                                  if (w.local_addresses) {
+                                                    w.local_addresses.forEach((_, idx) => {
+                                                      allLocationIds.push(`${w.id}-${idx}`);
+                                                    });
+                                                  }
+                                                });
+                                              }
+                                            });
+                                            return allLocationIds.length > 0 && allLocationIds.every(id => editingAdSelectedLocations.has(id));
+                                          })()}
+                                          onChange={() => {
+                                            const allLocationIds = [];
+                                            district.localLevels.forEach(ll => {
+                                              if (ll.wards) {
+                                                ll.wards.forEach(w => {
+                                                  allLocationIds.push(w.id.toString());
+                                                  if (w.local_addresses) {
+                                                    w.local_addresses.forEach((_, idx) => {
+                                                      allLocationIds.push(`${w.id}-${idx}`);
+                                                    });
+                                                  }
+                                                });
+                                              }
+                                            });
+                                            setEditingAdSelectedLocations(prev => {
+                                              const newSet = new Set(prev);
+                                              const allSelected = allLocationIds.every(id => newSet.has(id));
+                                              allLocationIds.forEach(id => {
+                                                if (allSelected) {
+                                                  newSet.delete(id);
+                                                } else {
+                                                  newSet.add(id);
+                                                }
+                                              });
+                                              return newSet;
+                                            });
+                                          }}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleEditingAdDistrict(`${province.id}-${district.id}`)}
+                                          className="mr-2 text-xs"
+                                        >
+                                          {editingAdExpandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
+                                        </button>
+                                        <span className="text-xs">{district.name}</span>
+                                      </div>
+                                      {editingAdExpandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
+                                        <div key={localLevel.id} className="ml-4 mt-1">
+                                          <div className="flex items-center py-1">
+                                            <input
+                                              type="checkbox"
+                                              className="mr-2"
+                                              checked={(() => {
+                                                if (!localLevel.wards) return false;
+                                                const allLocationIds = [];
+                                                localLevel.wards.forEach(w => {
+                                                  allLocationIds.push(w.id.toString());
+                                                  if (w.local_addresses) {
+                                                    w.local_addresses.forEach((_, idx) => {
+                                                      allLocationIds.push(`${w.id}-${idx}`);
+                                                    });
+                                                  }
+                                                });
+                                                return allLocationIds.length > 0 && allLocationIds.every(id => editingAdSelectedLocations.has(id));
+                                              })()}
+                                              onChange={() => {
+                                                if (localLevel.wards) {
+                                                  const allLocationIds = [];
+                                                  localLevel.wards.forEach(w => {
+                                                    allLocationIds.push(w.id.toString());
+                                                    if (w.local_addresses) {
+                                                      w.local_addresses.forEach((_, idx) => {
+                                                        allLocationIds.push(`${w.id}-${idx}`);
+                                                      });
+                                                    }
+                                                  });
+                                                  setEditingAdSelectedLocations(prev => {
+                                                    const newSet = new Set(prev);
+                                                    const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                    allLocationIds.forEach(id => {
+                                                      if (allSelected) {
+                                                        newSet.delete(id);
+                                                      } else {
+                                                        newSet.add(id);
+                                                      }
+                                                    });
+                                                    return newSet;
+                                                  });
+                                                }
+                                              }}
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleEditingAdLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
+                                              className="mr-2 text-xs"
+                                            >
+                                              {editingAdExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
+                                            </button>
+                                            <span className="text-xs">{localLevel.name}</span>
+                                          </div>
+                                          {editingAdExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
+                                            <div key={ward.id} className="ml-4 mt-1">
+                                              <div className="flex items-center py-1">
+                                                <input
+                                                  type="checkbox"
+                                                  className="mr-2"
+                                                  checked={(() => {
+                                                    const allIds = [ward.id.toString()];
+                                                    if (ward.local_addresses) {
+                                                      ward.local_addresses.forEach((_, idx) => {
+                                                        allIds.push(`${ward.id}-${idx}`);
+                                                      });
+                                                    }
+                                                    return allIds.every(id => editingAdSelectedLocations.has(id));
+                                                  })()}
+                                                  onChange={() => {
+                                                    const allIds = [ward.id.toString()];
+                                                    if (ward.local_addresses) {
+                                                      ward.local_addresses.forEach((_, idx) => {
+                                                        allIds.push(`${ward.id}-${idx}`);
+                                                      });
+                                                    }
+                                                    const allSelected = allIds.every(id => editingAdSelectedLocations.has(id));
+                                                    setEditingAdSelectedLocations(prev => {
+                                                      const newSet = new Set(prev);
+                                                      allIds.forEach(id => {
+                                                        if (allSelected) {
+                                                          newSet.delete(id);
+                                                        } else {
+                                                          newSet.add(id);
+                                                        }
+                                                      });
+                                                      return newSet;
+                                                    });
+                                                  }}
+                                                />
+                                                <span className="text-xs">Ward {ward.ward_number}</span>
+                                              </div>
+                                              {ward.local_addresses && ward.local_addresses.length > 0 && (
+                                                <div className="ml-4 mt-1 space-y-1">
+                                                  {ward.local_addresses.map((address, idx) => {
+                                                    const addressId = `${ward.id}-${idx}`;
+                                                    return (
+                                                      <div key={addressId} className="flex items-center py-1">
+                                                        <input
+                                                          type="checkbox"
+                                                          className="mr-2"
+                                                          checked={editingAdSelectedLocations.has(addressId)}
+                                                          onChange={() => handleEditingAdLocationToggle(addressId)}
+                                                        />
+                                                        <span className="text-xs">{address}</span>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 mt-6">
+                      <Button type="button" variant="ghost" onClick={handleCancelEditAd}>Cancel</Button>
+                      <Button type="submit">Save Changes</Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {activeSection === 'job-management' && (
@@ -7880,80 +7808,25 @@ function AdminPanel() {
                           </tr>
                         ) : (
                           jobApplicants.map((applicant, index) => (
-                            <tr key={applicant.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingJobApplicantId === applicant.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
+                            <tr key={applicant.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm">
-                                {editingJobApplicantId === applicant.id ? (
-                                  <Input
-                                    value={editingJobApplicantData.job_title}
-                                    onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, job_title: e.target.value })}
-                                  />
-                                ) : (
-                                  <span className="font-medium">{applicant.job_title}</span>
-                                )}
+                                <span className="font-medium">{applicant.job_title}</span>
                               </td>
                               <td className="p-3 text-sm">
-                                {editingJobApplicantId === applicant.id ? (
-                                  <Input
-                                    value={editingJobApplicantData.applicant_name}
-                                    onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, applicant_name: e.target.value })}
-                                  />
-                                ) : (
-                                  <span className="text-[hsl(var(--muted-foreground))]">{applicant.applicant_name}</span>
-                                )}
+                                <span className="text-[hsl(var(--muted-foreground))]">{applicant.applicant_name}</span>
                               </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">
-                                {editingJobApplicantId === applicant.id ? (
-                                  <Input
-                                    type="date"
-                                    value={editingJobApplicantData.posted_date || ''}
-                                    onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, posted_date: e.target.value })}
-                                  />
-                                ) : (
-                                  applicant.posted_date ? new Date(applicant.posted_date).toLocaleDateString() : 'N/A'
-                                )}
+                                {applicant.posted_date ? new Date(applicant.posted_date).toLocaleDateString() : 'N/A'}
                               </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">
-                                {editingJobApplicantId === applicant.id ? (
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={editingJobApplicantData.expected_salary ?? ''}
-                                    onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, expected_salary: e.target.value })}
-                                  />
-                                ) : (
-                                  applicant.expected_salary ? `Rs. ${Number(applicant.expected_salary).toLocaleString()}` : '-'
-                                )}
+                                {applicant.expected_salary ? `Rs. ${Number(applicant.expected_salary).toLocaleString()}` : '-'}
                               </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">
-                                {editingJobApplicantId === applicant.id ? (
-                                  <Input
-                                    type="date"
-                                    value={editingJobApplicantData.interview_date || ''}
-                                    onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, interview_date: e.target.value })}
-                                  />
-                                ) : (
-                                  applicant.interview_date ? new Date(applicant.interview_date).toLocaleDateString() : '-'
-                                )}
+                                {applicant.interview_date ? new Date(applicant.interview_date).toLocaleDateString() : '-'}
                               </td>
                               <td className="p-3 text-sm">
-                                {editingJobApplicantId === applicant.id ? (
-                                  <select
-                                    value={editingJobApplicantData.job_progress}
-                                    onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, job_progress: e.target.value })}
-                                    className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
-                                  >
-                                    <option value="applied">Applied</option>
-                                    <option value="screening">Screening</option>
-                                    <option value="interview">Interview</option>
-                                    <option value="offer">Offer</option>
-                                    <option value="hired">Hired</option>
-                                    <option value="rejected">Rejected</option>
-                                  </select>
-                                ) : (
-                                  <span className="capitalize">{applicant.job_progress}</span>
-                                )}
+                                <span className="capitalize">{applicant.job_progress}</span>
                               </td>
                               <td className="p-3 text-sm">
                                 <div className="flex flex-col gap-1">
@@ -7978,17 +7851,10 @@ function AdminPanel() {
                                 </div>
                               </td>
                               <td className="p-3 text-sm">
-                                {editingJobApplicantId === applicant.id ? (
-                                  <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveJobApplicant(applicant.id)}>Save</Button>
-                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditJobApplicant}>Cancel</Button>
-                                  </div>
-                                ) : (
-                                  <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditJobApplicant(applicant)}>Edit</Button>
-                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteJobApplicant(applicant.id)}>Delete</Button>
-                                  </div>
-                                )}
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditJobApplicant(applicant)}>Edit</Button>
+                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteJobApplicant(applicant.id)}>Delete</Button>
+                                </div>
                               </td>
                             </tr>
                           ))
@@ -8120,6 +7986,95 @@ function AdminPanel() {
                 </CardContent>
               </Card>
             </section>
+          )}
+
+          {/* Edit Job Applicant Modal */}
+          {showEditJobApplicantModal && editingJobApplicantData && editingJobApplicantId && (
+            <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+              <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto px-4 mx-auto">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Edit Job Applicant</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={handleCancelEditJobApplicant}>✕</Button>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <form onSubmit={(e) => { e.preventDefault(); handleSaveJobApplicant(editingJobApplicantId); }} className="space-y-4">
+                    <div>
+                      <Label htmlFor="edit-job-title">Job Title *</Label>
+                      <Input
+                        id="edit-job-title"
+                        value={editingJobApplicantData.job_title}
+                        onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, job_title: e.target.value })}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-applicant-name">Applicant Name *</Label>
+                      <Input
+                        id="edit-applicant-name"
+                        value={editingJobApplicantData.applicant_name}
+                        onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, applicant_name: e.target.value })}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-posted-date">Posted Date</Label>
+                      <Input
+                        id="edit-posted-date"
+                        type="date"
+                        value={editingJobApplicantData.posted_date || ''}
+                        onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, posted_date: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-expected-salary">Expected Salary</Label>
+                      <Input
+                        id="edit-expected-salary"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editingJobApplicantData.expected_salary ?? ''}
+                        onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, expected_salary: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-interview-date">Interview Date</Label>
+                      <Input
+                        id="edit-interview-date"
+                        type="date"
+                        value={editingJobApplicantData.interview_date || ''}
+                        onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, interview_date: e.target.value })}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-job-progress">Job Progress *</Label>
+                      <select
+                        id="edit-job-progress"
+                        value={editingJobApplicantData.job_progress}
+                        onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, job_progress: e.target.value })}
+                        className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] mt-1"
+                        required
+                      >
+                        <option value="applied">Applied</option>
+                        <option value="screening">Screening</option>
+                        <option value="interview">Interview</option>
+                        <option value="offer">Offer</option>
+                        <option value="hired">Hired</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                    </div>
+                    <div className="flex justify-end gap-2 mt-6">
+                      <Button type="button" variant="ghost" onClick={handleCancelEditJobApplicant}>Cancel</Button>
+                      <Button type="submit">Save Changes</Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {activeSection === 'offer-discount' && (
@@ -8262,106 +8217,28 @@ function AdminPanel() {
                           offers.map((offer, index) => (
                             <tr key={offer.id} className="border-b border-[hsl(var(--border))]">
                               <td className="p-3 text-sm">{index + 1}</td>
+                              <td className="p-3 text-sm">{offer.item_name}</td>
+                              <td className="p-3 text-sm">{offer.vendor?.name || 'N/A'}</td>
+                              <td className="p-3 text-sm">{`${offer.offer_percentage}%`}</td>
+                              <td className="p-3 text-sm">{offer.created_date ? new Date(offer.created_date).toLocaleDateString() : 'N/A'}</td>
+                              <td className="p-3 text-sm">{offer.valid_until ? new Date(offer.valid_until).toLocaleDateString() : 'N/A'}</td>
                               <td className="p-3 text-sm">
-                                {editingOfferId === offer.id ? (
-                                  <Input
-                                    value={editingOfferData.item_name}
-                                    onChange={(e) => setEditingOfferData({...editingOfferData, item_name: e.target.value})}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  offer.item_name
-                                )}
+                                <span className={`px-2 py-1 rounded text-xs ${
+                                  offer.status === 'approved' 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {offer.status === 'approved' ? 'Approved' : 'Pending'}
+                                </span>
                               </td>
                               <td className="p-3 text-sm">
-                                {editingOfferId === offer.id ? (
-                                  <select
-                                    value={editingOfferData.vendor_id}
-                                    onChange={(e) => setEditingOfferData({...editingOfferData, vendor_id: e.target.value})}
-                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
-                                  >
-                                    {users.filter(u => u.role === 'user' || u.role === 'vendor').map((user) => (
-                                      <option key={user.id} value={user.id}>{user.name}</option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  offer.vendor?.name || 'N/A'
-                                )}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {editingOfferId === offer.id ? (
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    max="100"
-                                    value={editingOfferData.offer_percentage}
-                                    onChange={(e) => setEditingOfferData({...editingOfferData, offer_percentage: e.target.value})}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  `${offer.offer_percentage}%`
-                                )}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {editingOfferId === offer.id ? (
-                                  <Input
-                                    type="date"
-                                    value={editingOfferData.created_date}
-                                    onChange={(e) => setEditingOfferData({...editingOfferData, created_date: e.target.value})}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  offer.created_date ? new Date(offer.created_date).toLocaleDateString() : 'N/A'
-                                )}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {editingOfferId === offer.id ? (
-                                  <Input
-                                    type="date"
-                                    value={editingOfferData.valid_until}
-                                    onChange={(e) => setEditingOfferData({...editingOfferData, valid_until: e.target.value})}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  offer.valid_until ? new Date(offer.valid_until).toLocaleDateString() : 'N/A'
-                                )}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {editingOfferId === offer.id ? (
-                                  <select
-                                    value={editingOfferData.status}
-                                    onChange={(e) => setEditingOfferData({...editingOfferData, status: e.target.value})}
-                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
-                                  >
-                                    <option value="pending">Pending</option>
-                                    <option value="approved">Approved</option>
-                                  </select>
-                                ) : (
-                                  <span className={`px-2 py-1 rounded text-xs ${
-                                    offer.status === 'approved' 
-                                      ? 'bg-green-100 text-green-800' 
-                                      : 'bg-yellow-100 text-yellow-800'
-                                  }`}>
-                                    {offer.status === 'approved' ? 'Approved' : 'Pending'}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {editingOfferId === offer.id ? (
-                                  <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveOffer(offer.id)}>Save</Button>
-                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditOffer}>Cancel</Button>
-                                  </div>
-                                ) : (
-                                  <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditOffer(offer)}>Edit</Button>
-                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteOffer(offer.id)}>Delete</Button>
-                                    {offer.status === 'pending' && (
-                                      <Button variant="default" size="sm" className="h-7 px-2 text-xs bg-green-600 hover:bg-green-700" onClick={() => handleApproveOffer(offer.id)}>Approve</Button>
-                                    )}
-                                  </div>
-                                )}
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditOffer(offer)}>Edit</Button>
+                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteOffer(offer.id)}>Delete</Button>
+                                  {offer.status === 'pending' && (
+                                    <Button variant="default" size="sm" className="h-7 px-2 text-xs bg-green-600 hover:bg-green-700" onClick={() => handleApproveOffer(offer.id)}>Approve</Button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))
@@ -8918,123 +8795,30 @@ function AdminPanel() {
                             >
                               <td className="p-3 text-sm">{index + 1}</td>
                               <td className="p-3 text-sm">
-                                {editingStockId === stock.id && editingStockData ? (
-                                  <Input
-                                    value={editingStockData.item_name || ''}
-                                    onChange={(e) => setEditingStockData({...editingStockData, item_name: e.target.value})}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  <span className={stock.is_low_stock ? 'font-semibold text-orange-600 dark:text-orange-400' : ''}>
-                                    {stock.item_name}
-                                    {stock.is_low_stock && ' ⚠️'}
-                                  </span>
-                                )}
+                                <span className={stock.is_low_stock ? 'font-semibold text-orange-600 dark:text-orange-400' : ''}>
+                                  {stock.item_name}
+                                  {stock.is_low_stock && ' ⚠️'}
+                                </span>
                               </td>
                               <td className="p-3 text-sm">
-                                {editingStockId === stock.id && editingStockData ? (
-                                  <select
-                                    value={editingStockData.vendor_seller_id || ''}
-                                    onChange={(e) => setEditingStockData({...editingStockData, vendor_seller_id: e.target.value})}
-                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
-                                  >
-                                    {users.map((user) => (
-                                      <option key={user.id} value={user.id}>{user.name}</option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  stock.vendor_seller_name || 'N/A'
-                                )}
+                                {stock.vendor_seller_name || 'N/A'}
                               </td>
                               <td className="p-3 text-sm">
-                                {editingStockId === stock.id && editingStockData ? (
-                                  <div className="flex gap-2">
-                                    {/* Main Category Dropdown */}
-                                    <select
-                                      value={editingStockData.main_category_id || ''}
-                                      onChange={(e) => handleMainCategoryChange(e.target.value)}
-                                      className="flex-1 px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
-                                    >
-                                      <option value="">Select Category</option>
-                                      {stockManagementMainCategories.map((cat) => (
-                                        <option key={cat.id} value={cat.id}>
-                                          {cat.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    {/* Subcategory Dropdown */}
-                                    <select
-                                      value={editingStockData.category_id === editingStockData.main_category_id ? '' : (editingStockData.category_id || '')}
-                                      onChange={(e) => handleSubcategoryChange(e.target.value)}
-                                      className="flex-1 px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
-                                      disabled={!editingStockData.main_category_id}
-                                    >
-                                      <option value="">Select Subcategory (Optional)</option>
-                                      {editingStockData.main_category_id && (() => {
-                                        const selectedMainCategory = stockManagementMainCategories.find(
-                                          c => c.id.toString() === editingStockData.main_category_id
-                                        );
-                                        if (!selectedMainCategory) return null;
-                                        
-                                        // Get all subcategories for the selected main category
-                                        const subcategories = stockManagementCategories.get(selectedMainCategory.name) || [];
-                                        
-                                        return subcategories.length > 0 ? (
-                                          subcategories.map((subcat) => (
-                                            <option key={subcat.id} value={subcat.id}>
-                                              {subcat.name}
-                                            </option>
-                                          ))
-                                        ) : (
-                                          <option value="" disabled>No subcategories available</option>
-                                        );
-                                      })()}
-                                    </select>
-                                  </div>
-                                ) : (
-                                  `${stock.category_name || 'N/A'}${stock.subcategory_name ? ` / ${stock.subcategory_name}` : ''}`
-                                )}
+                                {`${stock.category_name || 'N/A'}${stock.subcategory_name ? ` / ${stock.subcategory_name}` : ''}`}
                               </td>
                               <td className="p-3 text-sm">
-                                {editingStockId === stock.id && editingStockData ? (
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    value={editingStockData.quantity || ''}
-                                    onChange={(e) => setEditingStockData({...editingStockData, quantity: e.target.value})}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  <span className={stock.is_low_stock ? 'font-semibold text-orange-600 dark:text-orange-400' : ''}>
-                                    {stock.quantity}
-                                  </span>
-                                )}
+                                <span className={stock.is_low_stock ? 'font-semibold text-orange-600 dark:text-orange-400' : ''}>
+                                  {stock.quantity}
+                                </span>
                               </td>
                               <td className="p-3 text-sm">
-                                {editingStockId === stock.id && editingStockData ? (
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    value={editingStockData.sold_item_qty || ''}
-                                    onChange={(e) => setEditingStockData({...editingStockData, sold_item_qty: e.target.value})}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  stock.sold_item_qty || 0
-                                )}
+                                {stock.sold_item_qty || 0}
                               </td>
                               <td className="p-3 text-sm">
-                                {editingStockId === stock.id && editingStockData ? (
-                                  <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveStock(stock.id)}>Save</Button>
-                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditStock}>Cancel</Button>
-                                  </div>
-                                ) : (
-                                  <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditStock(stock)}>Edit</Button>
-                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteStock(stock.id)}>Delete</Button>
-                                  </div>
-                                )}
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditStock(stock)}>Edit</Button>
+                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteStock(stock.id)}>Delete</Button>
+                                </div>
                               </td>
                             </tr>
                           ))
@@ -9904,219 +9688,21 @@ function AdminPanel() {
                           transactionManagement.map((transaction, index) => (
                             <tr key={transaction.id} className="border-b border-[hsl(var(--border))]">
                               <td className="p-3 text-sm">{index + 1}</td>
+                              <td className="p-3 text-sm">{transaction.vendor_name || 'N/A'}</td>
+                              <td className="p-3 text-sm">{transaction.num_of_posted_ad || 0}</td>
                               <td className="p-3 text-sm">
-                                {editingTransactionId === transaction.id && editingTransactionData ? (
-                                  <select
-                                    value={editingTransactionData.vendor_id}
-                                    onChange={(e) => {
-                                      const selectedUser = users.find(u => u.id.toString() === e.target.value);
-                                      setEditingTransactionData({
-                                        ...editingTransactionData,
-                                        vendor_id: e.target.value,
-                                        email: selectedUser?.email || editingTransactionData.email,
-                                      });
-                                    }}
-                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
-                                  >
-                                    {users.map((user) => (
-                                      <option key={user.id} value={user.id}>{user.name}</option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  transaction.vendor_name || 'N/A'
-                                )}
+                                {`${transaction.category_name || 'N/A'}${transaction.subcategory_name ? ` / ${transaction.subcategory_name}` : ''}`}
                               </td>
+                              <td className="p-3 text-sm">Rs {Number(transaction.amount || 0).toLocaleString()}</td>
+                              <td className="p-3 text-sm">{transaction.payment_method || 'N/A'}</td>
+                              <td className="p-3 text-sm">{formatDate(transaction.start_date)}</td>
+                              <td className="p-3 text-sm">{formatDate(transaction.end_date)}</td>
+                              <td className="p-3 text-sm">{transaction.email || 'N/A'}</td>
                               <td className="p-3 text-sm">
-                                {editingTransactionId === transaction.id && editingTransactionData ? (
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    value={editingTransactionData.num_of_posted_ad}
-                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, num_of_posted_ad: e.target.value})}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  transaction.num_of_posted_ad || 0
-                                )}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {editingTransactionId === transaction.id && editingTransactionData ? (
-                                  <div className="relative" ref={transactionCategoryDropdownRef}>
-                                    <button
-                                      type="button"
-                                      onClick={() => setTransactionShowCategoryDropdown(!transactionShowCategoryDropdown)}
-                                      className="w-full px-2 py-1 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between text-xs"
-                                    >
-                                      <span>{buildTransactionCategoryString() || 'Select Category'}</span>
-                                      <span className="ml-1 text-xs">{transactionShowCategoryDropdown ? '▼' : '▶'}</span>
-                                    </button>
-                                    
-                                    {/* Cascading Category Menu */}
-                                    {transactionShowCategoryDropdown && (
-                                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
-                                        {/* Category Column */}
-                                        <div className="min-w-[150px] max-h-64 overflow-y-auto border-r border-[hsl(var(--border))]">
-                                          <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                                            Category
-                                          </div>
-                                          <div className="py-1">
-                                            <button
-                                              type="button"
-                                              onClick={() => handleTransactionClearCategorySelection()}
-                                              className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
-                                                !transactionSelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
-                                              }`}
-                                            >
-                                              All Categories
-                                            </button>
-                                            {categories.map((category, index) => (
-                                              <button
-                                                key={category.id || `category-${index}`}
-                                                type="button"
-                                                onClick={() => handleTransactionCategorySelect(category.name)}
-                                                onMouseEnter={() => {
-                                                  if (transactionSelectedCategoryName !== category.name) {
-                                                    handleTransactionCategorySelect(category.name);
-                                                  }
-                                                }}
-                                                className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
-                                                  transactionSelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
-                                                }`}
-                                              >
-                                                <span>{category.name}</span>
-                                                {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Subcategory Column */}
-                                        {transactionSelectedCategoryName && getTransactionSelectedCategory() && getTransactionSelectedCategory().subcategories && getTransactionSelectedCategory().subcategories.length > 0 && (
-                                          <div className="min-w-[150px] max-h-64 overflow-y-auto">
-                                            <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                                              Subcategory
-                                            </div>
-                                            <div className="py-1">
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setTransactionSelectedSubcategoryId('');
-                                                  const category = getTransactionSelectedCategory();
-                                                  if (category) {
-                                                    setEditingTransactionData({...editingTransactionData, category_id: category.id.toString()});
-                                                  }
-                                                  setTransactionShowCategoryDropdown(false);
-                                                }}
-                                                className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
-                                                  !transactionSelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
-                                                }`}
-                                              >
-                                                All Subcategories
-                                              </button>
-                                              {getTransactionSelectedCategory().subcategories.map((subcategory) => (
-                                                <button
-                                                  key={subcategory.id}
-                                                  type="button"
-                                                  onClick={() => {
-                                                    handleTransactionSubcategorySelect(subcategory.id.toString());
-                                                    setEditingTransactionData({...editingTransactionData, category_id: subcategory.id.toString()});
-                                                  }}
-                                                  className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
-                                                    transactionSelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
-                                                  }`}
-                                                >
-                                                  {subcategory.name}
-                                                </button>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  `${transaction.category_name || 'N/A'}${transaction.subcategory_name ? ` / ${transaction.subcategory_name}` : ''}`
-                                )}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {editingTransactionId === transaction.id && editingTransactionData ? (
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={editingTransactionData.amount}
-                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, amount: e.target.value})}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  `Rs ${Number(transaction.amount || 0).toLocaleString()}`
-                                )}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {editingTransactionId === transaction.id && editingTransactionData ? (
-                                  <select
-                                    value={editingTransactionData.payment_method}
-                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, payment_method: e.target.value})}
-                                    className="w-full px-2 py-1 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm"
-                                  >
-                                    <option value="Credit Card">Credit Card</option>
-                                    <option value="PayPal">PayPal</option>
-                                    <option value="Bank Transfer">Bank Transfer</option>
-                                    <option value="Wallet">Wallet</option>
-                                    <option value="Stripe">Stripe</option>
-                                  </select>
-                                ) : (
-                                  transaction.payment_method || 'N/A'
-                                )}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {editingTransactionId === transaction.id && editingTransactionData ? (
-                                  <Input
-                                    type="date"
-                                    value={editingTransactionData.start_date}
-                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, start_date: e.target.value})}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  formatDate(transaction.start_date)
-                                )}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {editingTransactionId === transaction.id && editingTransactionData ? (
-                                  <Input
-                                    type="date"
-                                    value={editingTransactionData.end_date}
-                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, end_date: e.target.value})}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  formatDate(transaction.end_date)
-                                )}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {editingTransactionId === transaction.id && editingTransactionData ? (
-                                  <Input
-                                    type="email"
-                                    value={editingTransactionData.email}
-                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, email: e.target.value})}
-                                    className="w-full"
-                                  />
-                                ) : (
-                                  transaction.email || 'N/A'
-                                )}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {editingTransactionId === transaction.id && editingTransactionData ? (
-                                  <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleSaveTransaction(transaction.id)}>Save</Button>
-                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={handleCancelEditTransaction}>Cancel</Button>
-                                  </div>
-                                ) : (
-                                  <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditTransaction(transaction)}>Edit</Button>
-                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteTransaction(transaction.id)}>Delete</Button>
-                                  </div>
-                                )}
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditTransaction(transaction)}>Edit</Button>
+                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteTransaction(transaction.id)}>Delete</Button>
+                                </div>
                               </td>
                             </tr>
                           ))
@@ -10126,6 +9712,217 @@ function AdminPanel() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Edit Transaction Modal */}
+              {showEditTransactionModal && editingTransactionData && editingTransactionId && (
+                <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+                  <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <CardTitle>Edit Transaction</CardTitle>
+                      <Button variant="ghost" size="sm" onClick={handleCancelEditTransaction}>✕</Button>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <form onSubmit={(e) => { e.preventDefault(); handleSaveTransaction(editingTransactionId); }} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Vendor *</label>
+                            <select
+                              value={editingTransactionData.vendor_id}
+                              onChange={(e) => {
+                                const selectedUser = users.find(u => u.id.toString() === e.target.value);
+                                setEditingTransactionData({
+                                  ...editingTransactionData,
+                                  vendor_id: e.target.value,
+                                  email: selectedUser?.email || editingTransactionData.email,
+                                });
+                              }}
+                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                              required
+                            >
+                              <option value="">Select Vendor</option>
+                              {users.map((user) => (
+                                <option key={user.id} value={user.id}>{user.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Num. of Posted Ad *</label>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={editingTransactionData.num_of_posted_ad}
+                              onChange={(e) => setEditingTransactionData({...editingTransactionData, num_of_posted_ad: e.target.value})}
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Category/Subcategory (Optional)</label>
+                            <div className="relative" ref={transactionCategoryDropdownRef}>
+                              <button
+                                type="button"
+                                onClick={() => setTransactionShowCategoryDropdown(!transactionShowCategoryDropdown)}
+                                className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                              >
+                                <span>{buildTransactionCategoryString() || 'Select Category'}</span>
+                                <span className="ml-1">{transactionShowCategoryDropdown ? '▼' : '▶'}</span>
+                              </button>
+                              
+                              {transactionShowCategoryDropdown && (
+                                <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
+                                  <div className="min-w-[200px] max-h-96 overflow-y-auto border-r border-[hsl(var(--border))]">
+                                    <div className="p-2 font-semibold text-sm text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                      Category
+                                    </div>
+                                    <div className="py-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleTransactionClearCategorySelection()}
+                                        className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                          !transactionSelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
+                                        }`}
+                                      >
+                                        All Categories
+                                      </button>
+                                      {categories.map((category, index) => (
+                                        <button
+                                          key={category.id || `category-${index}`}
+                                          type="button"
+                                          onClick={() => handleTransactionCategorySelect(category.name)}
+                                          onMouseEnter={() => {
+                                            if (transactionSelectedCategoryName !== category.name) {
+                                              handleTransactionCategorySelect(category.name);
+                                            }
+                                          }}
+                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
+                                            transactionSelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
+                                          }`}
+                                        >
+                                          <span>{category.name}</span>
+                                          {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  
+                                  {transactionSelectedCategoryName && getTransactionSelectedCategory() && getTransactionSelectedCategory().subcategories && getTransactionSelectedCategory().subcategories.length > 0 && (
+                                    <div className="min-w-[200px] max-h-96 overflow-y-auto">
+                                      <div className="p-2 font-semibold text-sm text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
+                                        Subcategory
+                                      </div>
+                                      <div className="py-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setTransactionSelectedSubcategoryId('');
+                                            const category = getTransactionSelectedCategory();
+                                            if (category) {
+                                              setEditingTransactionData({...editingTransactionData, category_id: category.id.toString()});
+                                            }
+                                            setTransactionShowCategoryDropdown(false);
+                                          }}
+                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                            !transactionSelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
+                                          }`}
+                                        >
+                                          All Subcategories
+                                        </button>
+                                        {getTransactionSelectedCategory().subcategories.map((subcategory) => (
+                                          <button
+                                            key={subcategory.id}
+                                            type="button"
+                                            onClick={() => {
+                                              handleTransactionSubcategorySelect(subcategory.id.toString());
+                                              setEditingTransactionData({...editingTransactionData, category_id: subcategory.id.toString()});
+                                            }}
+                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
+                                              transactionSelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                            }`}
+                                          >
+                                            {subcategory.name}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Amount *</label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={editingTransactionData.amount}
+                              onChange={(e) => setEditingTransactionData({...editingTransactionData, amount: e.target.value})}
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Payment Method *</label>
+                            <select
+                              value={editingTransactionData.payment_method}
+                              onChange={(e) => setEditingTransactionData({...editingTransactionData, payment_method: e.target.value})}
+                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                              required
+                            >
+                              <option value="Credit Card">Credit Card</option>
+                              <option value="PayPal">PayPal</option>
+                              <option value="Bank Transfer">Bank Transfer</option>
+                              <option value="Wallet">Wallet</option>
+                              <option value="Stripe">Stripe</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Email</label>
+                            <Input
+                              type="email"
+                              value={editingTransactionData.email}
+                              onChange={(e) => setEditingTransactionData({...editingTransactionData, email: e.target.value})}
+                              placeholder="Email address"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Start Date *</label>
+                            <Input
+                              type="date"
+                              value={editingTransactionData.start_date}
+                              onChange={(e) => setEditingTransactionData({...editingTransactionData, start_date: e.target.value})}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">End Date *</label>
+                            <Input
+                              type="date"
+                              value={editingTransactionData.end_date}
+                              onChange={(e) => setEditingTransactionData({...editingTransactionData, end_date: e.target.value})}
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 mt-6">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={handleCancelEditTransaction}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit">Save Changes</Button>
+                        </div>
+                      </form>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
             </section>
           )}
 
@@ -10189,338 +9986,21 @@ function AdminPanel() {
                             <tr key={user.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingUserId === user.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm">
-                                {editingUserId === user.id ? (
-                                  <Input
-                                    value={editingUserData.name}
-                                    onChange={(e) => setEditingUserData({...editingUserData, name: e.target.value})}
-                                    className="w-full text-sm"
-                                  />
-                                ) : (
-                                  <span>{user.name}</span>
-                                )}
+                                <span>{user.name}</span>
                               </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">
                                 {new Date(user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                               </td>
                               <td className="p-3 text-sm">
-                                {editingUserId === user.id ? (
-                                  <Input
-                                    type="email"
-                                    value={editingUserData.email}
-                                    onChange={(e) => setEditingUserData({...editingUserData, email: e.target.value})}
-                                    className="w-full text-sm"
-                                  />
-                                ) : (
-                                  <span>{user.email}</span>
-                                )}
+                                <span>{user.email}</span>
                               </td>
                               <td className="p-3 text-sm max-w-xs">
-                                {editingUserId === user.id ? (
-                                  <div className="relative" ref={editingUserLocationDropdownRef}>
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditingUserShowLocationDropdown(!editingUserShowLocationDropdown)}
-                                      className="w-full px-2 py-1 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between text-xs"
-                                    >
-                                      <span>{buildEditingUserLocationString()}</span>
-                                      <span className="ml-1 text-xs">{editingUserShowLocationDropdown ? '▼' : '▶'}</span>
-                                    </button>
-                                    
-                                    {/* Hierarchical Checkbox Menu */}
-                                    {editingUserShowLocationDropdown && (
-                                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[500px] max-h-[400px] overflow-y-auto">
-                                        <div className="p-3">
-                                          <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
-                                            <span className="font-semibold text-xs text-[hsl(var(--foreground))]">Select Location</span>
-                                            <button
-                                              type="button"
-                                              onClick={handleEditingUserSelectAllLocations}
-                                              className="text-xs text-[hsl(var(--primary))] hover:underline"
-                                            >
-                                              {editingUserSelectedLocations.size > 0 ? 'Clear All' : 'Select All'}
-                                            </button>
-                                          </div>
-                                          
-                                          {/* Hierarchical Location Tree */}
-                                          <div className="space-y-1">
-                                            {locationData?.provinces && locationData.provinces.length > 0 ? (
-                                              locationData.provinces.map((province) => (
-                                              <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
-                                                {/* Province Level */}
-                                                <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => toggleEditingUserProvince(province.id)}
-                                                    className="mr-2 text-xs"
-                                                  >
-                                                    {editingUserExpandedProvinces.has(province.id) ? '▼' : '▶'}
-                                                  </button>
-                                                  <input
-                                                    type="checkbox"
-                                                    className="mr-2"
-                                                    checked={(() => {
-                                                      // Only check ward IDs, not local address IDs
-                                                      const wardIds = [];
-                                                      province.districts.forEach(d => {
-                                                        d.localLevels.forEach(ll => {
-                                                          if (ll.wards) {
-                                                            ll.wards.forEach(w => {
-                                                              wardIds.push(w.id.toString());
-                                                            });
-                                                          }
-                                                        });
-                                                      });
-                                                      return wardIds.length > 0 && wardIds.every(id => editingUserSelectedLocations.has(id));
-                                                    })()}
-                                                    onChange={() => {
-                                                      const wardIds = [];
-                                                      province.districts.forEach(d => {
-                                                        d.localLevels.forEach(ll => {
-                                                          if (ll.wards) {
-                                                            ll.wards.forEach(w => {
-                                                              wardIds.push(w.id.toString());
-                                                            });
-                                                          }
-                                                        });
-                                                      });
-                                                      setEditingUserSelectedLocations(prev => {
-                                                        const newSet = new Set(prev);
-                                                        const allSelected = wardIds.every(id => newSet.has(id));
-                                                        wardIds.forEach(id => {
-                                                          if (allSelected) {
-                                                            newSet.delete(id);
-                                                          } else {
-                                                            newSet.add(id);
-                                                          }
-                                                        });
-                                                        return newSet;
-                                                      });
-                                                    }}
-                                                  />
-                                                  <span className="text-xs font-medium text-[hsl(var(--foreground))]">{province.name}</span>
-                                                </div>
-                                                
-                                                {/* Districts */}
-                                                {editingUserExpandedProvinces.has(province.id) && province.districts.map((district) => (
-                                                  <div key={district.id} className="ml-4 mt-1">
-                                                    <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                                      <button
-                                                        type="button"
-                                                        onClick={() => toggleEditingUserDistrict(`${province.id}-${district.id}`)}
-                                                        className="mr-2 text-xs"
-                                                      >
-                                                        {editingUserExpandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
-                                                      </button>
-                                                      <input
-                                                        type="checkbox"
-                                                        className="mr-2"
-                                                        checked={(() => {
-                                                          // Only check ward IDs, not local address IDs
-                                                          const wardIds = [];
-                                                          district.localLevels.forEach(ll => {
-                                                            if (ll.wards) {
-                                                              ll.wards.forEach(w => {
-                                                                wardIds.push(w.id.toString());
-                                                              });
-                                                            }
-                                                          });
-                                                          return wardIds.length > 0 && wardIds.every(id => editingUserSelectedLocations.has(id));
-                                                        })()}
-                                                        onChange={() => {
-                                                          const wardIds = [];
-                                                          district.localLevels.forEach(ll => {
-                                                            if (ll.wards) {
-                                                              ll.wards.forEach(w => {
-                                                                wardIds.push(w.id.toString());
-                                                              });
-                                                            }
-                                                          });
-                                                          setEditingUserSelectedLocations(prev => {
-                                                            const newSet = new Set(prev);
-                                                            const allSelected = wardIds.every(id => newSet.has(id));
-                                                            wardIds.forEach(id => {
-                                                              if (allSelected) {
-                                                                newSet.delete(id);
-                                                              } else {
-                                                                newSet.add(id);
-                                                              }
-                                                            });
-                                                            return newSet;
-                                                          });
-                                                        }}
-                                                      />
-                                                      <span className="text-xs text-[hsl(var(--foreground))]">{district.name}</span>
-                                                    </div>
-                                                    
-                                                    {/* Local Levels */}
-                                                    {editingUserExpandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
-                                                      <div key={localLevel.id} className="ml-4 mt-1">
-                                                        <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                                          <button
-                                                            type="button"
-                                                            onClick={() => toggleEditingUserLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
-                                                            className="mr-2 text-xs"
-                                                          >
-                                                            {editingUserExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
-                                                          </button>
-                                                          <input
-                                                            type="checkbox"
-                                                            className="mr-2"
-                                                            checked={(() => {
-                                                              if (!localLevel.wards) return false;
-                                                              // Only check ward IDs
-                                                              const wardIds = localLevel.wards.map(w => w.id.toString());
-                                                              return wardIds.length > 0 && wardIds.every(id => editingUserSelectedLocations.has(id));
-                                                            })()}
-                                                            onChange={() => {
-                                                              if (localLevel.wards) {
-                                                                const wardIds = localLevel.wards.map(w => w.id.toString());
-                                                                setEditingUserSelectedLocations(prev => {
-                                                                  const newSet = new Set(prev);
-                                                                  const allSelected = wardIds.every(id => newSet.has(id));
-                                                                  wardIds.forEach(id => {
-                                                                    if (allSelected) {
-                                                                      newSet.delete(id);
-                                                                    } else {
-                                                                      newSet.add(id);
-                                                                    }
-                                                                  });
-                                                                  return newSet;
-                                                                });
-                                                              }
-                                                            }}
-                                                          />
-                                                          <span className="text-xs text-[hsl(var(--foreground))]">
-                                                            {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
-                                                          </span>
-                                                        </div>
-                                                        
-                                                        {/* Wards and Local Addresses */}
-                                                        {editingUserExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
-                                                          <div key={ward.id} className="ml-4 mt-1">
-                                                            <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                                              <input
-                                                                type="checkbox"
-                                                                className="mr-2"
-                                                                checked={(() => {
-                                                                  const wardIdStr = ward.id.toString();
-                                                                  const hasWard = editingUserSelectedLocations.has(wardIdStr);
-                                                                  // Check if any local address is selected
-                                                                  if (ward.local_addresses) {
-                                                                    const hasLocalAddress = ward.local_addresses.some((_, idx) => 
-                                                                      editingUserSelectedLocations.has(`${ward.id}-${idx}`)
-                                                                    );
-                                                                    return hasWard || hasLocalAddress;
-                                                                  }
-                                                                  return hasWard;
-                                                                })()}
-                                                                onChange={() => {
-                                                                  setEditingUserSelectedLocations(prev => {
-                                                                    const newSet = new Set(prev);
-                                                                    const wardIdStr = ward.id.toString();
-                                                                    const hasWard = newSet.has(wardIdStr);
-                                                                    const hasLocalAddresses = ward.local_addresses && ward.local_addresses.some((_, idx) => 
-                                                                      newSet.has(`${ward.id}-${idx}`)
-                                                                    );
-                                                                    const isSelected = hasWard || hasLocalAddresses;
-                                                                    
-                                                                    if (isSelected) {
-                                                                      // Uncheck: remove ward ID and all its local address IDs
-                                                                      newSet.delete(wardIdStr);
-                                                                      if (ward.local_addresses) {
-                                                                        ward.local_addresses.forEach((_, idx) => {
-                                                                          newSet.delete(`${ward.id}-${idx}`);
-                                                                        });
-                                                                      }
-                                                                    } else {
-                                                                      // Check: add ward ID only
-                                                                      newSet.add(wardIdStr);
-                                                                    }
-                                                                    return newSet;
-                                                                  });
-                                                                }}
-                                                              />
-                                                              <span className="text-xs text-[hsl(var(--foreground))]">
-                                                                Ward {ward.ward_number}
-                                                              </span>
-                                                            </div>
-                                                            
-                                                            {/* Local Addresses - Selectable */}
-                                                            {ward.local_addresses && ward.local_addresses.length > 0 && (
-                                                              <div className="ml-4 mt-1 space-y-1">
-                                                                {ward.local_addresses.map((address, idx) => {
-                                                                  const addressId = `${ward.id}-${idx}`;
-                                                                  const addressName = typeof address === 'string' ? address : address.name || address;
-                                                                  return (
-                                                                    <div key={addressId} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
-                                                                      <input
-                                                                        type="checkbox"
-                                                                        className="mr-2"
-                                                                        checked={editingUserSelectedLocations.has(addressId)}
-                                                                        onChange={() => {
-                                                                          setEditingUserSelectedLocations(prev => {
-                                                                            const newSet = new Set(prev);
-                                                                            const wardIdStr = ward.id.toString();
-                                                                            
-                                                                            if (newSet.has(addressId)) {
-                                                                              // Uncheck: remove local address ID
-                                                                              newSet.delete(addressId);
-                                                                              // Also remove ward ID if it was selected
-                                                                              newSet.delete(wardIdStr);
-                                                                            } else {
-                                                                              // Check: add local address ID
-                                                                              newSet.add(addressId);
-                                                                              // Also add ward ID to ensure the ward is selected
-                                                                              newSet.add(wardIdStr);
-                                                                            }
-                                                                            return newSet;
-                                                                          });
-                                                                        }}
-                                                                      />
-                                                                      <span className="text-xs text-[hsl(var(--muted-foreground))]">{addressName}</span>
-                                                                    </div>
-                                                                  );
-                                                                })}
-                                                              </div>
-                                                            )}
-                                                          </div>
-                                                        ))}
-                                                      </div>
-                                                    ))}
-                                                  </div>
-                                                ))}
-                                              </div>
-                                              ))
-                                            ) : (
-                                              <div className="p-4 text-center text-xs text-[hsl(var(--muted-foreground))]">
-                                                No locations available.
-                                              </div>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block">
-                                    {user.location || '-'}
-                                  </span>
-                                )}
+                                <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block">
+                                  {user.location || '-'}
+                                </span>
                               </td>
                               <td className="p-3 text-sm">
-                                {editingUserId === user.id ? (
-                                  <select
-                                    value={editingUserData.role}
-                                    onChange={(e) => setEditingUserData({...editingUserData, role: e.target.value})}
-                                    className="px-2 py-1 text-sm border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                                  >
-                                    <option value="user">User</option>
-                                    <option value="vendor">Vendor</option>
-                                    <option value="admin">Admin</option>
-                                  </select>
-                                ) : (
-                                  <span className="capitalize">{user.role === 'super_admin' ? 'Super Admin' : user.role}</span>
-                                )}
+                                <span className="capitalize">{user.role === 'super_admin' ? 'Super Admin' : user.role}</span>
                               </td>
                               <td className="p-3 text-sm">
                                 <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
@@ -10575,54 +10055,31 @@ function AdminPanel() {
                               </td>
                               <td className="p-3 text-sm">
                                 <div className="flex gap-2">
-                                  {editingUserId === user.id ? (
-                                    <>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleSaveUser(user.id)}
-                                      >
-                                        Save
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 px-2 text-xs"
-                                        onClick={handleCancelEditUser}
-                                      >
-                                        Cancel
-                                      </Button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      {/* Only super_admin can edit/delete admin accounts. Regular admins can only manage users, vendors */}
-                                      {user.role !== 'super_admin' && (user.role !== 'admin' || isSuperAdmin) && (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="h-7 px-2 text-xs"
-                                          onClick={() => handleEditUser(user)}
-                                        >
-                                          Edit
-                                        </Button>
-                                      )}
-                                      {user.role !== 'super_admin' && (user.role !== 'admin' || isSuperAdmin) && (
-                                        <Button
-                                          variant="destructive"
-                                          size="sm"
-                                          className="h-7 px-2 text-xs"
-                                          onClick={() => handleDeleteUser(user.id)}
-                                        >
-                                          Delete
-                                        </Button>
-                                      )}
-                                      {(user.role === 'super_admin' || (user.role === 'admin' && !isSuperAdmin)) && (
-                                        <span className="text-xs text-[hsl(var(--muted-foreground))] italic">
-                                          Protected
-                                        </span>
-                                      )}
-                                    </>
+                                  {/* Only super_admin can edit/delete admin accounts. Regular admins can only manage users, vendors */}
+                                  {user.role !== 'super_admin' && (user.role !== 'admin' || isSuperAdmin) && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => handleEditUser(user)}
+                                    >
+                                      Edit
+                                    </Button>
+                                  )}
+                                  {user.role !== 'super_admin' && (user.role !== 'admin' || isSuperAdmin) && (
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      className="h-7 px-2 text-xs"
+                                      onClick={() => handleDeleteUser(user.id)}
+                                    >
+                                      Delete
+                                    </Button>
+                                  )}
+                                  {(user.role === 'super_admin' || (user.role === 'admin' && !isSuperAdmin)) && (
+                                    <span className="text-xs text-[hsl(var(--muted-foreground))] italic">
+                                      Protected
+                                    </span>
                                   )}
                                 </div>
                               </td>
@@ -12192,6 +11649,636 @@ function AdminPanel() {
                 </Card>
               </section>
             </>
+          )}
+
+          {/* Edit Offer Modal */}
+          {showEditOfferModal && editingOfferData && editingOfferId && (
+            <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+              <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto px-4 mx-auto">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Edit Offer/Discount</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={handleCancelEditOffer}>✕</Button>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <form onSubmit={(e) => { e.preventDefault(); handleSaveOffer(editingOfferId); }} className="space-y-4">
+                    <div>
+                      <Label htmlFor="edit-item-name">Item Name *</Label>
+                      <Input
+                        id="edit-item-name"
+                        value={editingOfferData.item_name}
+                        onChange={(e) => setEditingOfferData({...editingOfferData, item_name: e.target.value})}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-vendor-id">Vendor *</Label>
+                      <select
+                        id="edit-vendor-id"
+                        value={editingOfferData.vendor_id}
+                        onChange={(e) => setEditingOfferData({...editingOfferData, vendor_id: e.target.value})}
+                        className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] mt-1"
+                        required
+                      >
+                        {users.filter(u => u.role === 'user' || u.role === 'vendor').map((user) => (
+                          <option key={user.id} value={user.id}>{user.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-offer-percentage">Offer Percentage *</Label>
+                      <Input
+                        id="edit-offer-percentage"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        value={editingOfferData.offer_percentage}
+                        onChange={(e) => setEditingOfferData({...editingOfferData, offer_percentage: e.target.value})}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-created-date">Created Date</Label>
+                      <Input
+                        id="edit-created-date"
+                        type="date"
+                        value={editingOfferData.created_date}
+                        onChange={(e) => setEditingOfferData({...editingOfferData, created_date: e.target.value})}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-valid-until">Valid Until</Label>
+                      <Input
+                        id="edit-valid-until"
+                        type="date"
+                        value={editingOfferData.valid_until}
+                        onChange={(e) => setEditingOfferData({...editingOfferData, valid_until: e.target.value})}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-status">Status *</Label>
+                      <select
+                        id="edit-status"
+                        value={editingOfferData.status}
+                        onChange={(e) => setEditingOfferData({...editingOfferData, status: e.target.value})}
+                        className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] mt-1"
+                        required
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                      </select>
+                    </div>
+                    <div className="flex justify-end gap-2 mt-6">
+                      <Button type="button" variant="ghost" onClick={handleCancelEditOffer}>Cancel</Button>
+                      <Button type="submit">Save Changes</Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Edit Stock Modal */}
+          {showEditStockModal && editingStockData && editingStockId && (
+            <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+              <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto px-4 mx-auto">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Edit Stock Item</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={handleCancelEditStock}>✕</Button>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <form onSubmit={(e) => { e.preventDefault(); handleSaveStock(editingStockId); }} className="space-y-4">
+                    <div>
+                      <Label htmlFor="edit-stock-item-name">Item Name *</Label>
+                      <Input
+                        id="edit-stock-item-name"
+                        value={editingStockData.item_name || ''}
+                        onChange={(e) => setEditingStockData({...editingStockData, item_name: e.target.value})}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-vendor-seller-id">Vendor/Seller *</Label>
+                      <select
+                        id="edit-vendor-seller-id"
+                        value={editingStockData.vendor_seller_id || ''}
+                        onChange={(e) => setEditingStockData({...editingStockData, vendor_seller_id: e.target.value})}
+                        className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] mt-1"
+                        required
+                      >
+                        <option value="">Select Vendor/Seller</option>
+                        {users.map((user) => (
+                          <option key={user.id} value={user.id}>{user.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Category *</Label>
+                      <div className="flex gap-2 mt-1">
+                        <select
+                          value={editingStockData.main_category_id || ''}
+                          onChange={(e) => handleMainCategoryChange(e.target.value)}
+                          className="flex-1 px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                          required
+                        >
+                          <option value="">Select Category</option>
+                          {stockManagementMainCategories.map((cat) => (
+                            <option key={cat.id} value={cat.id}>
+                              {cat.name}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={editingStockData.category_id === editingStockData.main_category_id ? '' : (editingStockData.category_id || '')}
+                          onChange={(e) => handleSubcategoryChange(e.target.value)}
+                          className="flex-1 px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                          disabled={!editingStockData.main_category_id}
+                        >
+                          <option value="">Select Subcategory (Optional)</option>
+                          {editingStockData.main_category_id && (() => {
+                            const selectedMainCategory = stockManagementMainCategories.find(
+                              c => c.id.toString() === editingStockData.main_category_id
+                            );
+                            if (!selectedMainCategory) return null;
+                            const subcategories = stockManagementCategories.get(selectedMainCategory.name) || [];
+                            return subcategories.length > 0 ? (
+                              subcategories.map((subcat) => (
+                                <option key={subcat.id} value={subcat.id}>
+                                  {subcat.name}
+                                </option>
+                              ))
+                            ) : null;
+                          })()}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-quantity">Quantity *</Label>
+                      <Input
+                        id="edit-quantity"
+                        type="number"
+                        min="0"
+                        value={editingStockData.quantity || ''}
+                        onChange={(e) => setEditingStockData({...editingStockData, quantity: e.target.value})}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-sold-item-qty">Sold Item Quantity *</Label>
+                      <Input
+                        id="edit-sold-item-qty"
+                        type="number"
+                        min="0"
+                        value={editingStockData.sold_item_qty || ''}
+                        onChange={(e) => setEditingStockData({...editingStockData, sold_item_qty: e.target.value})}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-low-stock-threshold">Low Stock Threshold *</Label>
+                      <Input
+                        id="edit-low-stock-threshold"
+                        type="number"
+                        min="0"
+                        value={editingStockData.low_stock_threshold || ''}
+                        onChange={(e) => setEditingStockData({...editingStockData, low_stock_threshold: e.target.value})}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 mt-6">
+                      <Button type="button" variant="ghost" onClick={handleCancelEditStock}>Cancel</Button>
+                      <Button type="submit">Save Changes</Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Edit Support Modal */}
+          {showEditSupportModal && editingSupportData && editingSupportId && (
+            <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+              <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto px-4 mx-auto">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Edit Support Issue</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={handleCancelEditSupport}>✕</Button>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <form onSubmit={(e) => { e.preventDefault(); handleSaveSupport(editingSupportId); }} className="space-y-4">
+                    <div>
+                      <Label htmlFor="edit-issue-error">Issue/Error *</Label>
+                      <Input
+                        id="edit-issue-error"
+                        value={editingSupportData.issue_error || ''}
+                        onChange={(e) => setEditingSupportData({...editingSupportData, issue_error: e.target.value})}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-issue-reporter-id">Issue Reporter ID</Label>
+                      <Input
+                        id="edit-issue-reporter-id"
+                        type="number"
+                        value={editingSupportData.issue_reporter_id || ''}
+                        onChange={(e) => setEditingSupportData({...editingSupportData, issue_reporter_id: e.target.value})}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-date">Date</Label>
+                      <Input
+                        id="edit-date"
+                        type="date"
+                        value={editingSupportData.date || ''}
+                        onChange={(e) => setEditingSupportData({...editingSupportData, date: e.target.value})}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-assign-to-id">Assign To ID</Label>
+                      <Input
+                        id="edit-assign-to-id"
+                        type="number"
+                        value={editingSupportData.assign_to_id || ''}
+                        onChange={(e) => setEditingSupportData({...editingSupportData, assign_to_id: e.target.value})}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-assign-date">Assign Date</Label>
+                      <Input
+                        id="edit-assign-date"
+                        type="date"
+                        value={editingSupportData.assign_date || ''}
+                        onChange={(e) => setEditingSupportData({...editingSupportData, assign_date: e.target.value})}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-error-status">Error Status *</Label>
+                      <select
+                        id="edit-error-status"
+                        value={editingSupportData.error_status || 'pending'}
+                        onChange={(e) => setEditingSupportData({...editingSupportData, error_status: e.target.value})}
+                        className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] mt-1"
+                        required
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="closed">Closed</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-note-solution">Note/Solution</Label>
+                      <textarea
+                        id="edit-note-solution"
+                        value={editingSupportData.note_solution || ''}
+                        onChange={(e) => setEditingSupportData({...editingSupportData, note_solution: e.target.value})}
+                        rows={4}
+                        className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] mt-1"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 mt-6">
+                      <Button type="button" variant="ghost" onClick={handleCancelEditSupport}>Cancel</Button>
+                      <Button type="submit">Save Changes</Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Edit User Modal */}
+          {showEditUserModal && editingUserData && editingUserId && (
+            <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+              <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto px-4 mx-auto">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Edit User</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={handleCancelEditUser}>✕</Button>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <form onSubmit={(e) => { e.preventDefault(); handleSaveUser(editingUserId); }} className="space-y-4">
+                    <div>
+                      <Label htmlFor="edit-user-name">Name *</Label>
+                      <Input
+                        id="edit-user-name"
+                        value={editingUserData.name || ''}
+                        onChange={(e) => setEditingUserData({...editingUserData, name: e.target.value})}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-user-email">Email *</Label>
+                      <Input
+                        id="edit-user-email"
+                        type="email"
+                        value={editingUserData.email || ''}
+                        onChange={(e) => setEditingUserData({...editingUserData, email: e.target.value})}
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-user-role">Role *</Label>
+                      <select
+                        id="edit-user-role"
+                        value={editingUserData.role || 'user'}
+                        onChange={(e) => setEditingUserData({...editingUserData, role: e.target.value})}
+                        className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] mt-1"
+                        required
+                        disabled={editingUserData.role === 'super_admin'}
+                      >
+                        <option value="user">User</option>
+                        <option value="vendor">Vendor</option>
+                        {isSuperAdmin && <option value="admin">Admin</option>}
+                      </select>
+                      {editingUserData.role === 'super_admin' && (
+                        <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">Super admin role cannot be changed</p>
+                      )}
+                    </div>
+                    <div>
+                      <Label>Location *</Label>
+                      <div className="relative mt-1" ref={editingUserLocationDropdownRef}>
+                        <button
+                          type="button"
+                          onClick={() => setEditingUserShowLocationDropdown(!editingUserShowLocationDropdown)}
+                          className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                        >
+                          <span>{buildEditingUserLocationString()}</span>
+                          <span>{editingUserShowLocationDropdown ? '▼' : '▶'}</span>
+                        </button>
+                        {editingUserShowLocationDropdown && locationData?.provinces && (
+                          <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[500px] max-h-[400px] overflow-y-auto">
+                            <div className="p-3">
+                              <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
+                                <span className="font-semibold text-xs text-[hsl(var(--foreground))]">Select Location</span>
+                                <button
+                                  type="button"
+                                  onClick={handleEditingUserSelectAllLocations}
+                                  className="text-xs text-[hsl(var(--primary))] hover:underline"
+                                >
+                                  {editingUserSelectedLocations.size > 0 ? 'Clear All' : 'Select All'}
+                                </button>
+                              </div>
+                              {locationData.provinces.map((province) => (
+                                <div key={province.id} className="mb-2">
+                                  <div className="flex items-center py-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleEditingUserProvince(province.id)}
+                                      className="mr-2 text-xs"
+                                    >
+                                      {editingUserExpandedProvinces.has(province.id) ? '▼' : '▶'}
+                                    </button>
+                                    <input
+                                      type="checkbox"
+                                      className="mr-2"
+                                      checked={(() => {
+                                        const wardIds = [];
+                                        province.districts.forEach(d => {
+                                          d.localLevels.forEach(ll => {
+                                            if (ll.wards) {
+                                              ll.wards.forEach(w => {
+                                                wardIds.push(w.id.toString());
+                                              });
+                                            }
+                                          });
+                                        });
+                                        return wardIds.length > 0 && wardIds.every(id => editingUserSelectedLocations.has(id));
+                                      })()}
+                                      onChange={() => {
+                                        const wardIds = [];
+                                        province.districts.forEach(d => {
+                                          d.localLevels.forEach(ll => {
+                                            if (ll.wards) {
+                                              ll.wards.forEach(w => {
+                                                wardIds.push(w.id.toString());
+                                              });
+                                            }
+                                          });
+                                        });
+                                        setEditingUserSelectedLocations(prev => {
+                                          const newSet = new Set(prev);
+                                          const allSelected = wardIds.every(id => newSet.has(id));
+                                          wardIds.forEach(id => {
+                                            if (allSelected) {
+                                              newSet.delete(id);
+                                            } else {
+                                              newSet.add(id);
+                                            }
+                                          });
+                                          return newSet;
+                                        });
+                                      }}
+                                    />
+                                    <span className="text-xs font-medium">{province.name}</span>
+                                  </div>
+                                  {editingUserExpandedProvinces.has(province.id) && province.districts.map((district) => (
+                                    <div key={district.id} className="ml-4 mt-1">
+                                      <div className="flex items-center py-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleEditingUserDistrict(`${province.id}-${district.id}`)}
+                                          className="mr-2 text-xs"
+                                        >
+                                          {editingUserExpandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
+                                        </button>
+                                        <input
+                                          type="checkbox"
+                                          className="mr-2"
+                                          checked={(() => {
+                                            const wardIds = [];
+                                            district.localLevels.forEach(ll => {
+                                              if (ll.wards) {
+                                                ll.wards.forEach(w => {
+                                                  wardIds.push(w.id.toString());
+                                                });
+                                              }
+                                            });
+                                            return wardIds.length > 0 && wardIds.every(id => editingUserSelectedLocations.has(id));
+                                          })()}
+                                          onChange={() => {
+                                            const wardIds = [];
+                                            district.localLevels.forEach(ll => {
+                                              if (ll.wards) {
+                                                ll.wards.forEach(w => {
+                                                  wardIds.push(w.id.toString());
+                                                });
+                                              }
+                                            });
+                                            setEditingUserSelectedLocations(prev => {
+                                              const newSet = new Set(prev);
+                                              const allSelected = wardIds.every(id => newSet.has(id));
+                                              wardIds.forEach(id => {
+                                                if (allSelected) {
+                                                  newSet.delete(id);
+                                                } else {
+                                                  newSet.add(id);
+                                                }
+                                              });
+                                              return newSet;
+                                            });
+                                          }}
+                                        />
+                                        <span className="text-xs">{district.name}</span>
+                                      </div>
+                                      {editingUserExpandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
+                                        <div key={localLevel.id} className="ml-4 mt-1">
+                                          <div className="flex items-center py-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleEditingUserLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
+                                              className="mr-2 text-xs"
+                                            >
+                                              {editingUserExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
+                                            </button>
+                                            <input
+                                              type="checkbox"
+                                              className="mr-2"
+                                              checked={(() => {
+                                                if (!localLevel.wards) return false;
+                                                const wardIds = localLevel.wards.map(w => w.id.toString());
+                                                return wardIds.length > 0 && wardIds.every(id => editingUserSelectedLocations.has(id));
+                                              })()}
+                                              onChange={() => {
+                                                if (localLevel.wards) {
+                                                  const wardIds = localLevel.wards.map(w => w.id.toString());
+                                                  setEditingUserSelectedLocations(prev => {
+                                                    const newSet = new Set(prev);
+                                                    const allSelected = wardIds.every(id => newSet.has(id));
+                                                    wardIds.forEach(id => {
+                                                      if (allSelected) {
+                                                        newSet.delete(id);
+                                                      } else {
+                                                        newSet.add(id);
+                                                      }
+                                                    });
+                                                    return newSet;
+                                                  });
+                                                }
+                                              }}
+                                            />
+                                            <span className="text-xs">{localLevel.name}</span>
+                                          </div>
+                                          {editingUserExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
+                                            <div key={ward.id} className="ml-4 mt-1">
+                                              <div className="flex items-center py-1">
+                                                <input
+                                                  type="checkbox"
+                                                  className="mr-2"
+                                                  checked={(() => {
+                                                    const wardIdStr = ward.id.toString();
+                                                    const hasWard = editingUserSelectedLocations.has(wardIdStr);
+                                                    if (ward.local_addresses) {
+                                                      const hasLocalAddress = ward.local_addresses.some((_, idx) => 
+                                                        editingUserSelectedLocations.has(`${ward.id}-${idx}`)
+                                                      );
+                                                      return hasWard || hasLocalAddress;
+                                                    }
+                                                    return hasWard;
+                                                  })()}
+                                                  onChange={() => {
+                                                    setEditingUserSelectedLocations(prev => {
+                                                      const newSet = new Set(prev);
+                                                      const wardIdStr = ward.id.toString();
+                                                      const hasWard = newSet.has(wardIdStr);
+                                                      const hasLocalAddresses = ward.local_addresses && ward.local_addresses.some((_, idx) => 
+                                                        newSet.has(`${ward.id}-${idx}`)
+                                                      );
+                                                      const isSelected = hasWard || hasLocalAddresses;
+                                                      
+                                                      if (isSelected) {
+                                                        newSet.delete(wardIdStr);
+                                                        if (ward.local_addresses) {
+                                                          ward.local_addresses.forEach((_, idx) => {
+                                                            newSet.delete(`${ward.id}-${idx}`);
+                                                          });
+                                                        }
+                                                      } else {
+                                                        newSet.add(wardIdStr);
+                                                      }
+                                                      return newSet;
+                                                    });
+                                                  }}
+                                                />
+                                                <span className="text-xs">Ward {ward.ward_number}</span>
+                                              </div>
+                                              {ward.local_addresses && ward.local_addresses.length > 0 && (
+                                                <div className="ml-4 mt-1 space-y-1">
+                                                  {ward.local_addresses.map((address, idx) => {
+                                                    const addressId = `${ward.id}-${idx}`;
+                                                    const addressName = typeof address === 'string' ? address : address.name || address;
+                                                    return (
+                                                      <div key={addressId} className="flex items-center py-1">
+                                                        <input
+                                                          type="checkbox"
+                                                          className="mr-2"
+                                                          checked={editingUserSelectedLocations.has(addressId)}
+                                                          onChange={() => {
+                                                            setEditingUserSelectedLocations(prev => {
+                                                              const newSet = new Set(prev);
+                                                              const wardIdStr = ward.id.toString();
+                                                              
+                                                              if (newSet.has(addressId)) {
+                                                                newSet.delete(addressId);
+                                                                newSet.delete(wardIdStr);
+                                                              } else {
+                                                                newSet.add(addressId);
+                                                                newSet.add(wardIdStr);
+                                                              }
+                                                              return newSet;
+                                                            });
+                                                          }}
+                                                        />
+                                                        <span className="text-xs">{addressName}</span>
+                                                      </div>
+                                                    );
+                                                  })}
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-user-comment">Comment</Label>
+                      <textarea
+                        id="edit-user-comment"
+                        value={editingUserData.comment || ''}
+                        onChange={(e) => setEditingUserData({...editingUserData, comment: e.target.value})}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] mt-1"
+                        placeholder="Enter comment about this user..."
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 mt-6">
+                      <Button type="button" variant="ghost" onClick={handleCancelEditUser}>Cancel</Button>
+                      <Button type="submit">Save Changes</Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
           )}
         </main>
       </div>
