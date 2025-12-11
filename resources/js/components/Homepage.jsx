@@ -352,42 +352,61 @@ function Homepage() {
 
     // Filter by selected categories and subcategories from search bar dropdown
     if (selectedCategories.size > 0 || selectedSubcategories.size > 0) {
+      // Normalize selected IDs to numbers for comparison
+      const selectedCategoryIds = Array.from(selectedCategories).map(id => typeof id === 'string' ? parseInt(id, 10) : Number(id));
+      const selectedSubcategoryIds = Array.from(selectedSubcategories).map(id => typeof id === 'string' ? parseInt(id, 10) : Number(id));
+      
       filtered = filtered.filter(ad => {
-        // Check if ad's category_id matches any selected category ID
+        // Method 1: Check if ad's category_id matches any selected category or subcategory ID
+        // This is the primary method - ads should be linked to subcategory records when subcategory is selected
         if (ad.category_id) {
-          const categoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id) : ad.category_id;
-          if (selectedCategories.has(categoryId) || selectedSubcategories.has(categoryId)) {
+          const categoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+          
+          // Check if it matches a selected subcategory ID (prioritize subcategory match)
+          if (selectedSubcategoryIds.includes(categoryId)) {
+            return true;
+          }
+          
+          // Check if it matches a selected main category ID
+          if (selectedCategoryIds.includes(categoryId)) {
             return true;
           }
         }
         
-        // Also check by category/subcategory names (for backward compatibility)
+        // Method 2: Check by category/subcategory names (fallback for legacy data or name-based matching)
         if (ad.category) {
+          // Find the category object that matches the ad's category name
           const category = categories.find(cat => 
             cat.name === ad.category || 
-            cat.category === ad.category ||
-            (cat.id && ad.category_id && cat.id === (typeof ad.category_id === 'string' ? parseInt(ad.category_id) : ad.category_id))
+            cat.category === ad.category
           );
+          
           if (category) {
-            // Check if this category is selected
-            if (selectedCategories.has(category.id)) {
+            // Check if this main category is selected
+            if (selectedCategoryIds.includes(category.id)) {
               return true;
             }
+            
             // Check if any of its subcategories are selected
             if (category.subcategories && category.subcategories.length > 0) {
-              const matchingSubcategory = category.subcategories.find(sub => {
-                // Check if subcategory is selected by ID
-                if (selectedSubcategories.has(sub.id)) {
-                  // Also verify it matches the ad's subcategory name if available
-                  if (!ad.subcategory && !ad.sub_category) {
-                    return true; // If ad has no subcategory, match any selected subcategory of this category
+              // If ad has a subcategory name, match by subcategory name
+              if (ad.subcategory || ad.sub_category) {
+                const adSubcategoryName = (ad.subcategory || ad.sub_category).trim();
+                const matchingSubcategory = category.subcategories.find(sub => {
+                  // Check if this subcategory is selected (by ID)
+                  if (!selectedSubcategoryIds.includes(sub.id)) {
+                    return false;
                   }
-                  return sub.name === ad.subcategory || sub.name === ad.sub_category;
+                  
+                  // Match by name (case-insensitive comparison)
+                  const subName = (sub.name || '').trim();
+                  const subSlug = (sub.slug || '').trim();
+                  return subName.toLowerCase() === adSubcategoryName.toLowerCase() || 
+                         subSlug.toLowerCase() === adSubcategoryName.toLowerCase();
+                });
+                if (matchingSubcategory) {
+                  return true;
                 }
-                return false;
-              });
-              if (matchingSubcategory) {
-                return true;
               }
             }
           }
@@ -488,9 +507,9 @@ function Homepage() {
     setFilteredAdsCount(sorted.length);
   }, [
     searchQuery, 
-    searchCategory, 
     selectedLocations, 
     selectedCategories, 
+    selectedSubcategories, // Add this - it was missing!
     locationHierarchy, 
     priceRange, 
     sortBy, 

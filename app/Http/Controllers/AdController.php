@@ -59,6 +59,7 @@ class AdController extends Controller
                         'category' => $categoryName,
                         'subcategory' => $subcategoryName,
                         'sub_category' => $subcategoryName, // For backward compatibility
+                        'category_id' => $ad->category_id, // Add category_id for filtering
                         'location' => $locationString,
                         'location_id' => $ad->location_id,
                         'user_id' => $ad->user_id, // Add seller user ID

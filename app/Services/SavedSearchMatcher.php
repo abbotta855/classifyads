@@ -69,7 +69,7 @@ class SavedSearchMatcher
             $savedSearch->load('category');
         }
 
-        // Exact category match
+        // Exact category match (this handles both main categories and subcategories)
         if ($ad->category_id === $savedSearch->category_id) {
             return true;
         }
@@ -82,6 +82,15 @@ class SavedSearchMatcher
             if (!$savedSearch->category->sub_category && 
                 $savedSearch->category->category === $ad->category->category) {
                 return true;
+            }
+            
+            // Also check if saved search is for a subcategory and ad is in the same subcategory
+            // by checking if both have the same main category and subcategory name
+            if ($savedSearch->category->sub_category && $ad->category->sub_category) {
+                if ($savedSearch->category->category === $ad->category->category &&
+                    $savedSearch->category->sub_category === $ad->category->sub_category) {
+                    return true;
+                }
             }
         }
 
@@ -118,14 +127,35 @@ class SavedSearchMatcher
 
         // If locations don't exist, no match
         if (!$ad->location || !$savedSearch->location) {
+            \Log::debug('Location match failed: missing location data', [
+                'ad_location_id' => $ad->location_id,
+                'search_location_id' => $savedSearch->location_id,
+                'ad_has_location' => $ad->location ? 'yes' : 'no',
+                'search_has_location' => $savedSearch->location ? 'yes' : 'no',
+            ]);
             return false;
         }
 
         // Match if same province, district, and local level (broader match)
         // This allows users to get alerts for their area even if ward is different
-        if ($ad->location->province === $savedSearch->location->province &&
-            $ad->location->district === $savedSearch->location->district &&
-            $ad->location->local_level === $savedSearch->location->local_level) {
+        $provinceMatch = $ad->location->province && $savedSearch->location->province &&
+                        $ad->location->province === $savedSearch->location->province;
+        $districtMatch = $ad->location->district && $savedSearch->location->district &&
+                        $ad->location->district === $savedSearch->location->district;
+        $localLevelMatch = $ad->location->local_level && $savedSearch->location->local_level &&
+                          $ad->location->local_level === $savedSearch->location->local_level;
+
+        if ($provinceMatch && $districtMatch && $localLevelMatch) {
+            return true;
+        }
+
+        // Also match if same province and district (even broader match)
+        if ($provinceMatch && $districtMatch) {
+            return true;
+        }
+
+        // Also match if same province only (very broad match)
+        if ($provinceMatch) {
             return true;
         }
 
@@ -166,9 +196,16 @@ class SavedSearchMatcher
         $adTitle = strtolower($ad->title ?? '');
         $adDescription = strtolower($ad->description ?? '');
 
-        // Check if keywords appear in title or description
-        // Split keywords by space and check if all words appear
-        $keywordArray = explode(' ', $keywords);
+        // Check if the entire search query appears in title or description
+        // This handles both single words and phrases (including hyphenated words)
+        if (strpos($adTitle, $keywords) !== false || 
+            strpos($adDescription, $keywords) !== false) {
+            return true;
+        }
+
+        // Also check if all individual words appear (for multi-word searches)
+        // Split by space, but also handle hyphenated words
+        $keywordArray = preg_split('/[\s-]+/', $keywords);
         $allKeywordsMatch = true;
 
         foreach ($keywordArray as $keyword) {
@@ -195,10 +232,24 @@ class SavedSearchMatcher
             ->with(['category', 'location'])
             ->get();
 
+        \Log::info('Checking saved searches for match', [
+            'ad_id' => $ad->id,
+            'total_active_searches' => $savedSearches->count(),
+        ]);
+
         $matchingSearches = [];
 
         foreach ($savedSearches as $savedSearch) {
-            if ($this->matches($ad, $savedSearch)) {
+            $matches = $this->matches($ad, $savedSearch);
+            
+            \Log::debug('Saved search match check', [
+                'ad_id' => $ad->id,
+                'saved_search_id' => $savedSearch->id,
+                'saved_search_name' => $savedSearch->name,
+                'matches' => $matches,
+            ]);
+
+            if ($matches) {
                 $matchingSearches[] = $savedSearch;
             }
         }

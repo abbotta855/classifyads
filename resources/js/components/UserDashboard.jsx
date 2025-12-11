@@ -3776,19 +3776,32 @@ function NotificationsSection({ user }) {
   const handleMarkAsRead = async (id) => {
     try {
       await notificationAPI.markAsRead(id);
-      setNotifications(notifications.map(n => 
-        n.id === id ? { ...n, is_read: true } : n
-      ));
+      // Remove notification from list when marked as read
+      setNotifications(notifications.filter(n => n.id !== id));
       setUnreadCount(Math.max(0, unreadCount - 1));
     } catch (err) {
       console.error('Failed to mark as read:', err);
     }
   };
 
+  // Auto-mark as read and remove when notification is clicked/viewed
+  const handleNotificationClick = async (notification) => {
+    // Mark as read and remove from list first (disappears immediately)
+    if (!notification.is_read) {
+      await handleMarkAsRead(notification.id);
+    }
+    
+    // If notification has a link, navigate to it
+    if (notification.link) {
+      window.location.href = notification.link;
+    }
+  };
+
   const handleMarkAllAsRead = async () => {
     try {
       await notificationAPI.markAllAsRead();
-      setNotifications(notifications.map(n => ({ ...n, is_read: true })));
+      // Remove all notifications from list when marked as read (disappear)
+      setNotifications([]);
       setUnreadCount(0);
     } catch (err) {
       console.error('Failed to mark all as read:', err);
@@ -3874,9 +3887,14 @@ function NotificationsSection({ user }) {
           {notifications.map((notification) => (
             <Card
               key={notification.id}
-              className={`transition-all hover:shadow-md ${
+              className={`transition-all hover:shadow-md cursor-pointer ${
                 !notification.is_read ? 'border-l-4 border-l-[hsl(var(--primary))] bg-[hsl(var(--accent))]/30' : ''
               }`}
+              onClick={(e) => {
+                // Don't trigger if clicking on buttons
+                if (e.target.closest('button')) return;
+                handleNotificationClick(notification);
+              }}
             >
               <CardContent className="p-4">
                 <div className="flex items-start gap-4">
@@ -3901,7 +3919,10 @@ function NotificationsSection({ user }) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleMarkAsRead(notification.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMarkAsRead(notification.id);
+                            }}
                             className="text-xs"
                           >
                             Mark read
@@ -3910,7 +3931,10 @@ function NotificationsSection({ user }) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(notification.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(notification.id);
+                          }}
                           className="text-xs text-[hsl(var(--destructive))]"
                         >
                           Delete
@@ -3922,7 +3946,10 @@ function NotificationsSection({ user }) {
                         variant="link"
                         size="sm"
                         className="mt-2 p-0 h-auto"
-                        onClick={() => window.location.href = notification.link}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNotificationClick(notification);
+                        }}
                       >
                         View →
                       </Button>
