@@ -31,7 +31,17 @@ class SavedSearchController extends Controller
             'category_id' => 'nullable|exists:categories,id',
             'location_id' => 'nullable|exists:locations,id',
             'min_price' => 'nullable|numeric|min:0',
-            'max_price' => 'nullable|numeric|min:0|gte:min_price',
+            'max_price' => [
+                'nullable',
+                'numeric',
+                'min:0',
+                function ($attribute, $value, $fail) use ($request) {
+                    $minPrice = $request->input('min_price');
+                    if ($value !== null && $minPrice !== null && $value < $minPrice) {
+                        $fail('The max price must be greater than or equal to the min price.');
+                    }
+                },
+            ],
             'filters' => 'nullable|array',
             'is_active' => 'boolean',
         ]);

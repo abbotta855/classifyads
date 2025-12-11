@@ -2202,17 +2202,44 @@ function CategoriesSection({ user }) {
     search_query: '',
     category_id: '',
     location_id: '',
+    location_path: '', // Store the full location path for display
     min_price: '',
     max_price: '',
     is_active: true,
   });
   const [categories, setCategories] = useState([]);
-  const [locations, setLocations] = useState([]);
+  const [locationData, setLocationData] = useState(null);
+  
+  // Category selection state
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState(new Set());
+  const categoryDropdownRef = useRef(null);
+  
+  // Location selection state
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [expandedProvinces, setExpandedProvinces] = useState(new Set());
+  const [expandedDistricts, setExpandedDistricts] = useState(new Set());
+  const [expandedLocalLevels, setExpandedLocalLevels] = useState(new Set());
+  const locationDropdownRef = useRef(null);
 
   useEffect(() => {
     fetchSavedSearches();
     fetchCategories();
     fetchLocations();
+  }, []);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
+        setShowCategoryDropdown(false);
+      }
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target)) {
+        setShowLocationDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const fetchSavedSearches = async () => {
@@ -2229,37 +2256,63 @@ function CategoriesSection({ user }) {
   const fetchCategories = async () => {
     try {
       const response = await axios.get('/api/categories');
-      setCategories(response.data || []);
+      // Ensure we always set an array
+      const categoriesData = response.data;
+      if (Array.isArray(categoriesData)) {
+        setCategories(categoriesData);
+      } else if (categoriesData && Array.isArray(categoriesData.data)) {
+        setCategories(categoriesData.data);
+      } else {
+        setCategories([]);
+      }
     } catch (err) {
       console.error('Failed to fetch categories:', err);
+      setCategories([]);
     }
   };
 
   const fetchLocations = async () => {
     try {
       const response = await axios.get('/api/locations');
-      setLocations(response.data || []);
+      // Keep the hierarchical structure for the dropdown
+      setLocationData(response.data || { provinces: [] });
     } catch (err) {
       console.error('Failed to fetch locations:', err);
+      setLocationData({ provinces: [] });
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await savedSearchAPI.createSearch({
-        ...formData,
-        category_id: formData.category_id || null,
-        location_id: formData.location_id || null,
-        min_price: formData.min_price || null,
-        max_price: formData.max_price || null,
-      });
+      // Prepare data with proper types and null values
+      const minPrice = formData.min_price && formData.min_price !== '' ? parseFloat(formData.min_price) : null;
+      const maxPrice = formData.max_price && formData.max_price !== '' ? parseFloat(formData.max_price) : null;
+      
+      const submitData = {
+        name: formData.name,
+        search_query: formData.search_query || null,
+        category_id: formData.category_id && formData.category_id !== '' ? parseInt(formData.category_id) : null,
+        location_id: formData.location_id && formData.location_id !== '' ? parseInt(formData.location_id) : null,
+        min_price: minPrice,
+        max_price: maxPrice,
+        is_active: formData.is_active === true || formData.is_active === 'true',
+      };
+      
+      // Ensure max_price validation: if both are set, max must be >= min
+      if (minPrice !== null && maxPrice !== null && maxPrice < minPrice) {
+        alert('Max price must be greater than or equal to min price');
+        return;
+      }
+      
+      await savedSearchAPI.createSearch(submitData);
       setShowSearchForm(false);
       setFormData({
         name: '',
         search_query: '',
         category_id: '',
         location_id: '',
+        location_path: '',
         min_price: '',
         max_price: '',
         is_active: true,
@@ -2267,6 +2320,9 @@ function CategoriesSection({ user }) {
       fetchSavedSearches();
     } catch (err) {
       console.error('Failed to save search:', err);
+      if (err.response?.data?.errors) {
+        console.error('Validation errors:', err.response.data.errors);
+      }
     }
   };
 
@@ -2286,6 +2342,154 @@ function CategoriesSection({ user }) {
     } catch (err) {
       console.error('Failed to delete search:', err);
     }
+  };
+
+  // Category helper functions
+  const toggleCategory = (categoryId) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleCategorySelect = (categoryId, subcategoryId = null) => {
+    if (subcategoryId) {
+      // Subcategory selected - use subcategory ID
+      setFormData({ ...formData, category_id: subcategoryId.toString() });
+    } else if (categoryId) {
+      // Main category selected - use main category ID
+      setFormData({ ...formData, category_id: categoryId.toString() });
+    } else {
+      // Clear selection
+      setFormData({ ...formData, category_id: '' });
+    }
+    setShowCategoryDropdown(false);
+  };
+
+  const buildCategoryString = () => {
+    if (!formData.category_id) return 'All Categories';
+    const selectedId = parseInt(formData.category_id);
+    
+    // CRITICAL: Check main category IDs first
+    // If the ID matches a main category's ID, return just the category name
+    // This takes priority even if the same ID exists as a subcategory
+    const mainCategory = categories.find(cat => cat.id === selectedId);
+    if (mainCategory) {
+      // Return main category name - this is what user selected when clicking main category button
+      return mainCategory.name;
+    }
+    
+    // Only if it's NOT a main category ID, check if it's a subcategory
+    for (const category of categories) {
+      if (category.subcategories && category.subcategories.length > 0) {
+        const subcategory = category.subcategories.find(sub => sub.id === selectedId);
+        if (subcategory) {
+          return `${category.name} > ${subcategory.name}`;
+        }
+      }
+    }
+    
+    return 'All Categories';
+  };
+
+  // Location helper functions
+  const toggleProvince = (provinceId) => {
+    setExpandedProvinces(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(provinceId)) {
+        newSet.delete(provinceId);
+      } else {
+        newSet.add(provinceId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleDistrict = (districtKey) => {
+    setExpandedDistricts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(districtKey)) {
+        newSet.delete(districtKey);
+      } else {
+        newSet.add(districtKey);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleLocalLevel = (localLevelKey) => {
+    setExpandedLocalLevels(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(localLevelKey)) {
+        newSet.delete(localLevelKey);
+      } else {
+        newSet.add(localLevelKey);
+      }
+      return newSet;
+    });
+  };
+
+  const handleLocationSelect = (locationId, locationType = 'ward', locationPath = '') => {
+    setFormData({ 
+      ...formData, 
+      location_id: locationId ? locationId.toString() : '',
+      location_path: locationPath || ''
+    });
+    setShowLocationDropdown(false);
+  };
+
+  // Helper to find first ward ID under a location hierarchy
+  const findFirstWardId = (province, district = null, localLevel = null) => {
+    if (localLevel && localLevel.wards && localLevel.wards.length > 0) {
+      return localLevel.wards[0].id;
+    }
+    if (district) {
+      for (const ll of district.localLevels || []) {
+        if (ll.wards && ll.wards.length > 0) {
+          return ll.wards[0].id;
+        }
+      }
+    }
+    if (province) {
+      for (const dist of province.districts || []) {
+        for (const ll of dist.localLevels || []) {
+          if (ll.wards && ll.wards.length > 0) {
+            return ll.wards[0].id;
+          }
+        }
+      }
+    }
+    return null;
+  };
+
+  const buildLocationString = () => {
+    if (!formData.location_id || !locationData?.provinces) return 'All Locations';
+    
+    // Use stored location path if available
+    if (formData.location_path) {
+      return formData.location_path;
+    }
+    
+    // Fallback: find location by ID
+    const locationId = parseInt(formData.location_id);
+    
+    for (const province of locationData.provinces || []) {
+      for (const district of province.districts || []) {
+        for (const localLevel of district.localLevels || []) {
+          for (const ward of localLevel.wards || []) {
+            if (ward.id === locationId) {
+              return `${province.name} > ${district.name} > ${localLevel.name}${ward.ward_number ? ' > Ward ' + ward.ward_number : ''}`;
+            }
+          }
+        }
+      }
+    }
+    return 'All Locations';
   };
 
   return (
@@ -2325,32 +2529,202 @@ function CategoriesSection({ user }) {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="search_category">Category</Label>
-                  <select
-                    id="search_category"
-                    value={formData.category_id}
-                    onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-md"
-                  >
-                    <option value="">All Categories</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.category}</option>
-                    ))}
-                  </select>
+                  <Label>Category</Label>
+                  <div className="relative mt-1" ref={categoryDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                      className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                    >
+                      <span>{buildCategoryString()}</span>
+                      <span>{showCategoryDropdown ? '▼' : '▶'}</span>
+                    </button>
+                    {showCategoryDropdown && Array.isArray(categories) && categories.length > 0 && (
+                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-full max-h-[400px] overflow-y-auto">
+                        <div className="p-3">
+                          <button
+                            type="button"
+                            onClick={() => handleCategorySelect('')}
+                            className="w-full text-left px-3 py-2 hover:bg-[hsl(var(--accent))] rounded text-sm"
+                          >
+                            All Categories
+                          </button>
+                          {categories.map((category) => (
+                            <div key={category.id} className="mt-1">
+                              <div className="flex items-center">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleCategory(category.id);
+                                  }}
+                                  className="mr-2 text-xs px-2 w-6 text-center"
+                                >
+                                  {category.subcategories && category.subcategories.length > 0 
+                                    ? (expandedCategories.has(category.id) ? '▼' : '▶')
+                                    : ''}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCategorySelect(category.id)}
+                                  className={`flex-1 text-left px-2 py-1 hover:bg-[hsl(var(--accent))] rounded text-sm font-medium ${
+                                    formData.category_id === category.id.toString() ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                                  }`}
+                                >
+                                  {category.name}
+                                </button>
+                              </div>
+                              {expandedCategories.has(category.id) && category.subcategories && category.subcategories.length > 0 && (
+                                <div className="ml-8 mt-1 space-y-1">
+                                  {category.subcategories.map((subcategory) => (
+                                    <button
+                                      key={subcategory.id}
+                                      type="button"
+                                      onClick={() => handleCategorySelect(category.id, subcategory.id)}
+                                      className={`w-full text-left px-3 py-1 hover:bg-[hsl(var(--accent))] rounded text-sm ${
+                                        formData.category_id === subcategory.id.toString() ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                                      }`}
+                                    >
+                                      {subcategory.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div>
-                  <Label htmlFor="search_location">Location</Label>
-                  <select
-                    id="search_location"
-                    value={formData.location_id}
-                    onChange={(e) => setFormData({ ...formData, location_id: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-md"
-                  >
-                    <option value="">All Locations</option>
-                    {locations.map(loc => (
-                      <option key={loc.id} value={loc.id}>{loc.name}</option>
-                    ))}
-                  </select>
+                  <Label>Location</Label>
+                  <div className="relative mt-1" ref={locationDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+                      className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                    >
+                      <span>{buildLocationString()}</span>
+                      <span>{showLocationDropdown ? '▼' : '▶'}</span>
+                    </button>
+                    {showLocationDropdown && locationData?.provinces && (
+                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[500px] max-h-[400px] overflow-y-auto">
+                        <div className="p-3">
+                          <button
+                            type="button"
+                            onClick={() => handleLocationSelect('')}
+                            className="w-full text-left px-3 py-2 hover:bg-[hsl(var(--accent))] rounded text-sm mb-2"
+                          >
+                            All Locations
+                          </button>
+                          {locationData.provinces.map((province) => (
+                            <div key={province.id} className="mb-2">
+                              <div className="flex items-center py-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleProvince(province.id);
+                                  }}
+                                  className="mr-2 text-xs w-4 text-center"
+                                >
+                                  {expandedProvinces.has(province.id) ? '▼' : '▶'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const firstWardId = findFirstWardId(province);
+                                    if (firstWardId) {
+                                      handleLocationSelect(firstWardId, 'province', province.name);
+                                    }
+                                  }}
+                                  className={`flex-1 text-left px-2 py-1 hover:bg-[hsl(var(--accent))] rounded text-xs font-medium ${
+                                    formData.location_id && findFirstWardId(province) === parseInt(formData.location_id) ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                                  }`}
+                                >
+                                  {province.name}
+                                </button>
+                              </div>
+                              {expandedProvinces.has(province.id) && province.districts.map((district) => (
+                                <div key={district.id} className="ml-4 mt-1">
+                                  <div className="flex items-center py-1">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleDistrict(`${province.id}-${district.id}`);
+                                      }}
+                                      className="mr-2 text-xs w-4 text-center"
+                                    >
+                                      {expandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const firstWardId = findFirstWardId(province, district);
+                                        if (firstWardId) {
+                                          handleLocationSelect(firstWardId, 'district', `${province.name} > ${district.name}`);
+                                        }
+                                      }}
+                                      className={`flex-1 text-left px-2 py-1 hover:bg-[hsl(var(--accent))] rounded text-xs ${
+                                        formData.location_id && findFirstWardId(province, district) === parseInt(formData.location_id) ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                                      }`}
+                                    >
+                                      {district.name}
+                                    </button>
+                                  </div>
+                                  {expandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
+                                    <div key={localLevel.id} className="ml-4 mt-1">
+                                      <div className="flex items-center py-1">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleLocalLevel(`${province.id}-${district.id}-${localLevel.id}`);
+                                          }}
+                                          className="mr-2 text-xs w-4 text-center"
+                                        >
+                                          {expandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const firstWardId = findFirstWardId(province, district, localLevel);
+                                            if (firstWardId) {
+                                              handleLocationSelect(firstWardId, 'localLevel', `${province.name} > ${district.name} > ${localLevel.name}`);
+                                            }
+                                          }}
+                                          className={`flex-1 text-left px-2 py-1 hover:bg-[hsl(var(--accent))] rounded text-xs ${
+                                            formData.location_id && findFirstWardId(province, district, localLevel) === parseInt(formData.location_id) ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                                          }`}
+                                        >
+                                          {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
+                                        </button>
+                                      </div>
+                                      {expandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
+                                        <div key={ward.id} className="ml-4 mt-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleLocationSelect(ward.id, 'ward', `${province.name} > ${district.name} > ${localLevel.name} > Ward ${ward.ward_number}`)}
+                                            className={`w-full text-left px-2 py-1 hover:bg-[hsl(var(--accent))] rounded text-xs ${
+                                              formData.location_id === ward.id.toString() ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                                            }`}
+                                          >
+                                            Ward {ward.ward_number}
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

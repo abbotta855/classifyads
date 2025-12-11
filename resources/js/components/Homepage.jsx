@@ -350,19 +350,51 @@ function Homepage() {
       );
     }
 
-    // Filter by search category (supports "Category > Subcategory" format)
-    if (searchCategory) {
-      if (searchCategory.includes(' > ')) {
-        // Subcategory selected: "Category > Subcategory"
-        const [categoryName, subcategoryName] = searchCategory.split(' > ');
-        filtered = filtered.filter(ad => {
-          // Check if ad matches both category and subcategory
-          return ad.category === categoryName && (ad.subcategory === subcategoryName || ad.sub_category === subcategoryName);
-        });
-      } else {
-        // Main category selected
-        filtered = filtered.filter(ad => ad.category === searchCategory);
-      }
+    // Filter by selected categories and subcategories from search bar dropdown
+    if (selectedCategories.size > 0 || selectedSubcategories.size > 0) {
+      filtered = filtered.filter(ad => {
+        // Check if ad's category_id matches any selected category ID
+        if (ad.category_id) {
+          const categoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id) : ad.category_id;
+          if (selectedCategories.has(categoryId) || selectedSubcategories.has(categoryId)) {
+            return true;
+          }
+        }
+        
+        // Also check by category/subcategory names (for backward compatibility)
+        if (ad.category) {
+          const category = categories.find(cat => 
+            cat.name === ad.category || 
+            cat.category === ad.category ||
+            (cat.id && ad.category_id && cat.id === (typeof ad.category_id === 'string' ? parseInt(ad.category_id) : ad.category_id))
+          );
+          if (category) {
+            // Check if this category is selected
+            if (selectedCategories.has(category.id)) {
+              return true;
+            }
+            // Check if any of its subcategories are selected
+            if (category.subcategories && category.subcategories.length > 0) {
+              const matchingSubcategory = category.subcategories.find(sub => {
+                // Check if subcategory is selected by ID
+                if (selectedSubcategories.has(sub.id)) {
+                  // Also verify it matches the ad's subcategory name if available
+                  if (!ad.subcategory && !ad.sub_category) {
+                    return true; // If ad has no subcategory, match any selected subcategory of this category
+                  }
+                  return sub.name === ad.subcategory || sub.name === ad.sub_category;
+                }
+                return false;
+              });
+              if (matchingSubcategory) {
+                return true;
+              }
+            }
+          }
+        }
+        
+        return false;
+      });
     }
 
     // Filter by selected locations (checkboxes)
@@ -370,44 +402,12 @@ function Homepage() {
         filtered = filtered.filter(ad => {
         // Check if ad's location matches any selected location ID
         const adLocationId = ad.location_id || ad.locationId;
-        return adLocationId && selectedLocations.has(adLocationId);
+        return adLocationId && selectedLocations.has(adLocationId.toString());
         });
     }
 
-    // Filter by sidebar category filters (including subcategories)
-    if (selectedCategories.length > 0) {
-      // Get all selected category IDs including their subcategories
-      const getAllCategoryIds = (categoryIds) => {
-        let allIds = [...categoryIds];
-        categoryIds.forEach(catId => {
-          const subcategories = categories.filter(cat => cat.parent_id === catId);
-          if (subcategories.length > 0) {
-            allIds = allIds.concat(subcategories.map(sub => sub.id));
-            // Recursively get subcategories of subcategories
-            const subIds = subcategories.map(sub => sub.id);
-            allIds = allIds.concat(getAllCategoryIds(subIds).filter(id => !allIds.includes(id)));
-          }
-        });
-        return allIds;
-      };
-
-      const allSelectedIds = getAllCategoryIds(selectedCategories);
-      const categoryNames = categories
-        .filter(cat => allSelectedIds.includes(cat.id))
-        .map(cat => cat.name);
-      
-      filtered = filtered.filter(ad => {
-        // Check if ad matches by category name (for mock data)
-        if (ad.category && categoryNames.includes(ad.category)) {
-          return true;
-        }
-        // Check if ad matches by category_id (for real data)
-        if (ad.category_id && allSelectedIds.includes(ad.category_id)) {
-          return true;
-        }
-        return false;
-      });
-    }
+    // Note: Sidebar category filters use the same selectedCategories/selectedSubcategories Sets
+    // So the filtering above already handles both search bar and sidebar selections
 
     // Filter by sidebar location hierarchy (new structure: province → district → localLevel → ward)
     if (locationHierarchy.province) {
@@ -714,20 +714,22 @@ function Homepage() {
   const startResult = filteredAdsCount > 0 ? (currentPage - 1) * adsPerPage + 1 : 0;
   const endResult = Math.min(currentPage * adsPerPage, filteredAdsCount);
 
-  const getCategoryAds = (categoryName) => {
-    return allAds.filter(ad => ad.category === categoryName).slice(0, 4);
+  const getCategoryAds = (sectionName) => {
+    // Extract keyword from section name (e.g., "Land for sale" -> "land", "Car for sale" -> "car")
+    const keyword = sectionName.toLowerCase().split(' ')[0]; // Get first word as keyword
+    
+    // Match ads by keyword in title or description (case-insensitive)
+    return allAds.filter(ad => {
+      const title = (ad.title || '').toLowerCase();
+      const description = (ad.description || '').toLowerCase();
+      return title.includes(keyword) || description.includes(keyword);
+    }).slice(0, 4);
   };
 
-  const getCategoryRoute = (categoryName) => {
-    const routeMap = {
-      'Land for sale': '/categories/land-for-sale',
-      'Car for sale': '/categories/vehicle-for-sale',
-      'Motorbike for sale': '/categories/motor-bike-for-sale',
-      'Bus for sale': '/categories/bus-for-sale',
-      'Truck for sale': '/categories/truck-for-sale',
-      'House for sale': '/categories/house-for-sale'
-    };
-    return routeMap[categoryName] || '/categories';
+  const getCategoryRoute = (sectionName) => {
+    // Route to search page with the keyword
+    const keyword = sectionName.toLowerCase().split(' ')[0];
+    return `/search?q=${encodeURIComponent(keyword)}`;
   };
 
   if (loading) {
@@ -1646,61 +1648,66 @@ function Homepage() {
             {/* Separator between search results and category sections */}
             <div className="my-8 border-t-2 border-[hsl(var(--border))]"></div>
 
-            {/* Category-specific ad sections (4 ads per row, then "more ad" link) */}
-            {['Land for sale', 'Car for sale', 'Motorbike for sale', 'Bus for sale', 'Truck for sale', 'House for sale'].map((categoryName) => {
-              const categoryAds = getCategoryAds(categoryName);
-              if (categoryAds.length === 0) return null;
+            {/* Popular ad sections (4 ads per row, then "more ad" link) */}
+            {['Land for sale', 'Car for sale', 'Motorbike for sale', 'Bus for sale', 'Truck for sale', 'House for sale'].map((sectionName) => {
+              const categoryAds = getCategoryAds(sectionName);
 
               return (
-                <div key={categoryName} className="mb-8">
-                  <h3 className="text-xl font-bold text-[hsl(var(--foreground))] mb-4">{categoryName}</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {categoryAds.map((ad) => (
-                      <Card 
-                        key={ad.id} 
-                        className="hover:shadow-lg transition-shadow cursor-pointer"
-                        onClick={() => handleAdClick(ad.id)}
-                      >
-                        <CardContent className="p-0">
-                          <img
-                            src={ad.image}
-                            alt={ad.title}
-                            className="w-full h-48 object-cover"
-                          />
-                          <div className="p-3">
-                            <h3 className="font-semibold text-sm text-[hsl(var(--foreground))] mb-1 line-clamp-2">
-                              {ad.title}
-                            </h3>
-                            <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 line-clamp-2">
-                              {ad.description}
-                            </p>
-                            <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
-                              Rs. {ad.price.toLocaleString()}
-                            </p>
-                            {ad.user_id && (
-                              <Link
-                                to={`/profile/${ad.user_id}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-xs text-[hsl(var(--primary))] hover:underline"
-                              >
-                                View Seller Profile →
-                              </Link>
-                            )}
-                          </div>
+                <div key={sectionName} className="mb-8">
+                  <h3 className="text-xl font-bold text-[hsl(var(--foreground))] mb-4">{sectionName}</h3>
+                  {categoryAds.length === 0 ? (
+                    <div className="text-center py-8 text-[hsl(var(--muted-foreground))]">
+                      <p>0 items</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {categoryAds.map((ad) => (
+                        <Card 
+                          key={ad.id} 
+                          className="hover:shadow-lg transition-shadow cursor-pointer"
+                          onClick={() => handleAdClick(ad.id)}
+                        >
+                          <CardContent className="p-0">
+                            <img
+                              src={ad.image}
+                              alt={ad.title}
+                              className="w-full h-48 object-cover"
+                            />
+                            <div className="p-3">
+                              <h3 className="font-semibold text-sm text-[hsl(var(--foreground))] mb-1 line-clamp-2">
+                                {ad.title}
+                              </h3>
+                              <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 line-clamp-2">
+                                {ad.description}
+                              </p>
+                              <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
+                                Rs. {ad.price.toLocaleString()}
+                              </p>
+                              {ad.user_id && (
+                                <Link
+                                  to={`/profile/${ad.user_id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-xs text-[hsl(var(--primary))] hover:underline"
+                                >
+                                  View Seller Profile →
+                                </Link>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                      <Card className="hover:shadow-lg transition-shadow flex items-center justify-center">
+                        <CardContent className="p-4 text-center">
+                          <Link
+                            to={getCategoryRoute(sectionName)}
+                            className="text-[hsl(var(--primary))] hover:underline font-semibold"
+                          >
+                            more ad
+                          </Link>
                         </CardContent>
                       </Card>
-                    ))}
-                    <Card className="hover:shadow-lg transition-shadow flex items-center justify-center">
-                      <CardContent className="p-4 text-center">
-                        <Link
-                          to={getCategoryRoute(categoryName)}
-                          className="text-[hsl(var(--primary))] hover:underline font-semibold"
-                        >
-                          more ad
-                        </Link>
-                      </CardContent>
-                    </Card>
-                  </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

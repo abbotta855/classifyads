@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Ad;
+use App\Services\SavedSearchNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -88,7 +89,21 @@ class AdController extends Controller
     ]);
 
     // Load relationships
-    $ad->load(['category', 'user']);
+    $ad->load(['category', 'user', 'location']);
+
+    // Process saved search alerts (only for active ads)
+    if ($ad->status === 'active') {
+      try {
+        $notificationService = new SavedSearchNotificationService();
+        $notificationService->processAd($ad);
+      } catch (\Exception $e) {
+        // Log error but don't fail ad creation
+        \Log::error('Failed to process saved search alerts: ' . $e->getMessage(), [
+          'ad_id' => $ad->id,
+          'exception' => $e
+        ]);
+      }
+    }
 
     return response()->json($ad, 201);
   }
