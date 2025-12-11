@@ -34,11 +34,23 @@ class BuyerSellerMessageController extends Controller
             ->orderBy('created_at', 'asc')
             ->get();
 
-        // Mark messages as read if viewing as seller
+        // Mark messages as read based on who is viewing
         if ($user->id === $ad->user_id) {
+            // Seller viewing - mark buyer messages as read
             BuyerSellerMessage::where('ad_id', $adId)
                 ->where('seller_id', $user->id)
                 ->where('sender_type', 'buyer')
+                ->where('is_read', false)
+                ->update([
+                    'is_read' => true,
+                    'read_at' => now(),
+                ]);
+        } else {
+            // Buyer viewing - mark seller messages as read
+            BuyerSellerMessage::where('ad_id', $adId)
+                ->where('buyer_id', $user->id)
+                ->where('seller_id', $ad->user_id)
+                ->where('sender_type', 'seller')
                 ->where('is_read', false)
                 ->update([
                     'is_read' => true,

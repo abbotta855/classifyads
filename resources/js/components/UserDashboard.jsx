@@ -3291,6 +3291,10 @@ function InboxSection({ user }) {
       const interval = setInterval(() => {
         // When polling, don't scroll to bottom unless there are new messages
         loadConversationMessages(selectedConversation.ad_id, false);
+        // Also refresh unread counts periodically
+        if (window.fetchUnreadCounts) {
+          window.fetchUnreadCounts();
+        }
       }, 3000);
       return () => clearInterval(interval);
     }
@@ -3302,6 +3306,10 @@ function InboxSection({ user }) {
       // Poll for new messages every 3 seconds
       const interval = setInterval(() => {
         fetchMessages(selectedChat.id);
+        // Also refresh unread counts periodically
+        if (window.fetchUnreadCounts) {
+          window.fetchUnreadCounts();
+        }
       }, 3000);
       return () => clearInterval(interval);
     }
@@ -3314,6 +3322,10 @@ function InboxSection({ user }) {
       if (response.data && response.data.length > 0 && !selectedChat) {
         setSelectedChat(response.data[0]);
       }
+      // Refresh inbox unread count when chats are fetched
+      if (window.fetchUnreadCounts) {
+        window.fetchUnreadCounts();
+      }
     } catch (err) {
       console.error('Failed to fetch chats:', err);
     } finally {
@@ -3325,8 +3337,48 @@ function InboxSection({ user }) {
     try {
       const response = await inboxAPI.getChat(chatId);
       setMessages(response.data.messages || []);
+      // Mark support chat notifications as read when viewing the chat
+      markSupportChatNotificationsAsRead(chatId);
+      // Refresh inbox unread count after viewing messages
+      if (window.fetchUnreadCounts) {
+        window.fetchUnreadCounts();
+      }
     } catch (err) {
       console.error('Failed to fetch messages:', err);
+    }
+  };
+
+  // Mark "new_message" notifications from support chat as read when user views the chat
+  const markSupportChatNotificationsAsRead = async (chatId) => {
+    try {
+      // Get all notifications
+      const response = await notificationAPI.getNotifications();
+      const allNotifications = response.data.notifications?.data || response.data.data || [];
+      
+      // Find unread "new_message" notifications related to this support chat
+      const relatedNotifications = allNotifications.filter(
+        n => !n.is_read && 
+        n.type === 'new_message' && 
+        n.metadata?.chat_id === chatId &&
+        n.metadata?.sender_type === 'admin'
+      );
+      
+      // Mark each as read
+      for (const notification of relatedNotifications) {
+        try {
+          await notificationAPI.markAsRead(notification.id);
+        } catch (err) {
+          console.error('Failed to mark notification as read:', err);
+        }
+      }
+      
+      // Refresh unread counts if any notifications were marked
+      if (relatedNotifications.length > 0 && window.fetchUnreadCounts) {
+        // Trigger parent component to refresh unread counts
+        window.fetchUnreadCounts();
+      }
+    } catch (err) {
+      console.error('Error marking support chat notifications as read:', err);
     }
   };
 
@@ -3360,19 +3412,51 @@ function InboxSection({ user }) {
   const fetchBuyerSellerConversations = async () => {
     setLoadingConversations(true);
     try {
-      let response;
-      // Check if user has any ads (seller) or is a buyer
-      const userAds = await userAdAPI.getAds();
-      if (userAds.data && userAds.data.length > 0) {
-        // User is a seller - get seller conversations
-        response = await buyerSellerMessageAPI.getSellerConversations();
-      } else {
-        // User is a buyer - get buyer conversations
-        response = await buyerSellerMessageAPI.getBuyerConversations();
+      // Fetch both seller and buyer conversations to handle users who might be both
+      const allConversations = [];
+      
+      try {
+        // Get seller conversations (if user has ads)
+        const sellerResponse = await buyerSellerMessageAPI.getSellerConversations();
+        if (sellerResponse.data && Array.isArray(sellerResponse.data)) {
+          allConversations.push(...sellerResponse.data);
+        }
+      } catch (err) {
+        console.error('Error fetching seller conversations:', err);
       }
-      setBuyerSellerConversations(response.data || []);
-      if (response.data && response.data.length > 0 && !selectedConversation) {
-        setSelectedConversation(response.data[0]);
+      
+      try {
+        // Get buyer conversations (if user has messaged about any ads)
+        const buyerResponse = await buyerSellerMessageAPI.getBuyerConversations();
+        if (buyerResponse.data && Array.isArray(buyerResponse.data)) {
+          allConversations.push(...buyerResponse.data);
+        }
+      } catch (err) {
+        console.error('Error fetching buyer conversations:', err);
+      }
+      
+      // Remove duplicates based on ad_id (in case user is both buyer and seller for same ad)
+      const uniqueConversations = allConversations.reduce((acc, conv) => {
+        if (!acc.find(c => c.ad_id === conv.ad_id)) {
+          acc.push(conv);
+        }
+        return acc;
+      }, []);
+      
+      // Sort by last message time (most recent first)
+      uniqueConversations.sort((a, b) => {
+        const timeA = a.last_message_at ? new Date(a.last_message_at) : new Date(0);
+        const timeB = b.last_message_at ? new Date(b.last_message_at) : new Date(0);
+        return timeB - timeA;
+      });
+      
+      setBuyerSellerConversations(uniqueConversations);
+      if (uniqueConversations.length > 0 && !selectedConversation) {
+        setSelectedConversation(uniqueConversations[0]);
+      }
+      // Refresh inbox unread count when conversations are fetched
+      if (window.fetchUnreadCounts) {
+        window.fetchUnreadCounts();
       }
     } catch (err) {
       console.error('Failed to fetch buyer-seller conversations:', err);
@@ -3394,6 +3478,10 @@ function InboxSection({ user }) {
       
       // Mark related notifications as read when viewing the conversation
       markMessageNotificationsAsRead(adId);
+      // Refresh inbox unread count after viewing messages
+      if (window.fetchUnreadCounts) {
+        window.fetchUnreadCounts();
+      }
     } catch (err) {
       console.error('Failed to load conversation messages:', err);
     }
