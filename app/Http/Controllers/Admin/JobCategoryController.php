@@ -13,8 +13,7 @@ class JobCategoryController extends Controller
      */
     public function index()
     {
-        $categories = JobCategory::with('category')
-            ->orderBy('category_id')
+        $categories = JobCategory::orderBy('job_category_name')
             ->get();
 
         return response()->json($categories);
@@ -26,7 +25,7 @@ class JobCategoryController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'category_id' => 'required|exists:categories,id',
+            'job_category_name' => 'required|string|max:255',
             'posted_job' => 'nullable|integer|min:0',
             'job_status' => 'required|in:draft,active,closed',
         ]);
@@ -36,7 +35,6 @@ class JobCategoryController extends Controller
         }
 
         $category = JobCategory::create($validated);
-        $category->load('category');
 
         return response()->json($category, 201);
     }
@@ -58,13 +56,12 @@ class JobCategoryController extends Controller
         $category = JobCategory::findOrFail($id);
 
         $validated = $request->validate([
-            'category_id' => 'sometimes|exists:categories,id',
+            'job_category_name' => 'sometimes|string|max:255',
             'posted_job' => 'sometimes|integer|min:0',
             'job_status' => 'sometimes|in:draft,active,closed',
         ]);
 
         $category->update($validated);
-        $category->load('category');
 
         return response()->json($category);
     }

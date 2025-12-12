@@ -12,16 +12,23 @@ class CategorySeeder extends Seeder
    */
   public function run(): void
   {
+    // Clear existing categories first (optional - comment out if you want to keep existing data)
+    // Category::truncate();
+
     $categories = [
       [
         'category' => 'Art & Craft',
         'subcategories' => [
           'Digital art',
+          'Drawing',
+          'Embroidery',
+          'Fabric',
+          'Glass art',
+          'Leather crafts',
+          'Nepali ceramic',
+          'Nepali garment',
           'Painting',
           'Sculpture',
-          'Drawing',
-          'Handicrafts',
-          'Pottery',
         ],
       ],
       [
@@ -31,7 +38,8 @@ class CategorySeeder extends Seeder
           'Road Bikes',
           'Electric Bikes',
           'Bike Parts',
-          'Bike Accessories',
+          'Bicycle Accessories',
+          'Cycling Gear',
         ],
       ],
       [
@@ -43,6 +51,7 @@ class CategorySeeder extends Seeder
           'Comics',
           'Magazines',
           'E-books',
+          'Academic Books',
         ],
       ],
       [
@@ -53,6 +62,7 @@ class CategorySeeder extends Seeder
           'Hardware',
           'Plumbing',
           'Electrical Supplies',
+          'Cement & Concrete',
         ],
       ],
       [
@@ -63,6 +73,7 @@ class CategorySeeder extends Seeder
           'Service Business',
           'Manufacturing',
           'Online Business',
+          'Franchise',
         ],
       ],
       [
@@ -72,7 +83,8 @@ class CategorySeeder extends Seeder
           'Women\'s Clothing',
           'Kids Clothing',
           'Shoes',
-          'Accessories',
+          'Fashion Accessories',
+          'Traditional Wear',
         ],
       ],
       [
@@ -82,6 +94,7 @@ class CategorySeeder extends Seeder
           'Sports Tickets',
           'Theater Tickets',
           'Event Planning',
+          'Wedding Services',
         ],
       ],
       [
@@ -92,6 +105,7 @@ class CategorySeeder extends Seeder
           'Farm Equipment',
           'Livestock',
           'Crops',
+          'Agricultural Tools',
         ],
       ],
       [
@@ -102,6 +116,7 @@ class CategorySeeder extends Seeder
           'Kitchen & Dining',
           'Office Furniture',
           'Outdoor Furniture',
+          'Antique Furniture',
         ],
       ],
       [
@@ -112,6 +127,7 @@ class CategorySeeder extends Seeder
           'Hair Care',
           'Fitness Equipment',
           'Supplements',
+          'Beauty Services',
         ],
       ],
       [
@@ -122,6 +138,7 @@ class CategorySeeder extends Seeder
           'Home Decor',
           'Kitchenware',
           'Cleaning Supplies',
+          'Lighting',
         ],
       ],
       [
@@ -132,6 +149,7 @@ class CategorySeeder extends Seeder
           'Computer Parts',
           'Software',
           'Networking Equipment',
+          'Gaming Equipment',
         ],
       ],
       [
@@ -142,6 +160,7 @@ class CategorySeeder extends Seeder
           'Diamond Jewelry',
           'Watches',
           'Gemstones',
+          'Traditional Jewelry',
         ],
       ],
       [
@@ -152,6 +171,7 @@ class CategorySeeder extends Seeder
           'Contract',
           'Freelance',
           'Internship',
+          'Remote Jobs',
         ],
       ],
       [
@@ -159,9 +179,10 @@ class CategorySeeder extends Seeder
         'subcategories' => [
           'Smartphones',
           'Tablets',
-          'Accessories',
+          'Mobile Accessories',
           'Wearables',
           'Cases & Covers',
+          'Chargers & Cables',
         ],
       ],
       [
@@ -172,6 +193,7 @@ class CategorySeeder extends Seeder
           'Drums',
           'Wind Instruments',
           'Audio Equipment',
+          'Traditional Instruments',
         ],
       ],
       [
@@ -182,6 +204,7 @@ class CategorySeeder extends Seeder
           'Printers',
           'Office Equipment',
           'Supplies',
+          'Filing Systems',
         ],
       ],
       [
@@ -192,6 +215,7 @@ class CategorySeeder extends Seeder
           'Birds',
           'Pet Supplies',
           'Pet Food',
+          'Pet Services',
         ],
       ],
       [
@@ -202,6 +226,7 @@ class CategorySeeder extends Seeder
           'Accessories',
           'Photo Equipment',
           'Studio Equipment',
+          'Photography Services',
         ],
       ],
       [
@@ -212,6 +237,7 @@ class CategorySeeder extends Seeder
           'Apartments',
           'Commercial Property',
           'Rentals',
+          'Land for Rent',
         ],
       ],
       [
@@ -222,6 +248,7 @@ class CategorySeeder extends Seeder
           'Outdoor Gear',
           'Sports Apparel',
           'Games',
+          'Camping Equipment',
         ],
       ],
       [
@@ -231,6 +258,7 @@ class CategorySeeder extends Seeder
           'Hotel Bookings',
           'Travel Guides',
           'Travel Accessories',
+          'Tour Services',
         ],
       ],
       [
@@ -247,18 +275,35 @@ class CategorySeeder extends Seeder
     ];
 
     foreach ($categories as $categoryData) {
-      // Create main category (sub_category is null)
-      Category::create([
-        'category' => $categoryData['category'],
-        'sub_category' => null,
-      ]);
+      // Check if main category already exists
+      $mainCategory = Category::where('category', $categoryData['category'])
+        ->whereNull('sub_category')
+        ->first();
+
+      // Create main category if it doesn't exist
+      if (!$mainCategory) {
+        Category::create([
+          'category' => $categoryData['category'],
+          'sub_category' => null,
+        ]);
+      }
 
       // Create subcategories
       foreach ($categoryData['subcategories'] as $subcategoryName) {
-        Category::create([
-          'category' => $categoryData['category'],
-          'sub_category' => $subcategoryName,
-        ]);
+        // Check if subcategory already exists for this specific category
+        $existingSubcategory = Category::where('category', $categoryData['category'])
+          ->where('sub_category', $subcategoryName)
+          ->first();
+
+        // Also check if this subcategory name already exists globally (due to unique constraint)
+        $globalSubcategory = Category::where('sub_category', $subcategoryName)->first();
+
+        if (!$existingSubcategory && !$globalSubcategory) {
+          Category::create([
+            'category' => $categoryData['category'],
+            'sub_category' => $subcategoryName,
+          ]);
+        }
       }
     }
   }

@@ -9,6 +9,52 @@ import { Label } from './ui/label';
 import { adminAPI } from '../utils/api';
 import axios from 'axios';
 
+// Job category options
+const JOB_CATEGORY_OPTIONS = [
+  'Accounting',
+  'Agriculture Job',
+  'Architecture Job',
+  'Art Job',
+  'Automotive Job',
+  'Banking Job',
+  'Construction Job',
+  'Courier & parcel delivery Job',
+  'Customer service Job',
+  'Education',
+  'Engineering job',
+  'Executive Job',
+  'Fitness Job',
+  'Food & Beverage Job',
+  'General labor Job',
+  'Government job',
+  'Healthcare job',
+  'Hospitality & tourism job',
+  'Human resources job',
+  'Insurance Job',
+  'Internet Web Job',
+  'IT Job',
+  'Legal job',
+  'Management job',
+  'Manufacturing & operations job',
+  'Marketing Job',
+  'Media & communications job',
+  'Office & Administration job',
+  'Real estate Job',
+  'Retail job',
+  'Sales Job',
+  'Salon Job',
+  'Security Job',
+  'Software Developer Job',
+  'Spa Job',
+  'Systems / network Job',
+  'Technical support Job',
+  'Television/ Radio Job',
+  'Transport Job',
+  'Web design Job',
+  'Writing / editing Job',
+  'Other',
+];
+
 function AdminPanel() {
   const { user } = useAuth();
   const { section, subsection } = useParams();
@@ -184,15 +230,10 @@ function AdminPanel() {
   const [editingJobCategoryData, setEditingJobCategoryData] = useState(null);
   const [showAddJobCategoryForm, setShowAddJobCategoryForm] = useState(false);
   const [jobCategoryFormData, setJobCategoryFormData] = useState({
-    category: '',
-    sub_category: '',
+    job_category_name: '',
     posted_job: 0,
     job_status: 'draft',
   });
-  const [jobCategorySelectedCategoryName, setJobCategorySelectedCategoryName] = useState(''); // Selected category for Job Category form
-  const [jobCategorySelectedSubcategoryId, setJobCategorySelectedSubcategoryId] = useState(''); // Selected subcategory for Job Category form
-  const [jobCategoryShowCategoryDropdown, setJobCategoryShowCategoryDropdown] = useState(false); // Category dropdown for Job Category form
-  const jobCategoryCategoryDropdownRef = useRef(null);
 
   const [jobApplicants, setJobApplicants] = useState([]);
   const [jobApplicantsLoading, setJobApplicantsLoading] = useState(false);
@@ -1026,39 +1067,25 @@ function AdminPanel() {
   const handleAddJobCategorySubmit = async (e) => {
     e.preventDefault();
     
-    // Get category_id from selected category/subcategory
-    let categoryId = null;
-    if (jobCategorySelectedSubcategoryId) {
-      categoryId = parseInt(jobCategorySelectedSubcategoryId);
-    } else if (jobCategorySelectedCategoryName) {
-      const category = getJobCategorySelectedCategory();
-      if (category) {
-        categoryId = category.id;
-      }
-    }
-
-    if (!categoryId) {
-      setError('Please select a category');
+    if (!jobCategoryFormData.job_category_name) {
+      setError('Please select a job category');
       setTimeout(() => setError(null), 5000);
       return;
     }
 
     try {
       await adminAPI.createJobCategory({
-        category_id: categoryId,
+        job_category_name: jobCategoryFormData.job_category_name,
         posted_job: parseInt(jobCategoryFormData.posted_job, 10) || 0,
         job_status: jobCategoryFormData.job_status,
       });
       setSuccessMessage('Job category created successfully');
       setShowAddJobCategoryForm(false);
       setJobCategoryFormData({
-        category: '',
-        sub_category: '',
+        job_category_name: '',
         posted_job: 0,
         job_status: 'draft',
       });
-      setJobCategorySelectedCategoryName('');
-      setJobCategorySelectedSubcategoryId('');
       fetchJobCategories();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -1071,80 +1098,28 @@ function AdminPanel() {
   const handleEditJobCategory = (category) => {
     setEditingJobCategoryId(category.id);
     setEditingJobCategoryData({
-      category_id: category.category_id,
+      job_category_name: category.job_category_name || '',
       posted_job: category.posted_job,
       job_status: category.job_status,
     });
-
-    // Initialize category selection from category_id
-    if (category.category_id) {
-      // Find the category in the categories list by ID
-      let foundCategory = null;
-      let foundSubcategory = null;
-      
-      for (const cat of categories) {
-        // Check if it's a main category match
-        if (cat.id === category.category_id) {
-          foundCategory = cat;
-          break;
-        }
-        // Check if it's a subcategory match
-        if (cat.subcategories) {
-          const subcat = cat.subcategories.find(s => s.id === category.category_id);
-          if (subcat) {
-            foundCategory = cat;
-            foundSubcategory = subcat;
-            break;
-          }
-        }
-      }
-
-      if (foundCategory) {
-        setJobCategorySelectedCategoryName(foundCategory.name);
-        if (foundSubcategory) {
-          setJobCategorySelectedSubcategoryId(foundSubcategory.id.toString());
-        } else {
-          setJobCategorySelectedSubcategoryId('');
-        }
-      } else {
-        setJobCategorySelectedCategoryName('');
-        setJobCategorySelectedSubcategoryId('');
-      }
-    } else {
-      setJobCategorySelectedCategoryName('');
-      setJobCategorySelectedSubcategoryId('');
-    }
   };
 
   const handleSaveJobCategory = async (categoryId) => {
     try {
-      // Get category_id from selected category/subcategory
-      let selectedCategoryId = null;
-      if (jobCategorySelectedSubcategoryId) {
-        selectedCategoryId = parseInt(jobCategorySelectedSubcategoryId);
-      } else if (jobCategorySelectedCategoryName) {
-        const category = getJobCategorySelectedCategory();
-        if (category) {
-          selectedCategoryId = category.id;
-        }
-      }
-
-      if (!selectedCategoryId) {
-        setError('Please select a category');
+      if (!editingJobCategoryData.job_category_name) {
+        setError('Please select a job category');
         setTimeout(() => setError(null), 5000);
         return;
       }
 
       await adminAPI.updateJobCategory(categoryId, {
-        category_id: selectedCategoryId,
+        job_category_name: editingJobCategoryData.job_category_name,
         posted_job: parseInt(editingJobCategoryData.posted_job, 10) || 0,
         job_status: editingJobCategoryData.job_status,
       });
       setSuccessMessage('Job category updated successfully');
       setEditingJobCategoryId(null);
       setEditingJobCategoryData(null);
-      setJobCategorySelectedCategoryName('');
-      setJobCategorySelectedSubcategoryId('');
       fetchJobCategories();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
@@ -1157,8 +1132,6 @@ function AdminPanel() {
   const handleCancelEditJobCategory = () => {
     setEditingJobCategoryId(null);
     setEditingJobCategoryData(null);
-    setJobCategorySelectedCategoryName('');
-    setJobCategorySelectedSubcategoryId('');
   };
 
   const handleDeleteJobCategory = async (categoryId) => {
@@ -4152,22 +4125,19 @@ function AdminPanel() {
       if (editingAdCategoryDropdownRef.current && !editingAdCategoryDropdownRef.current.contains(event.target)) {
         setEditingAdShowCategoryDropdown(false);
       }
-      if (jobCategoryCategoryDropdownRef.current && !jobCategoryCategoryDropdownRef.current.contains(event.target)) {
-        setJobCategoryShowCategoryDropdown(false);
-      }
       if (transactionCategoryDropdownRef.current && !transactionCategoryDropdownRef.current.contains(event.target)) {
         setTransactionShowCategoryDropdown(false);
       }
     };
 
-    if (showCategoryDropdown || postAdShowCategoryDropdown || editingAdShowCategoryDropdown || jobCategoryShowCategoryDropdown || transactionShowCategoryDropdown) {
+    if (showCategoryDropdown || postAdShowCategoryDropdown || editingAdShowCategoryDropdown || transactionShowCategoryDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCategoryDropdown, postAdShowCategoryDropdown, editingAdShowCategoryDropdown, jobCategoryShowCategoryDropdown, transactionShowCategoryDropdown]);
+  }, [showCategoryDropdown, postAdShowCategoryDropdown, editingAdShowCategoryDropdown, transactionShowCategoryDropdown]);
 
   // Helper functions for category selection
   const getSelectedCategory = () => {
@@ -4453,56 +4423,6 @@ function AdminPanel() {
     });
   };
 
-  // Helper functions for Job Category form category selection
-  const getJobCategorySelectedCategory = () => {
-    if (!jobCategorySelectedCategoryName) return null;
-    return categories.find(c => c.name === jobCategorySelectedCategoryName);
-  };
-
-  const handleJobCategoryCategorySelect = (categoryName) => {
-    setJobCategorySelectedCategoryName(categoryName);
-    setJobCategorySelectedSubcategoryId(''); // Reset subcategory when category changes
-    const category = categories.find(c => c.name === categoryName);
-    if (category) {
-      setJobCategoryFormData({...jobCategoryFormData, category: category.name, sub_category: ''});
-    }
-  };
-
-  const handleJobCategorySubcategorySelect = (subcategoryId) => {
-    setJobCategorySelectedSubcategoryId(subcategoryId);
-    const category = getJobCategorySelectedCategory();
-    if (category) {
-      const subcategory = category.subcategories.find(s => s.id === parseInt(subcategoryId));
-      if (subcategory) {
-        setJobCategoryFormData({...jobCategoryFormData, category: category.name, sub_category: subcategory.name});
-        setJobCategoryShowCategoryDropdown(false);
-      }
-    }
-  };
-
-  const buildJobCategoryCategoryString = () => {
-    if (jobCategorySelectedSubcategoryId) {
-      const category = getJobCategorySelectedCategory();
-      const subcategory = category?.subcategories.find(s => s.id === parseInt(jobCategorySelectedSubcategoryId));
-      if (category && subcategory) {
-        return `${category.name} > ${subcategory.name}`;
-      }
-    }
-    if (jobCategorySelectedCategoryName) {
-      const category = getJobCategorySelectedCategory();
-      if (category) {
-        return category.name;
-      }
-    }
-    return '';
-  };
-
-  const handleJobCategoryClearCategorySelection = () => {
-    setJobCategorySelectedCategoryName('');
-    setJobCategorySelectedSubcategoryId('');
-    setJobCategoryFormData({...jobCategoryFormData, category: '', sub_category: ''});
-    setJobCategoryShowCategoryDropdown(false);
-  };
 
   // Helper functions for Transaction form category selection
   const getTransactionSelectedCategory = () => {
@@ -7132,99 +7052,15 @@ function AdminPanel() {
                       <form onSubmit={handleAddJobCategorySubmit} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category *</label>
-                            <div className="relative" ref={jobCategoryCategoryDropdownRef}>
-                              <button
-                                type="button"
-                                onClick={() => setJobCategoryShowCategoryDropdown(!jobCategoryShowCategoryDropdown)}
-                                className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
-                              >
-                                <span>{buildJobCategoryCategoryString() || 'Select Category'}</span>
-                                <span className="ml-2">{jobCategoryShowCategoryDropdown ? '▼' : '▶'}</span>
-                              </button>
-                              
-                              {/* Cascading Category Menu */}
-                              {jobCategoryShowCategoryDropdown && (
-                                <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
-                                  {/* Category Column */}
-                                  <div className="min-w-[200px] max-h-96 overflow-y-auto border-r border-[hsl(var(--border))]">
-                                    <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                                      Category
-                                    </div>
-                                    <div className="py-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          handleJobCategoryClearCategorySelection();
-                                        }}
-                                        className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
-                                          !jobCategorySelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
-                                        }`}
-                                      >
-                                        All Categories
-                                      </button>
-                                      {categories.map((category, index) => (
-                                        <button
-                                          key={category.id || `category-${index}`}
-                                          type="button"
-                                          onClick={() => handleJobCategoryCategorySelect(category.name)}
-                                          onMouseEnter={() => {
-                                            if (jobCategorySelectedCategoryName !== category.name) {
-                                              handleJobCategoryCategorySelect(category.name);
-                                            }
-                                          }}
-                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
-                                            jobCategorySelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
-                                          }`}
-                                        >
-                                          <span>{category.name}</span>
-                                          {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Subcategory Column - appears when category is selected */}
-                                  {jobCategorySelectedCategoryName && getJobCategorySelectedCategory() && getJobCategorySelectedCategory().subcategories && getJobCategorySelectedCategory().subcategories.length > 0 && (
-                                    <div className="min-w-[200px] max-h-96 overflow-y-auto">
-                                      <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                                        Subcategory
-                                      </div>
-                                      <div className="py-1">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setJobCategorySelectedSubcategoryId('');
-                                            const category = getJobCategorySelectedCategory();
-                                            if (category) {
-                                              setJobCategoryFormData({...jobCategoryFormData, category: category.name, sub_category: ''});
-                                            }
-                                            setJobCategoryShowCategoryDropdown(false);
-                                          }}
-                                          className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
-                                            !jobCategorySelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
-                                          }`}
-                                        >
-                                          All Subcategories
-                                        </button>
-                                        {getJobCategorySelectedCategory().subcategories.map((subcategory) => (
-                                          <button
-                                            key={subcategory.id}
-                                            type="button"
-                                            onClick={() => handleJobCategorySubcategorySelect(subcategory.id.toString())}
-                                            className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
-                                              jobCategorySelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
-                                            }`}
-                                          >
-                                            {subcategory.name}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Job Category *</label>
+                            <Input
+                              type="text"
+                              value={jobCategoryFormData.job_category_name}
+                              onChange={(e) => setJobCategoryFormData({ ...jobCategoryFormData, job_category_name: e.target.value })}
+                              placeholder="Enter job category name"
+                              className="w-full"
+                              required
+                            />
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Posted Jobs</label>
@@ -7256,13 +7092,10 @@ function AdminPanel() {
                             onClick={() => {
                               setShowAddJobCategoryForm(false);
                               setJobCategoryFormData({
-                                category: '',
-                                sub_category: '',
+                                job_category_name: '',
                                 posted_job: 0,
                                 job_status: 'draft',
                               });
-                              setJobCategorySelectedCategoryName('');
-                              setJobCategorySelectedSubcategoryId('');
                             }}
                           >
                             Cancel
@@ -7278,8 +7111,7 @@ function AdminPanel() {
                       <thead>
                         <tr className="border-b border-[hsl(var(--border))]">
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Category</th>
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Sub Category</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Job Category</th>
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Posted Jobs</th>
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Status</th>
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
@@ -7288,11 +7120,11 @@ function AdminPanel() {
                       <tbody>
                         {jobCategoriesLoading ? (
                           <tr>
-                            <td colSpan="6" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading job categories...</td>
+                            <td colSpan="5" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading job categories...</td>
                           </tr>
                         ) : jobCategories.length === 0 ? (
                           <tr>
-                            <td colSpan="6" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No job categories found.</td>
+                            <td colSpan="5" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No job categories found.</td>
                           </tr>
                         ) : (
                           jobCategories.map((category, index) => (
@@ -7300,148 +7132,15 @@ function AdminPanel() {
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm">
                                 {editingJobCategoryId === category.id ? (
-                                  <div className="relative" ref={jobCategoryCategoryDropdownRef}>
-                                    <button
-                                      type="button"
-                                      onClick={() => setJobCategoryShowCategoryDropdown(!jobCategoryShowCategoryDropdown)}
-                                      className="w-full px-2 py-1 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between text-xs"
-                                    >
-                                      <span>{buildJobCategoryCategoryString() || 'Select Category'}</span>
-                                      <span className="ml-1 text-xs">{jobCategoryShowCategoryDropdown ? '▼' : '▶'}</span>
-                                    </button>
-                                    
-                                    {/* Cascading Category Menu */}
-                                    {jobCategoryShowCategoryDropdown && (
-                                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
-                                        {/* Category Column */}
-                                        <div className="min-w-[150px] max-h-64 overflow-y-auto border-r border-[hsl(var(--border))]">
-                                          <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                                            Category
-                                          </div>
-                                          <div className="py-1">
-                                            <button
-                                              type="button"
-                                              onClick={() => handleJobCategoryClearCategorySelection()}
-                                              className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
-                                                !jobCategorySelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
-                                              }`}
-                                            >
-                                              All Categories
-                                            </button>
-                                            {categories.map((category, index) => (
-                                              <button
-                                                key={category.id || `category-${index}`}
-                                                type="button"
-                                                onClick={() => handleJobCategoryCategorySelect(category.name)}
-                                                onMouseEnter={() => {
-                                                  if (jobCategorySelectedCategoryName !== category.name) {
-                                                    handleJobCategoryCategorySelect(category.name);
-                                                  }
-                                                }}
-                                                className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
-                                                  jobCategorySelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
-                                                }`}
-                                              >
-                                                <span>{category.name}</span>
-                                                {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
-                                              </button>
-                                            ))}
-                                          </div>
-                                        </div>
-                                        
-                                        {/* Subcategory Column */}
-                                        {jobCategorySelectedCategoryName && getJobCategorySelectedCategory() && getJobCategorySelectedCategory().subcategories && getJobCategorySelectedCategory().subcategories.length > 0 && (
-                                          <div className="min-w-[150px] max-h-64 overflow-y-auto">
-                                            <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                                              Subcategory
-                                            </div>
-                                            <div className="py-1">
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setJobCategorySelectedSubcategoryId('');
-                                                  const category = getJobCategorySelectedCategory();
-                                                  if (category) {
-                                                    setEditingJobCategoryData({...editingJobCategoryData, category: category.name, sub_category: ''});
-                                                  }
-                                                  setJobCategoryShowCategoryDropdown(false);
-                                                }}
-                                                className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
-                                                  !jobCategorySelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
-                                                }`}
-                                              >
-                                                All Subcategories
-                                              </button>
-                                              {getJobCategorySelectedCategory().subcategories.map((subcategory) => (
-                                                <button
-                                                  key={subcategory.id}
-                                                  type="button"
-                                                  onClick={() => handleJobCategorySubcategorySelect(subcategory.id.toString())}
-                                                  className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
-                                                    jobCategorySelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
-                                                  }`}
-                                                >
-                                                  {subcategory.name}
-                                                </button>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
+                                  <Input
+                                    type="text"
+                                    value={editingJobCategoryData.job_category_name || ''}
+                                    onChange={(e) => setEditingJobCategoryData({ ...editingJobCategoryData, job_category_name: e.target.value })}
+                                    placeholder="Enter job category name"
+                                    className="w-full text-xs"
+                                  />
                                 ) : (
-                                  <span className="font-medium">
-                                    {(() => {
-                                      // Get category name from relationship or find in categories list
-                                      if (category.category) {
-                                        return category.category.category || category.category;
-                                      }
-                                      if (category.category_id) {
-                                        // Find in categories list
-                                        for (const cat of categories) {
-                                          if (cat.id === category.category_id) {
-                                            return cat.name;
-                                          }
-                                          if (cat.subcategories) {
-                                            const subcat = cat.subcategories.find(s => s.id === category.category_id);
-                                            if (subcat) {
-                                              return cat.name; // Return parent category name
-                                            }
-                                          }
-                                        }
-                                      }
-                                      return '-';
-                                    })()}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="p-3 text-sm">
-                                {editingJobCategoryId === category.id ? (
-                                  <span className="text-[hsl(var(--muted-foreground))] text-xs">
-                                    {jobCategorySelectedSubcategoryId ? (() => {
-                                      const cat = getJobCategorySelectedCategory();
-                                      const subcat = cat?.subcategories.find(s => s.id === parseInt(jobCategorySelectedSubcategoryId));
-                                      return subcat?.name || '-';
-                                    })() : '-'}
-                                  </span>
-                                ) : (
-                                  <span className="text-[hsl(var(--muted-foreground))]">
-                                    {(() => {
-                                      // Get subcategory name from category_id
-                                      if (category.category_id) {
-                                        for (const cat of categories) {
-                                          if (cat.subcategories) {
-                                            const subcat = cat.subcategories.find(s => s.id === category.category_id);
-                                            if (subcat) {
-                                              return subcat.name;
-                                            }
-                                          }
-                                        }
-                                      }
-                                      return '-';
-                                    })()}
-                                  </span>
+                                  <span className="font-medium">{category.job_category_name || '-'}</span>
                                 )}
                               </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">
@@ -7451,6 +7150,7 @@ function AdminPanel() {
                                     min="0"
                                     value={editingJobCategoryData.posted_job}
                                     onChange={(e) => setEditingJobCategoryData({ ...editingJobCategoryData, posted_job: e.target.value })}
+                                    className="w-full text-xs"
                                   />
                                 ) : (
                                   category.posted_job
@@ -7461,7 +7161,7 @@ function AdminPanel() {
                                   <select
                                     value={editingJobCategoryData.job_status}
                                     onChange={(e) => setEditingJobCategoryData({ ...editingJobCategoryData, job_status: e.target.value })}
-                                    className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                                    className="w-full px-2 py-1 text-xs border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
                                   >
                                     <option value="draft">Draft</option>
                                     <option value="active">Active</option>
