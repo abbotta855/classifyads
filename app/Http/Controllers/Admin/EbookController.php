@@ -97,8 +97,9 @@ class EbookController extends Controller
             $data['cover_image'] = Storage::url($coverPath);
         }
 
-        // Remove file and cover_image from data array (already processed)
-        unset($data['file'], $data['cover_image']);
+        // Remove only the uploaded file field from data array (already processed).
+        // Keep cover_image path so it is saved to the database.
+        unset($data['file']);
 
         // Set default status
         $data['status'] = 'active';
@@ -150,7 +151,17 @@ class EbookController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            // Log and return a clear validation message for debugging
+            \Log::warning('Ebook update validation failed', [
+                'ebook_id' => $id,
+                'errors' => $validator->errors()->toArray(),
+                'payload_keys' => array_keys($request->all()),
+            ]);
+
+            return response()->json([
+                'error' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422);
         }
 
         $data = $validator->validated();
@@ -186,8 +197,8 @@ class EbookController extends Controller
             $data['cover_image'] = Storage::url($coverPath);
         }
 
-        // Remove file and cover_image from data array (already processed)
-        unset($data['file'], $data['cover_image']);
+        // Remove only the uploaded file field from data array (already processed)
+        unset($data['file']);
 
         $ebook->update($data);
 

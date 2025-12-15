@@ -191,6 +191,7 @@ function AdminPanel() {
   const [editingEbookId, setEditingEbookId] = useState(null);
   const [editingEbookData, setEditingEbookData] = useState(null);
   const [showAddEbookForm, setShowAddEbookForm] = useState(false);
+  const [showEditEbookModal, setShowEditEbookModal] = useState(false);
   const [ebookFormData, setEbookFormData] = useState({
     user_id: '',
     category_id: '',
@@ -4187,18 +4188,33 @@ function AdminPanel() {
   const handleEditEbook = (ebook) => {
     setEditingEbookId(ebook.id);
     setEditingEbookData({ ...ebook });
+    setEbookFile(null);
+    setEbookCoverImage(null);
+    setShowEditEbookModal(true);
+  };
+
+  const handleCancelEditEbook = () => {
+    setShowEditEbookModal(false);
+    setEditingEbookId(null);
+    setEditingEbookData(null);
+    setEbookFile(null);
+    setEbookCoverImage(null);
   };
 
   // Handle save eBook
   const handleSaveEbook = async () => {
     try {
       const formData = new FormData();
-      appendFormData(formData, editingEbookData);
+      // Don't send existing cover_image URL back as a regular field;
+      // backend derives cover_image from uploaded file when replacing.
+      const { cover_image, ...ebookUpdateData } = editingEbookData || {};
+      appendFormData(formData, ebookUpdateData);
       if (ebookFile) formData.append('file', ebookFile);
       if (ebookCoverImage) formData.append('cover_image', ebookCoverImage);
 
       await adminAPI.updateEbook(editingEbookId, formData);
       setSuccessMessage('eBook updated successfully');
+      setShowEditEbookModal(false);
       setEditingEbookId(null);
       setEditingEbookData(null);
       setEbookFile(null);
@@ -11310,6 +11326,203 @@ function AdminPanel() {
                     </Card>
                   )}
 
+                  {editingEbookId && editingEbookData && (
+                    <Card className="mb-4">
+                      <CardContent className="p-6">
+                        <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Edit eBook</h3>
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            handleSaveEbook();
+                          }}
+                          className="space-y-4"
+                        >
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label>User (Seller) *</Label>
+                              <select
+                                value={editingEbookData.user_id || ''}
+                                onChange={(e) => setEditingEbookData({ ...editingEbookData, user_id: e.target.value })}
+                                className="w-full px-3 py-2 border rounded-md"
+                                required
+                              >
+                                <option value="">Select User</option>
+                                {users
+                                  .filter(u => u.role !== 'admin' && u.role !== 'super_admin')
+                                  .map(u => (
+                                    <option key={u.id} value={u.id}>
+                                      {u.name} ({u.email}) {u.seller_verified ? '✓ Verified' : '⚠ Not Verified'}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                            <div>
+                              <Label>Category</Label>
+                              <select
+                                value={editingEbookData.category_id || ''}
+                                onChange={(e) => setEditingEbookData({ ...editingEbookData, category_id: e.target.value })}
+                                className="w-full px-3 py-2 border rounded-md"
+                              >
+                                <option value="">Select Category</option>
+                                {flattenedCategories.map((cat, idx) => (
+                                  <option key={`${cat.id}-${idx}`} value={cat.id}>{cat.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div>
+                            <Label>Title *</Label>
+                            <Input
+                              value={editingEbookData.title || ''}
+                              onChange={(e) => setEditingEbookData({ ...editingEbookData, title: e.target.value })}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <Label>Description</Label>
+                            <textarea
+                              value={editingEbookData.description || ''}
+                              onChange={(e) => setEditingEbookData({ ...editingEbookData, description: e.target.value })}
+                              className="w-full px-3 py-2 border rounded-md"
+                              rows="3"
+                            />
+                          </div>
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <Label>Writer</Label>
+                              <Input
+                                value={editingEbookData.writer || ''}
+                                onChange={(e) => setEditingEbookData({ ...editingEbookData, writer: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <Label>Language</Label>
+                              <Input
+                                value={editingEbookData.language || ''}
+                                onChange={(e) => setEditingEbookData({ ...editingEbookData, language: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <Label>Pages</Label>
+                              <Input
+                                type="number"
+                                value={editingEbookData.pages || ''}
+                                onChange={(e) => setEditingEbookData({ ...editingEbookData, pages: e.target.value })}
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-4 space-y-2">
+                            <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Publisher Information (optional)</p>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="col-span-2">
+                                <Label>Publisher Name (Company or Person)</Label>
+                                <Input
+                                  value={editingEbookData.publisher_name || ''}
+                                  onChange={(e) => setEditingEbookData({ ...editingEbookData, publisher_name: e.target.value })}
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <Label>Publisher Address</Label>
+                                <textarea
+                                  value={editingEbookData.publisher_address || ''}
+                                  onChange={(e) => setEditingEbookData({ ...editingEbookData, publisher_address: e.target.value })}
+                                  className="w-full px-3 py-2 border rounded-md"
+                                  rows="2"
+                                />
+                              </div>
+                              <div>
+                                <Label>Publisher Email</Label>
+                                <Input
+                                  type="email"
+                                  value={editingEbookData.publisher_email || ''}
+                                  onChange={(e) => setEditingEbookData({ ...editingEbookData, publisher_email: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <Label>Publisher Phone</Label>
+                                <Input
+                                  value={editingEbookData.publisher_phone || ''}
+                                  onChange={(e) => setEditingEbookData({ ...editingEbookData, publisher_phone: e.target.value })}
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <Label>Publisher Website</Label>
+                                <Input
+                                  type="url"
+                                  placeholder="https://example.com"
+                                  value={editingEbookData.publisher_website || ''}
+                                  onChange={(e) => setEditingEbookData({ ...editingEbookData, publisher_website: e.target.value })}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label>Price *</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={editingEbookData.price || ''}
+                                onChange={(e) => setEditingEbookData({ ...editingEbookData, price: e.target.value })}
+                                required
+                              />
+                            </div>
+                            <div>
+                              <Label>Book Type *</Label>
+                              <select
+                                value={editingEbookData.book_type || 'ebook'}
+                                onChange={(e) => setEditingEbookData({ ...editingEbookData, book_type: e.target.value })}
+                                className="w-full px-3 py-2 border rounded-md"
+                                required
+                              >
+                                <option value="ebook">eBook</option>
+                                <option value="hard_copy">Hard Copy</option>
+                                <option value="both">Both</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label>Replace eBook File (optional)</Label>
+                              <Input
+                                type="file"
+                                accept=".pdf,.epub,.mobi,.doc,.docx"
+                                onChange={(e) => setEbookFile(e.target.files[0])}
+                              />
+                            </div>
+                            <div>
+                              <Label>Replace Cover Image (optional)</Label>
+                              <Input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => setEbookCoverImage(e.target.files[0])}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <Label>
+                              <input
+                                type="checkbox"
+                                checked={!!editingEbookData.copyright_declared}
+                                onChange={(e) => setEditingEbookData({ ...editingEbookData, copyright_declared: e.target.checked })}
+                              />
+                              {' '}Copyright Declared
+                            </Label>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button type="button" variant="ghost" onClick={handleCancelEditEbook}>
+                              Cancel
+                            </Button>
+                            <Button type="submit">
+                              Save Changes
+                            </Button>
+                          </div>
+                        </form>
+                      </CardContent>
+                    </Card>
+                  )}
+
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse">
                       <thead>
@@ -12341,6 +12554,209 @@ function AdminPanel() {
                     <div className="flex justify-end gap-2 mt-6">
                       <Button type="button" variant="ghost" onClick={handleCancelEditUser}>Cancel</Button>
                       <Button type="submit">Save Changes</Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Edit eBook Modal */}
+          {showEditEbookModal && editingEbookData && editingEbookId && (
+            <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+              <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto px-4 mx-auto">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Edit eBook</CardTitle>
+                  <Button variant="ghost" size="sm" onClick={handleCancelEditEbook}>✕</Button>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSaveEbook();
+                    }}
+                    className="space-y-4"
+                  >
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>User (Seller) *</Label>
+                        <select
+                          value={editingEbookData.user_id || ''}
+                          onChange={(e) => setEditingEbookData({ ...editingEbookData, user_id: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-md"
+                          required
+                        >
+                          <option value="">Select User</option>
+                          {users
+                            .filter(u => u.role !== 'admin' && u.role !== 'super_admin')
+                            .map(u => (
+                              <option key={u.id} value={u.id}>
+                                {u.name} ({u.email}) {u.seller_verified ? '✓ Verified' : '⚠ Not Verified'}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                      <div>
+                        <Label>Category</Label>
+                        <select
+                          value={editingEbookData.category_id || ''}
+                          onChange={(e) => setEditingEbookData({ ...editingEbookData, category_id: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-md"
+                        >
+                          <option value="">Select Category</option>
+                          {flattenedCategories.map((cat, idx) => (
+                            <option key={`${cat.id}-${idx}`} value={cat.id}>{cat.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Title *</Label>
+                      <Input
+                        value={editingEbookData.title || ''}
+                        onChange={(e) => setEditingEbookData({ ...editingEbookData, title: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label>Description</Label>
+                      <textarea
+                        value={editingEbookData.description || ''}
+                        onChange={(e) => setEditingEbookData({ ...editingEbookData, description: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-md"
+                        rows="3"
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <Label>Writer</Label>
+                        <Input
+                          value={editingEbookData.writer || ''}
+                          onChange={(e) => setEditingEbookData({ ...editingEbookData, writer: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Language</Label>
+                        <Input
+                          value={editingEbookData.language || ''}
+                          onChange={(e) => setEditingEbookData({ ...editingEbookData, language: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Pages</Label>
+                        <Input
+                          type="number"
+                          value={editingEbookData.pages || ''}
+                          onChange={(e) => setEditingEbookData({ ...editingEbookData, pages: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4 space-y-2">
+                      <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Publisher Information (optional)</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-2">
+                          <Label>Publisher Name (Company or Person)</Label>
+                          <Input
+                            value={editingEbookData.publisher_name || ''}
+                            onChange={(e) => setEditingEbookData({ ...editingEbookData, publisher_name: e.target.value })}
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <Label>Publisher Address</Label>
+                          <textarea
+                            value={editingEbookData.publisher_address || ''}
+                            onChange={(e) => setEditingEbookData({ ...editingEbookData, publisher_address: e.target.value })}
+                            className="w-full px-3 py-2 border rounded-md"
+                            rows="2"
+                          />
+                        </div>
+                        <div>
+                          <Label>Publisher Email</Label>
+                          <Input
+                            type="email"
+                            value={editingEbookData.publisher_email || ''}
+                            onChange={(e) => setEditingEbookData({ ...editingEbookData, publisher_email: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <Label>Publisher Phone</Label>
+                          <Input
+                            value={editingEbookData.publisher_phone || ''}
+                            onChange={(e) => setEditingEbookData({ ...editingEbookData, publisher_phone: e.target.value })}
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <Label>Publisher Website</Label>
+                          <Input
+                            type="url"
+                            placeholder="https://example.com"
+                            value={editingEbookData.publisher_website || ''}
+                            onChange={(e) => setEditingEbookData({ ...editingEbookData, publisher_website: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Price *</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editingEbookData.price || ''}
+                          onChange={(e) => setEditingEbookData({ ...editingEbookData, price: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label>Book Type *</Label>
+                        <select
+                          value={editingEbookData.book_type || 'ebook'}
+                          onChange={(e) => setEditingEbookData({ ...editingEbookData, book_type: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-md"
+                          required
+                        >
+                          <option value="ebook">eBook</option>
+                          <option value="hard_copy">Hard Copy</option>
+                          <option value="both">Both</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Replace eBook File (optional)</Label>
+                        <Input
+                          type="file"
+                          accept=".pdf,.epub,.mobi,.doc,.docx"
+                          onChange={(e) => setEbookFile(e.target.files[0])}
+                        />
+                      </div>
+                      <div>
+                        <Label>Replace Cover Image (optional)</Label>
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setEbookCoverImage(e.target.files[0])}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>
+                        <input
+                          type="checkbox"
+                          checked={!!editingEbookData.copyright_declared}
+                          onChange={(e) => setEditingEbookData({ ...editingEbookData, copyright_declared: e.target.checked })}
+                        />
+                        {' '}Copyright Declared
+                      </Label>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" variant="ghost" onClick={handleCancelEditEbook}>
+                        Cancel
+                      </Button>
+                      <Button type="submit">
+                        Save Changes
+                      </Button>
                     </div>
                   </form>
                 </CardContent>
