@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\StockManagementController;
 use App\Http\Controllers\Admin\EmailSubscriberController;
 use App\Http\Controllers\Admin\SupportManagementController;
 use App\Http\Controllers\Admin\TransactionManagementController;
+use App\Http\Controllers\SellerVerificationController;
 use Illuminate\Support\Facades\Route;
 
 // Temporary debug route for upload limits (remove in production)
@@ -85,6 +86,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
   // Dashboard statistics
   Route::get('/dashboard/stats', [App\Http\Controllers\DashboardStatsController::class, 'index']);
+
+  // Seller verification (eBook seller)
+  Route::post('/seller-verification/payment/initiate', [SellerVerificationController::class, 'initiatePayment']);
+  Route::get('/seller-verification/payment/success', [SellerVerificationController::class, 'paymentSuccess']);
+  Route::get('/seller-verification/payment/cancel', [SellerVerificationController::class, 'paymentCancel']);
 
   // User ad management routes
   Route::prefix('user')->group(function () {

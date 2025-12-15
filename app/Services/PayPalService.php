@@ -58,7 +58,7 @@ class PayPalService
     /**
      * Create a PayPal order
      */
-    public function createOrder(float $amount, string $currency = 'USD', array $items = []): ?array
+    public function createOrder(float $amount, string $currency = 'USD', array $items = [], ?string $returnUrl = null, ?string $cancelUrl = null): ?array
     {
         $accessToken = $this->getAccessToken();
         if (!$accessToken) {
@@ -86,6 +86,10 @@ class PayPalService
                 ];
             }
 
+            // Use custom URLs if provided, otherwise default to eBook payment URLs
+            $returnUrl = $returnUrl ?? config('app.url') . '/api/ebooks/payment/success';
+            $cancelUrl = $cancelUrl ?? config('app.url') . '/api/ebooks/payment/cancel';
+
             $response = Http::withToken($accessToken)
                 ->post("{$this->baseUrl}/v2/checkout/orders", [
                     'intent' => 'CAPTURE',
@@ -94,8 +98,8 @@ class PayPalService
                         'brand_name' => config('app.name'),
                         'landing_page' => 'NO_PREFERENCE',
                         'user_action' => 'PAY_NOW',
-                        'return_url' => config('app.url') . '/ebooks/payment/success',
-                        'cancel_url' => config('app.url') . '/ebooks/payment/cancel',
+                        'return_url' => $returnUrl,
+                        'cancel_url' => $cancelUrl,
                     ],
                 ]);
 

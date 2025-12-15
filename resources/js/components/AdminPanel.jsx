@@ -4807,22 +4807,16 @@ function AdminPanel() {
             <CardContent className="p-4">
               <h2 className="text-lg font-bold text-[hsl(var(--foreground))] mb-4">Admin Dashboard</h2>
               
-              {/* Role Selection - Only show if user is admin (super_admin always sees Super Admin) */}
+              {/* Role Selection - Only show interactive switch for roles the user actually has */}
               {!isSuperAdmin ? (
                 <div className="mb-4 space-y-1">
-                  <button
-                    onClick={() => {
-                      setSelectedRole('super-admin');
-                      navigate('/super_admin');
-                    }}
-                    className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
-                      selectedRole === 'super-admin'
-                        ? 'bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium'
-                        : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
-                    }`}
+                  {/* Non-super admins can see that Super Admin exists, but it is not clickable */}
+                  <div
+                    className="w-full text-left px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] cursor-default select-none"
+                    title="Only super admins can access this section"
                   >
                     Super Admin
-                  </button>
+                  </div>
                   <button
                     onClick={() => {
                       setSelectedRole('admin');

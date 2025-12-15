@@ -282,6 +282,11 @@ export const dashboardAPI = {
   getStats: () => axios.get('/api/dashboard/stats'),
 };
 
+// Seller Verification API
+export const sellerVerificationAPI = {
+  initiatePayment: () => axios.post('/api/seller-verification/payment/initiate'),
+};
+
 // Favourites API
 export const favouriteAPI = {
   getFavourites: () => axios.get('/api/favourites'),

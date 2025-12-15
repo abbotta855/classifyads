@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI, sellerOfferAPI, buyerSellerMessageAPI } from '../utils/api';
+import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI, sellerOfferAPI, buyerSellerMessageAPI, sellerVerificationAPI } from '../utils/api';
 import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import RatingModal from './RatingModal';
 import PhotoCropModal from './PhotoCropModal';
@@ -2852,17 +2852,45 @@ function EWalletSection({ user }) {
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [verificationMessage, setVerificationMessage] = useState(null);
+  const [initiatingVerification, setInitiatingVerification] = useState(false);
 
   useEffect(() => {
     fetchTransactions();
+    // Check URL query for seller verification messages
+    const params = new URLSearchParams(window.location.search);
+    const verificationStatus = params.get('seller_verification');
+    const message = params.get('message');
+    if (verificationStatus === 'success') {
+      setVerificationMessage({
+        type: 'success',
+        text: 'Seller verification payment completed successfully. Your account will now be treated as a verified seller.',
+      });
+    } else if (verificationStatus === 'error') {
+      setVerificationMessage({
+        type: 'error',
+        text: message || 'Seller verification payment failed. Please try again.',
+      });
+    } else if (verificationStatus === 'cancelled') {
+      setVerificationMessage({
+        type: 'info',
+        text: 'Seller verification payment was cancelled.',
+      });
+    }
   }, []);
 
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      // Calculate balance from transactions
+      // Use admin transaction-management endpoint to derive wallet view
       const response = await axios.get('/api/admin/transaction-management');
-      const userTransactions = (response.data || []).filter(t => t.user_id === user?.id);
+      const data = response.data || {};
+      const allTransactions = Array.isArray(data)
+        ? data
+        : Array.isArray(data.transactions)
+        ? data.transactions
+        : [];
+      const userTransactions = allTransactions.filter((t) => t.user_id === user?.id);
       
       // Calculate balance
       const calculatedBalance = userTransactions
@@ -2922,6 +2950,28 @@ function EWalletSection({ user }) {
     <div>
       <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">E-Wallet</h1>
 
+      {verificationMessage && (
+        <Card className={`mb-4 ${
+          verificationMessage.type === 'success'
+            ? 'border-green-300 bg-green-50'
+            : verificationMessage.type === 'error'
+            ? 'border-red-300 bg-red-50'
+            : 'border-blue-300 bg-blue-50'
+        }`}>
+          <CardContent className="p-4">
+            <p className={
+              verificationMessage.type === 'success'
+                ? 'text-green-800'
+                : verificationMessage.type === 'error'
+                ? 'text-red-800'
+                : 'text-blue-800'
+            }>
+              {verificationMessage.text}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {error && (
         <Card className="mb-4 border-[hsl(var(--destructive))]">
           <CardContent className="p-4">
@@ -2958,6 +3008,55 @@ function EWalletSection({ user }) {
             <Button variant="outline" disabled>
               Withdraw (Coming Soon)
             </Button>
+          </div>
+
+          {/* Seller Verification */}
+          <div className="mt-6 border-t pt-4">
+            <h3 className="text-lg font-semibold mb-2">Become an eBook Seller</h3>
+            {user?.seller_verified ? (
+              <p className="text-sm text-green-700">
+                ✓ Your account is verified for selling eBooks.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-[hsl(var(--muted-foreground))] mb-3">
+                  Pay a small one-time verification fee to enable eBook selling. After verification, you can be selected as a seller for eBooks.
+                </p>
+                <Button
+                  variant="default"
+                  disabled={initiatingVerification}
+                  onClick={async () => {
+                    try {
+                      setInitiatingVerification(true);
+                      setVerificationMessage(null);
+                      const response = await sellerVerificationAPI.initiatePayment();
+                      const approvalUrl = response.data.approval_url;
+                      if (approvalUrl) {
+                        window.location.href = approvalUrl;
+                      } else {
+                        setVerificationMessage({
+                          type: 'error',
+                          text: 'Failed to start verification payment.',
+                        });
+                      }
+                    } catch (err) {
+                      console.error('Error initiating seller verification payment:', err);
+                      const msg =
+                        err.response?.data?.error || err.message || 'Failed to start verification payment.';
+                      setVerificationMessage({ type: 'error', text: msg });
+                    } finally {
+                      setInitiatingVerification(false);
+                    }
+                  }}
+                >
+                  {initiatingVerification ? 'Processing...' : 'Pay Verification Fee with PayPal'}
+                </Button>
+                <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
+                  Note: PayPal sandbox/client credentials must be configured on the server for this payment to
+                  work.
+                </p>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
