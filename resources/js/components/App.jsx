@@ -11,6 +11,8 @@ import CategoriesPage from './CategoriesPage';
 import CategoryPage from './CategoryPage';
 import PublicProfile from './PublicProfile';
 import AdDetailPage from './AdDetailPage';
+import EbookListingPage from './EbookListingPage';
+import EbookDetailPage from './EbookDetailPage';
 import { Card, CardContent } from './ui/card';
 
 function LoadingCard() {
@@ -91,6 +93,8 @@ function AppRoutes() {
       <Route path="/categories/:slug" element={<CategoryPage />} />
       <Route path="/categories/:slug/:subSlug" element={<CategoryPage />} />
       <Route path="/ads/:id" element={<AdDetailPage />} />
+      <Route path="/ebooks" element={<EbookListingPage />} />
+      <Route path="/ebooks/:id" element={<EbookDetailPage />} />
       <Route path="/profile/:userId" element={<PublicProfile />} />
       <Route
         path="/login"

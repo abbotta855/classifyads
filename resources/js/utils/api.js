@@ -191,6 +191,54 @@ export const adminAPI = {
   updateTransactionItem: (id, data) => axios.put(`${API_BASE}/transaction-management/${id}`, data),
   deleteTransactionItem: (id) => axios.delete(`${API_BASE}/transaction-management/${id}`),
 
+  // eBook Management
+  getEbooks: () => axios.get(`${API_BASE}/ebooks`),
+  getEbook: (id) => axios.get(`${API_BASE}/ebooks/${id}`),
+  createEbook: (data) => {
+    const formData = data instanceof FormData ? data : new FormData();
+    if (!(data instanceof FormData)) {
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          if (data[key] instanceof File) {
+            formData.append(key, data[key]);
+          } else if (typeof data[key] === 'boolean') {
+            formData.append(key, data[key] ? '1' : '0');
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+    }
+    return axios.post(`${API_BASE}/ebooks`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  updateEbook: (id, data) => {
+    const formData = data instanceof FormData ? data : new FormData();
+    if (!(data instanceof FormData)) {
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          if (data[key] instanceof File) {
+            formData.append(key, data[key]);
+          } else if (typeof data[key] === 'boolean') {
+            formData.append(key, data[key] ? '1' : '0');
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+    }
+    formData.append('_method', 'PUT');
+    return axios.post(`${API_BASE}/ebooks/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  deleteEbook: (id) => axios.delete(`${API_BASE}/ebooks/${id}`),
+
   // Change Password (Super Admin only)
   changePassword: (data) => axios.post('/api/change-password', data),
 };
@@ -393,5 +441,19 @@ export const sellerOfferAPI = {
   updateOffer: (id, data) => axios.put(`/api/seller/offers/${id}`, data),
   deleteOffer: (id) => axios.delete(`/api/seller/offers/${id}`),
   getAdOffers: (adId) => axios.get(`/api/seller/offers/ad/${adId}`),
+};
+
+// eBook API (public)
+export const ebookAPI = {
+  getEbooks: (params) => axios.get('/api/ebooks', { params }),
+  getEbook: (id) => axios.get(`/api/ebooks/${id}`),
+  downloadEbook: (id) => axios.get(`/api/ebooks/${id}/download`, { responseType: 'blob' }),
+  initiatePayment: (id) => axios.post(`/api/ebooks/${id}/payment/initiate`),
+  getPositiveFeedback: (id) => axios.get(`/api/ebooks/${id}/positive-feedback`),
+};
+
+// Sales Report API (user-facing)
+export const salesReportAPI = {
+  getSalesReport: (params) => axios.get('/api/sales-report', { params }),
 };
 

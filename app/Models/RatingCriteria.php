@@ -12,6 +12,7 @@ class RatingCriteria extends Model
     protected $fillable = [
         'name',
         'description',
+        'criteria_type',
         'sort_order',
         'is_active',
     ];

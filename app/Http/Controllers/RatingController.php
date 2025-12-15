@@ -53,31 +53,70 @@ class RatingController extends Controller
 
     /**
      * Get rating criteria
+     * @param Request $request - optional 'type' parameter: 'ebook' or 'product'
      */
-    public function getCriteria()
+    public function getCriteria(Request $request)
     {
-        $criteria = RatingCriteria::orderBy('sort_order', 'asc')->get();
+        $type = $request->input('type', 'product'); // Default to 'product' for backward compatibility
+        
+        $query = RatingCriteria::where('is_active', true)
+            ->orderBy('sort_order', 'asc');
+        
+        // Filter by criteria type
+        if ($type === 'ebook') {
+            $query->where(function($q) {
+                $q->where('criteria_type', 'ebook')
+                  ->orWhere('criteria_type', 'both');
+            });
+        } elseif ($type === 'product') {
+            $query->where(function($q) {
+                $q->where('criteria_type', 'product')
+                  ->orWhere('criteria_type', 'both');
+            });
+        }
+        
+        $criteria = $query->get();
         return response()->json($criteria);
     }
 
     /**
-     * Check if user has already rated this seller for this ad
+     * Check if user has already rated this seller for this ad or eBook
      */
-    public function checkRating(Request $request, $adId)
+    public function checkRating(Request $request, $adId = null)
     {
         $user = Auth::user();
-        $ad = Ad::findOrFail($adId);
+        $ebookId = $request->input('ebook_id');
         
-        $existingRating = Rating::where('user_id', $user->id)
-            ->where('ad_id', $adId)
-            ->where('seller_id', $ad->user_id)
-            ->first();
+        if ($ebookId) {
+            // Check for eBook rating
+            $ebook = \App\Models\Ebook::findOrFail($ebookId);
+            $existingRating = Rating::where('user_id', $user->id)
+                ->where('ebook_id', $ebookId)
+                ->where('seller_id', $ebook->user_id)
+                ->first();
 
-        if ($existingRating) {
-            return response()->json([
-                'has_rated' => true,
-                'rating' => $existingRating->load(['criteriaScores.criteria']),
-            ]);
+            if ($existingRating) {
+                return response()->json([
+                    'has_rated' => true,
+                    'rating' => $existingRating->load(['criteriaScores.criteria']),
+                ]);
+            }
+        } elseif ($adId) {
+            // Check for ad rating
+            $ad = Ad::findOrFail($adId);
+            $existingRating = Rating::where('user_id', $user->id)
+                ->where('ad_id', $adId)
+                ->where('seller_id', $ad->user_id)
+                ->first();
+
+            if ($existingRating) {
+                return response()->json([
+                    'has_rated' => true,
+                    'rating' => $existingRating->load(['criteriaScores.criteria']),
+                ]);
+            }
+        } else {
+            return response()->json(['error' => 'Either ad_id or ebook_id must be provided.'], 400);
         }
 
         return response()->json(['has_rated' => false]);
@@ -91,7 +130,8 @@ class RatingController extends Controller
         $user = Auth::user();
 
         $validated = $request->validate([
-            'ad_id' => 'required|exists:ads,id',
+            'ad_id' => 'nullable|exists:ads,id',
+            'ebook_id' => 'nullable|exists:ebooks,id',
             'rating' => 'required|integer|min:1|max:5',
             'comment' => 'nullable|string|max:1000',
             'criteria_scores' => 'nullable|array',
@@ -100,22 +140,41 @@ class RatingController extends Controller
             'purchase_code' => 'nullable|string|max:100',
         ]);
 
-        $ad = Ad::findOrFail($validated['ad_id']);
-        $sellerId = $ad->user_id;
+        // Ensure either ad_id or ebook_id is provided
+        if (empty($validated['ad_id']) && empty($validated['ebook_id'])) {
+            return response()->json(['error' => 'Either ad_id or ebook_id must be provided.'], 400);
+        }
+
+        if (!empty($validated['ebook_id'])) {
+            // eBook rating
+            $ebook = \App\Models\Ebook::findOrFail($validated['ebook_id']);
+            $sellerId = $ebook->user_id;
+        } else {
+            // Ad rating
+            $ad = Ad::findOrFail($validated['ad_id']);
+            $sellerId = $ad->user_id;
+        }
 
         // Prevent rating own ad
         if ($sellerId === $user->id) {
             return response()->json(['error' => 'You cannot rate your own ad.'], 400);
         }
 
-        // Check if user has already rated this ad
-        $existingRating = Rating::where('user_id', $user->id)
-            ->where('ad_id', $validated['ad_id'])
-            ->where('seller_id', $sellerId)
-            ->first();
+        // Check if user has already rated this item
+        $existingRatingQuery = Rating::where('user_id', $user->id)
+            ->where('seller_id', $sellerId);
+        
+        if (!empty($validated['ebook_id'])) {
+            $existingRatingQuery->where('ebook_id', $validated['ebook_id']);
+        } else {
+            $existingRatingQuery->where('ad_id', $validated['ad_id']);
+        }
+        
+        $existingRating = $existingRatingQuery->first();
 
         if ($existingRating) {
-            return response()->json(['error' => 'You have already rated this seller for this ad.'], 400);
+            $itemType = !empty($validated['ebook_id']) ? 'eBook' : 'ad';
+            return response()->json(['error' => "You have already rated this seller for this {$itemType}."], 400);
         }
 
         DB::beginTransaction();
@@ -123,13 +182,19 @@ class RatingController extends Controller
             // Create rating
             $rating = Rating::create([
                 'user_id' => $user->id,
-                'ad_id' => $validated['ad_id'],
+                'ad_id' => $validated['ad_id'] ?? null,
+                'ebook_id' => $validated['ebook_id'] ?? null,
                 'seller_id' => $sellerId,
                 'rating' => $validated['rating'],
                 'comment' => $validated['comment'] ?? null,
                 'purchase_verified' => !empty($validated['purchase_code']),
                 'purchase_code' => $validated['purchase_code'] ?? null,
             ]);
+
+            // If this is an eBook rating, update the eBook's overall rating
+            if (!empty($validated['ebook_id'])) {
+                $this->updateEbookOverallRating($validated['ebook_id']);
+            }
 
             // Create criteria scores if provided
             if (!empty($validated['criteria_scores'])) {
@@ -211,7 +276,30 @@ class RatingController extends Controller
         $rating = Rating::where('user_id', $user->id)->findOrFail($id);
         $rating->delete();
 
-        return response()->json(['message' => 'Rating deleted successfully']);
+            return response()->json(['message' => 'Rating deleted successfully']);
+    }
+
+    /**
+     * Update eBook overall rating based on all ratings
+     */
+    private function updateEbookOverallRating($ebookId)
+    {
+        $ebook = \App\Models\Ebook::findOrFail($ebookId);
+        
+        // Get all ratings for this eBook
+        $ratings = Rating::where('ebook_id', $ebookId)
+            ->whereNotNull('rating')
+            ->get();
+        
+        if ($ratings->isEmpty()) {
+            $ebook->overall_rating = 0;
+        } else {
+            // Calculate average of all ratings
+            $averageRating = $ratings->avg('rating');
+            $ebook->overall_rating = round($averageRating, 2);
+        }
+        
+        $ebook->save();
     }
 }
 

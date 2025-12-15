@@ -184,6 +184,37 @@ function AdminPanel() {
   // Category management data - fetched from database via API
   const [categoryManagementData, setCategoryManagementData] = useState([]);
   const [categoryManagementLoading, setCategoryManagementLoading] = useState(false);
+
+  // eBook management data
+  const [ebookData, setEbookData] = useState([]);
+  const [ebookLoading, setEbookLoading] = useState(false);
+  const [editingEbookId, setEditingEbookId] = useState(null);
+  const [editingEbookData, setEditingEbookData] = useState(null);
+  const [showAddEbookForm, setShowAddEbookForm] = useState(false);
+  const [ebookFormData, setEbookFormData] = useState({
+    user_id: '',
+    category_id: '',
+    title: '',
+    description: '',
+    writer: '',
+    language: '',
+    pages: '',
+    book_size: '',
+    file_format: '',
+    price: '',
+    publisher_name: '',
+    publisher_address: '',
+    publisher_website: '',
+    publisher_email: '',
+    publisher_phone: '',
+    copyright_declared: false,
+    book_type: 'ebook',
+    shipping_cost: '',
+    delivery_time: '',
+    status: 'active',
+  });
+  const [ebookFile, setEbookFile] = useState(null);
+  const [ebookCoverImage, setEbookCoverImage] = useState(null);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [editingCategoryData, setEditingCategoryData] = useState(null);
 
@@ -3015,10 +3046,25 @@ function AdminPanel() {
     }
   }, [activeSection]);
 
+  // Clear errors when switching sections
+  useEffect(() => {
+    setError(null);
+    setSuccessMessage(null);
+  }, [activeSection]);
+
   // Fetch category management data
   useEffect(() => {
     if (activeSection === 'category-management') {
       fetchCategoryManagement();
+    }
+  }, [activeSection]);
+
+  // Fetch eBook management data
+  useEffect(() => {
+    if (activeSection === 'ebook-management') {
+      fetchEbooks();
+      fetchUsers(); // Need users for seller selection
+      fetchCategories(); // Need categories for eBook categorization
     }
   }, [activeSection]);
 
@@ -3997,13 +4043,20 @@ function AdminPanel() {
       
       // Transform to match expected format - only if we have valid data
       const transformedCategories = Array.isArray(categoriesData) 
-        ? categoriesData.map(item => ({
-            id: item.subcategoryId || item.categoryId || item.id,
-            categoryId: item.categoryId || item.id,
-            categoryName: item.categoryName || item.category || '',
-            subcategoryId: item.subcategoryId || null,
-            subcategoryName: item.subcategoryName || item.sub_category || ''
-          }))
+        ? categoriesData.map(item => {
+            // IMPORTANT: The backend returns:
+            // - For subcategories: id = subcategory ID, subcategoryId = subcategory ID, categoryId = main category ID
+            // - For main categories: id = main category ID, categoryId = main category ID, subcategoryId = null
+            // We need to use the actual record ID (item.id) which is always the correct ID to delete
+            return {
+              id: item.id, // Always use item.id - this is the actual database record ID from backend
+              categoryId: item.categoryId || item.id,
+              categoryName: item.categoryName || item.category || '',
+              subcategoryId: item.subcategoryId || null,
+              subcategoryName: item.subcategoryName || item.sub_category || '',
+              isSubcategory: !!item.subcategoryId // Flag to identify subcategories
+            };
+          })
         : [];
       
       setCategoryManagementData(transformedCategories);
@@ -4055,6 +4108,123 @@ function AdminPanel() {
     setEditingCategoryData(null);
   };
 
+  // Fetch eBooks
+  const fetchEbooks = async () => {
+    setEbookLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getEbooks();
+      setEbookData(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      setError('Failed to fetch eBooks: ' + (err.response?.data?.message || err.message));
+      setEbookData([]);
+    } finally {
+      setEbookLoading(false);
+    }
+  };
+
+  // Helper to append all values including boolean false/0
+  const appendFormData = (formData, dataObj) => {
+    Object.keys(dataObj).forEach((key) => {
+      const value = dataObj[key];
+      const isBoolean = typeof value === 'boolean';
+      if (value !== null && value !== undefined && (isBoolean || value !== '')) {
+        // Laravel boolean rule accepts 1/0 or true/false bool; avoid string "false"
+        if (isBoolean) {
+          formData.append(key, value ? '1' : '0');
+        } else {
+          formData.append(key, value);
+        }
+      }
+    });
+  };
+
+  // Handle add eBook
+  const handleAddEbook = async (e) => {
+    e.preventDefault();
+    try {
+      const formData = new FormData();
+      appendFormData(formData, ebookFormData);
+      if (ebookFile) formData.append('file', ebookFile);
+      if (ebookCoverImage) formData.append('cover_image', ebookCoverImage);
+
+      await adminAPI.createEbook(formData);
+      setSuccessMessage('eBook created successfully');
+      setShowAddEbookForm(false);
+      setEbookFormData({
+        user_id: '',
+        category_id: '',
+        title: '',
+        description: '',
+        writer: '',
+        language: '',
+        pages: '',
+        book_size: '',
+        file_format: '',
+        price: '',
+        publisher_name: '',
+        publisher_address: '',
+        publisher_website: '',
+        publisher_email: '',
+        publisher_phone: '',
+        copyright_declared: false,
+        book_type: 'ebook',
+        shipping_cost: '',
+        delivery_time: '',
+        status: 'active',
+      });
+      setEbookFile(null);
+      setEbookCoverImage(null);
+      fetchEbooks();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to create eBook: ' + (err.response?.data?.error || err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle edit eBook
+  const handleEditEbook = (ebook) => {
+    setEditingEbookId(ebook.id);
+    setEditingEbookData({ ...ebook });
+  };
+
+  // Handle save eBook
+  const handleSaveEbook = async () => {
+    try {
+      const formData = new FormData();
+      appendFormData(formData, editingEbookData);
+      if (ebookFile) formData.append('file', ebookFile);
+      if (ebookCoverImage) formData.append('cover_image', ebookCoverImage);
+
+      await adminAPI.updateEbook(editingEbookId, formData);
+      setSuccessMessage('eBook updated successfully');
+      setEditingEbookId(null);
+      setEditingEbookData(null);
+      setEbookFile(null);
+      setEbookCoverImage(null);
+      fetchEbooks();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update eBook: ' + (err.response?.data?.error || err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  // Handle delete eBook
+  const handleDeleteEbook = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this eBook?')) return;
+    try {
+      await adminAPI.deleteEbook(id);
+      setSuccessMessage('eBook deleted successfully');
+      fetchEbooks();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete eBook: ' + (err.response?.data?.error || err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
   // Handle delete category
   const handleDeleteCategory = async (id) => {
     if (!window.confirm('Are you sure you want to delete this category/subcategory?')) {
@@ -4067,7 +4237,10 @@ function AdminPanel() {
       fetchCategoryManagement();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      setError('Failed to delete category: ' + (err.response?.data?.message || err.message));
+      // Handle both 'error' and 'message' fields from backend
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Unknown error';
+      setError('Failed to delete category: ' + errorMsg);
+      console.error('Error deleting category:', err.response?.data);
       setTimeout(() => setError(null), 5000);
     }
   };
@@ -4595,6 +4768,7 @@ function AdminPanel() {
     { id: 'category-management', label: 'Category Management' },
     ...(isSuperAdmin ? [{ id: 'change-password', label: 'Change Password' }] : []), // Only show for super_admin
     { id: 'delivery-management', label: 'Delivery Management' },
+    { id: 'ebook-management', label: 'E-Book Management' },
     { id: 'email-subscriber', label: 'Email Subscriber List' },
     { id: 'job-management', label: 'Job Management' },
     { id: 'live-chat', label: 'Live Chat' },
@@ -10967,6 +11141,199 @@ function AdminPanel() {
                                     </Button>
                                   </>
                                 )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+          )}
+
+          {activeSection === 'ebook-management' && (
+            <section>
+              {ebookLoading && (
+                <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading eBooks...
+                </div>
+              )}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">E-Book Management</h2>
+                    <Button variant="outline" onClick={() => setShowAddEbookForm(!showAddEbookForm)}>Add eBook</Button>
+                  </div>
+
+                  {showAddEbookForm && (
+                    <Card className="mb-4">
+                      <CardContent className="p-6">
+                        <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Add New eBook</h3>
+                        <form onSubmit={handleAddEbook} className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label>User (Seller) *</Label>
+                              <select
+                                value={ebookFormData.user_id}
+                                onChange={(e) => setEbookFormData({...ebookFormData, user_id: e.target.value})}
+                                className="w-full px-3 py-2 border rounded-md"
+                                required
+                              >
+                                <option value="">Select User</option>
+                                {users.filter(u => u.role !== 'admin' && u.role !== 'super_admin').map(u => (
+                                  <option key={u.id} value={u.id}>
+                                    {u.name} ({u.email}) {u.seller_verified ? '✓ Verified' : '⚠ Not Verified'}
+                                  </option>
+                                ))}
+                              </select>
+                              {users.filter(u => u.role !== 'admin' && u.role !== 'super_admin').length === 0 && (
+                                <p className="text-sm text-red-500 mt-1">No users available. Please create a user first.</p>
+                              )}
+                            </div>
+                            <div>
+                              <Label>Category</Label>
+                              <select
+                                value={ebookFormData.category_id}
+                                onChange={(e) => setEbookFormData({...ebookFormData, category_id: e.target.value})}
+                                className="w-full px-3 py-2 border rounded-md"
+                              >
+                                <option value="">Select Category</option>
+                                {flattenedCategories.map((cat, idx) => (
+                                  <option key={`${cat.id}-${idx}`} value={cat.id}>{cat.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div>
+                            <Label>Title *</Label>
+                            <Input value={ebookFormData.title} onChange={(e) => setEbookFormData({...ebookFormData, title: e.target.value})} required />
+                          </div>
+                          <div>
+                            <Label>Description</Label>
+                            <textarea value={ebookFormData.description} onChange={(e) => setEbookFormData({...ebookFormData, description: e.target.value})} className="w-full px-3 py-2 border rounded-md" rows="3" />
+                          </div>
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <Label>Writer</Label>
+                              <Input value={ebookFormData.writer} onChange={(e) => setEbookFormData({...ebookFormData, writer: e.target.value})} />
+                            </div>
+                            <div>
+                              <Label>Language</Label>
+                              <Input value={ebookFormData.language} onChange={(e) => setEbookFormData({...ebookFormData, language: e.target.value})} />
+                            </div>
+                            <div>
+                              <Label>Pages</Label>
+                              <Input type="number" value={ebookFormData.pages} onChange={(e) => setEbookFormData({...ebookFormData, pages: e.target.value})} />
+                            </div>
+                          </div>
+                          <div className="mt-4 space-y-2">
+                            <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Publisher Information (optional)</p>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="col-span-2">
+                                <Label>Publisher Name (Company or Person)</Label>
+                                <Input
+                                  value={ebookFormData.publisher_name}
+                                  onChange={(e) => setEbookFormData({ ...ebookFormData, publisher_name: e.target.value })}
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <Label>Publisher Address</Label>
+                                <textarea
+                                  value={ebookFormData.publisher_address}
+                                  onChange={(e) => setEbookFormData({ ...ebookFormData, publisher_address: e.target.value })}
+                                  className="w-full px-3 py-2 border rounded-md"
+                                  rows="2"
+                                />
+                              </div>
+                              <div>
+                                <Label>Publisher Email</Label>
+                                <Input
+                                  type="email"
+                                  value={ebookFormData.publisher_email}
+                                  onChange={(e) => setEbookFormData({ ...ebookFormData, publisher_email: e.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <Label>Publisher Phone</Label>
+                                <Input
+                                  value={ebookFormData.publisher_phone}
+                                  onChange={(e) => setEbookFormData({ ...ebookFormData, publisher_phone: e.target.value })}
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <Label>Publisher Website</Label>
+                                <Input
+                                  type="url"
+                                  placeholder="https://example.com"
+                                  value={ebookFormData.publisher_website}
+                                  onChange={(e) => setEbookFormData({ ...ebookFormData, publisher_website: e.target.value })}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label>Price *</Label>
+                              <Input type="number" step="0.01" min="0" value={ebookFormData.price} onChange={(e) => setEbookFormData({...ebookFormData, price: e.target.value})} required />
+                            </div>
+                            <div>
+                              <Label>Book Type *</Label>
+                              <select value={ebookFormData.book_type} onChange={(e) => setEbookFormData({...ebookFormData, book_type: e.target.value})} className="w-full px-3 py-2 border rounded-md" required>
+                                <option value="ebook">eBook</option>
+                                <option value="hard_copy">Hard Copy</option>
+                                <option value="both">Both</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div>
+                            <Label>eBook File * (PDF, EPUB, MOBI, DOC, DOCX)</Label>
+                            <Input type="file" accept=".pdf,.epub,.mobi,.doc,.docx" onChange={(e) => setEbookFile(e.target.files[0])} required />
+                          </div>
+                          <div>
+                            <Label>Cover Image</Label>
+                            <Input type="file" accept="image/*" onChange={(e) => setEbookCoverImage(e.target.files[0])} />
+                          </div>
+                          <div>
+                            <Label>
+                              <input type="checkbox" checked={ebookFormData.copyright_declared} onChange={(e) => setEbookFormData({...ebookFormData, copyright_declared: e.target.checked})} />
+                              {' '}Copyright Declared
+                            </Label>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button type="button" variant="ghost" onClick={() => setShowAddEbookForm(false)}>Cancel</Button>
+                            <Button type="submit">Add eBook</Button>
+                          </div>
+                        </form>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left p-3 text-sm font-semibold">S.N.</th>
+                          <th className="text-left p-3 text-sm font-semibold">Title</th>
+                          <th className="text-left p-3 text-sm font-semibold">Writer</th>
+                          <th className="text-left p-3 text-sm font-semibold">Price</th>
+                          <th className="text-left p-3 text-sm font-semibold">Status</th>
+                          <th className="text-left p-3 text-sm font-semibold">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ebookData.map((ebook, index) => (
+                          <tr key={ebook.id} className="border-b hover:bg-[hsl(var(--accent))]">
+                            <td className="p-3 text-sm">{index + 1}</td>
+                            <td className="p-3 text-sm">{ebook.title}</td>
+                            <td className="p-3 text-sm">{ebook.writer || '-'}</td>
+                            <td className="p-3 text-sm">Rs {parseFloat(ebook.price || 0).toFixed(2)}</td>
+                            <td className="p-3 text-sm capitalize">{ebook.status}</td>
+                            <td className="p-3 text-sm">
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={() => handleEditEbook(ebook)}>Edit</Button>
+                                <Button variant="destructive" size="sm" onClick={() => handleDeleteEbook(ebook.id)}>Delete</Button>
                               </div>
                             </td>
                           </tr>

@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BiddingTracking extends Model
 {
+  protected $table = 'bidding_tracking';
+
   protected $fillable = [
     'bid_winner_id',
     'bid_winner_name',

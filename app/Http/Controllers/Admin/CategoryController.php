@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Models\Ad;
 use Illuminate\Http\Request;
 
 class CategoryController extends Controller
@@ -128,21 +129,17 @@ class CategoryController extends Controller
     {
         $category = Category::findOrFail($id);
         
-        // Check if it's a main category with subcategories
-        if ($category->sub_category === null) {
-            $subcategoriesCount = Category::where('category', $category->category)
-                ->whereNotNull('sub_category')
-                ->count();
-            
-            if ($subcategoriesCount > 0) {
-                return response()->json([
-                    'message' => 'Cannot delete category with subcategories. Please delete subcategories first.'
-                ], 422);
-            }
+        // Allow deletion regardless of ads or subcategories
+        // When category is deleted, ads' category_id will be set to null (via foreign key constraint)
+        // Subcategories can be deleted independently
+        
+        try {
+            $category->delete();
+            return response()->json(['message' => 'Category deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to delete category: ' . $e->getMessage()
+            ], 500);
         }
-
-        $category->delete();
-
-        return response()->json(['message' => 'Category deleted successfully']);
     }
 }

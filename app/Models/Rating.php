@@ -11,6 +11,7 @@ class Rating extends Model
     protected $fillable = [
         'user_id',
         'ad_id',
+        'ebook_id',
         'seller_id',
         'rating',
         'comment',
@@ -36,6 +37,11 @@ class Rating extends Model
     public function ad(): BelongsTo
     {
         return $this->belongsTo(Ad::class);
+    }
+
+    public function ebook(): BelongsTo
+    {
+        return $this->belongsTo(Ebook::class);
     }
 
     public function criteriaScores(): HasMany

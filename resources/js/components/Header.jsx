@@ -27,6 +27,14 @@ function Header() {
           <nav className="hidden md:flex items-center space-x-6">
             {user ? (
               <>
+                {!isAdminPage && !isUserDashboardPage && (
+                  <Link
+                    to="/ebooks"
+                    className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                  >
+                    eBooks
+                  </Link>
+                )}
                 {!isAdminPage && !isUserDashboardPage && user.role !== 'admin' && (
                   <Link
                     to="/dashboard"
@@ -72,6 +80,12 @@ function Header() {
               </>
             ) : (
               <>
+                <Link
+                  to="/ebooks"
+                  className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                >
+                  eBooks
+                </Link>
                 <Link to="/cart" className="transition-colors hover:opacity-80">
                   <img 
                     src="/images/shopping_cart.png" 

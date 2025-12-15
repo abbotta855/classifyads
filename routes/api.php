@@ -20,11 +20,22 @@ use App\Http\Controllers\Admin\LiveChatMessageController;
 use App\Http\Controllers\Admin\OfferController;
 use App\Http\Controllers\Admin\RatingController;
 use App\Http\Controllers\Admin\SalesReportController;
+use App\Http\Controllers\Admin\EbookController;
 use App\Http\Controllers\Admin\StockManagementController;
 use App\Http\Controllers\Admin\EmailSubscriberController;
 use App\Http\Controllers\Admin\SupportManagementController;
 use App\Http\Controllers\Admin\TransactionManagementController;
 use Illuminate\Support\Facades\Route;
+
+// Temporary debug route for upload limits (remove in production)
+Route::get('/debug/php-limits', function () {
+    return response()->json([
+        'upload_max_filesize' => ini_get('upload_max_filesize'),
+        'post_max_size' => ini_get('post_max_size'),
+        'memory_limit' => ini_get('memory_limit'),
+        'max_file_uploads' => ini_get('max_file_uploads'),
+    ]);
+});
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -147,10 +158,24 @@ Route::middleware('auth:sanctum')->group(function () {
   // Rating routes (user-facing)
   Route::get('/ratings/criteria', [App\Http\Controllers\RatingController::class, 'getCriteria']);
   Route::get('/ratings/seller/{sellerId}', [App\Http\Controllers\RatingController::class, 'getSellerRatings']);
-  Route::get('/ratings/check/{adId}', [App\Http\Controllers\RatingController::class, 'checkRating']);
+  Route::get('/ratings/check/{adId?}', [App\Http\Controllers\RatingController::class, 'checkRating']); // adId is optional, can use ebook_id in query
   Route::post('/ratings', [App\Http\Controllers\RatingController::class, 'store']);
   Route::put('/ratings/{id}', [App\Http\Controllers\RatingController::class, 'update']);
   Route::delete('/ratings/{id}', [App\Http\Controllers\RatingController::class, 'destroy']);
+
+  // eBook routes (public)
+  Route::get('/ebooks', [App\Http\Controllers\EbookController::class, 'index']);
+  Route::get('/ebooks/{id}', [App\Http\Controllers\EbookController::class, 'show']);
+  Route::get('/ebooks/{id}/download', [App\Http\Controllers\EbookController::class, 'download']);
+
+  // eBook payment routes
+  Route::post('/ebooks/{id}/payment/initiate', [App\Http\Controllers\EbookPaymentController::class, 'initiatePayment']);
+  Route::get('/ebooks/payment/success', [App\Http\Controllers\EbookPaymentController::class, 'paymentSuccess']);
+  Route::get('/ebooks/payment/cancel', [App\Http\Controllers\EbookPaymentController::class, 'paymentCancel']);
+  Route::post('/ebooks/payment/webhook', [App\Http\Controllers\EbookPaymentController::class, 'webhook']);
+
+  // Sales report route
+  Route::get('/sales-report', [App\Http\Controllers\SalesReportController::class, 'index']);
 
   // Admin routes
   Route::prefix('admin')->group(function () {
@@ -221,5 +246,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Transaction Management
     Route::apiResource('transaction-management', TransactionManagementController::class);
+
+    // eBook Management
+    Route::apiResource('ebooks', EbookController::class);
   });
 });

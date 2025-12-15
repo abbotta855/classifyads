@@ -30,6 +30,13 @@ class User extends Authenticatable
         'otp_code',
         'otp_expires_at',
         'is_verified',
+        'seller_verified',
+        'seller_verification_fee_paid',
+        'seller_verification_payment_id',
+        'seller_verification_payment_method',
+        'card_linked',
+        'e_wallet_linked',
+        'seller_verified_at',
         'dob',
         'phone',
         'show_phone',
@@ -59,6 +66,11 @@ class User extends Authenticatable
             'password' => 'hashed',
             'otp_expires_at' => 'datetime',
             'is_verified' => 'boolean',
+            'seller_verified' => 'boolean',
+            'seller_verification_fee_paid' => 'boolean',
+            'card_linked' => 'boolean',
+            'e_wallet_linked' => 'boolean',
+            'seller_verified_at' => 'datetime',
             'dob' => 'date',
             'show_phone' => 'boolean',
             'last_login_at' => 'datetime',
@@ -159,6 +171,14 @@ class User extends Authenticatable
     public function ratingsReceived()
     {
         return $this->hasMany(Rating::class, 'seller_id')->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Get all ebooks created by this user
+     */
+    public function ebooks()
+    {
+        return $this->hasMany(Ebook::class);
     }
 
     /**

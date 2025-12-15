@@ -16,6 +16,8 @@ class Transaction extends Model
         'payment_id',
         'description',
         'related_ad_id',
+        'ebook_id',
+        'verification_code',
     ];
 
     protected $casts = [
@@ -30,6 +32,11 @@ class Transaction extends Model
     public function ad(): BelongsTo
     {
         return $this->belongsTo(Ad::class, 'related_ad_id');
+    }
+
+    public function ebook(): BelongsTo
+    {
+        return $this->belongsTo(Ebook::class);
     }
 }
 
