@@ -39,7 +39,7 @@ function Homepage() {
   const [filteredAdsCount, setFilteredAdsCount] = useState(0); // Count of filtered ads for pagination
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const adsPerPage = 39;
+  const adsPerPage = 40;
 
   // Hierarchical location structure (Nepal administrative divisions)
   // New structure: Province → District → Local Level → Ward
