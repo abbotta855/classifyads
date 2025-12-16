@@ -121,7 +121,7 @@ function EbookDetailPage() {
 
   const loadRatingCriteria = async () => {
     try {
-      const response = await ratingAPI.getCriteria();
+      const response = await axios.get('/api/ratings/criteria', { params: { type: 'ebook' } });
       setRatingCriteria(response.data || []);
       // Initialize criteria scores with default value of 5
       const initialScores = {};

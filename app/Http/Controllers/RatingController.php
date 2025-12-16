@@ -258,6 +258,11 @@ class RatingController extends Controller
                 }
             }
 
+            // If this is an eBook rating, update the eBook's overall rating
+            if ($rating->ebook_id) {
+                $this->updateEbookOverallRating($rating->ebook_id);
+            }
+
             DB::commit();
 
             return response()->json($rating->load(['user', 'seller', 'ad', 'criteriaScores.criteria']));
@@ -274,9 +279,16 @@ class RatingController extends Controller
     {
         $user = Auth::user();
         $rating = Rating::where('user_id', $user->id)->findOrFail($id);
+        $ebookId = $rating->ebook_id; // Store before deletion
+        
         $rating->delete();
 
-            return response()->json(['message' => 'Rating deleted successfully']);
+        // If this was an eBook rating, update the eBook's overall rating
+        if ($ebookId) {
+            $this->updateEbookOverallRating($ebookId);
+        }
+
+        return response()->json(['message' => 'Rating deleted successfully']);
     }
 
     /**
