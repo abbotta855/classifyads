@@ -120,20 +120,63 @@ class EbookController extends Controller
 
             // Set default status
             $data['status'] = 'active';
+            
+            // Set default values for fields that might be missing
+            if (!isset($data['overall_rating'])) {
+                $data['overall_rating'] = 0;
+            }
+            if (!isset($data['purchase_count'])) {
+                $data['purchase_count'] = 0;
+            }
+            if (!isset($data['download_count'])) {
+                $data['download_count'] = 0;
+            }
+            if (!isset($data['unlocked'])) {
+                $data['unlocked'] = false;
+            }
+
+            // Log the data being saved (without sensitive info)
+            Log::info('Creating eBook', [
+                'data_keys' => array_keys($data),
+                'user_id' => $data['user_id'] ?? null,
+                'title' => $data['title'] ?? null,
+            ]);
 
             $ebook = Ebook::create($data);
 
             return response()->json($ebook->load(['user', 'category']), 201);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Database-specific errors
+            Log::error('Database error creating eBook', [
+                'error' => $e->getMessage(),
+                'sql' => $e->getSql(),
+                'bindings' => $e->getBindings(),
+                'code' => $e->getCode(),
+            ]);
+
+            return response()->json([
+                'error' => 'Database error: ' . $e->getMessage(),
+                'details' => config('app.debug') ? [
+                    'sql' => $e->getSql(),
+                    'bindings' => $e->getBindings(),
+                ] : 'Check server logs for details',
+            ], 500);
         } catch (\Exception $e) {
             Log::error('Failed to create eBook', [
                 'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
                 'request_data' => $request->except(['file', 'cover_image']),
             ]);
 
             return response()->json([
                 'error' => 'Failed to create eBook: ' . $e->getMessage(),
-                'details' => config('app.debug') ? $e->getTraceAsString() : null,
+                'details' => config('app.debug') ? [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                ] : 'Check server logs for details',
             ], 500);
         }
     }

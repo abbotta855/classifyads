@@ -80,9 +80,19 @@ return new class extends Migration
                 $table->string('file_name', 255)->nullable()->after('file_url');
             }
             
+            // Add file_size if it doesn't exist
+            if (!Schema::hasColumn('ebooks', 'file_size')) {
+                $table->bigInteger('file_size')->nullable()->after('file_name');
+            }
+            
+            // Add file_type if it doesn't exist
+            if (!Schema::hasColumn('ebooks', 'file_type')) {
+                $table->string('file_type', 50)->nullable()->after('file_size');
+            }
+            
             // Add cover_image if it doesn't exist
             if (!Schema::hasColumn('ebooks', 'cover_image')) {
-                $table->string('cover_image', 500)->nullable()->after('file_name');
+                $table->string('cover_image', 500)->nullable()->after('file_type');
             }
             
             // Publisher information
@@ -129,6 +139,16 @@ return new class extends Migration
             // Status field
             if (!Schema::hasColumn('ebooks', 'status')) {
                 $table->enum('status', ['draft', 'active', 'inactive', 'removed'])->default('draft')->after('purchase_count');
+            }
+            
+            // Add download_count if it doesn't exist
+            if (!Schema::hasColumn('ebooks', 'download_count')) {
+                $table->integer('download_count')->default(0)->after('purchase_count');
+            }
+            
+            // Add unlocked if it doesn't exist
+            if (!Schema::hasColumn('ebooks', 'unlocked')) {
+                $table->boolean('unlocked')->default(false)->after('status');
             }
             
             // Make price nullable if needed
