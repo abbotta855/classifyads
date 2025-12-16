@@ -11345,7 +11345,7 @@ function AdminPanel() {
                                   .filter(u => u.role === 'super_admin' || (u.role !== 'admin' && u.seller_verified))
                                   .map(u => (
                                     <option key={u.id} value={u.id}>
-                                      {u.name} ({u.email}) {u.role === 'super_admin' ? ' Super Admin' : '✓ Verified'}
+                                      {u.name} ({u.email}) {u.role === 'super_admin' ? ' Super Admin' : ' Verified'}
                                     </option>
                                   ))}
                               </select>
