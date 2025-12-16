@@ -8,6 +8,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 
 class EbookController extends Controller
 {
@@ -77,36 +79,63 @@ class EbookController extends Controller
 
         $data = $validator->validated();
 
-        // Handle file upload
-        if ($request->hasFile('file')) {
-            $file = $request->file('file');
-            $fileName = time() . '_' . $file->getClientOriginalName();
-            $path = $file->storeAs('ebooks/files', $fileName, 'public');
-            $data['file_url'] = Storage::url($path);
-            $data['file_name'] = $file->getClientOriginalName();
-            $data['file_size'] = $file->getSize();
-            // Store a short file type (extension) to fit varchar(50) column
-            $data['file_type'] = $file->getClientOriginalExtension();
+        try {
+            // Handle file upload
+            if ($request->hasFile('file')) {
+                $file = $request->file('file');
+                $fileName = time() . '_' . $file->getClientOriginalName();
+                
+                // Ensure storage directory exists
+                $storagePath = storage_path('app/public/ebooks/files');
+                if (!file_exists($storagePath)) {
+                    File::makeDirectory($storagePath, 0755, true);
+                }
+                
+                $path = $file->storeAs('ebooks/files', $fileName, 'public');
+                $data['file_url'] = Storage::url($path);
+                $data['file_name'] = $file->getClientOriginalName();
+                $data['file_size'] = $file->getSize();
+                // Store a short file type (extension) to fit varchar(50) column
+                $data['file_type'] = $file->getClientOriginalExtension();
+            }
+
+            // Handle cover image upload
+            if ($request->hasFile('cover_image')) {
+                $coverImage = $request->file('cover_image');
+                $coverImageName = time() . '_' . $coverImage->getClientOriginalName();
+                
+                // Ensure storage directory exists
+                $storagePath = storage_path('app/public/ebooks/covers');
+                if (!file_exists($storagePath)) {
+                    File::makeDirectory($storagePath, 0755, true);
+                }
+                
+                $coverPath = $coverImage->storeAs('ebooks/covers', $coverImageName, 'public');
+                $data['cover_image'] = Storage::url($coverPath);
+            }
+
+            // Remove only the uploaded file field from data array (already processed).
+            // Keep cover_image path so it is saved to the database.
+            unset($data['file']);
+
+            // Set default status
+            $data['status'] = 'active';
+
+            $ebook = Ebook::create($data);
+
+            return response()->json($ebook->load(['user', 'category']), 201);
+        } catch (\Exception $e) {
+            Log::error('Failed to create eBook', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->except(['file', 'cover_image']),
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to create eBook: ' . $e->getMessage(),
+                'details' => config('app.debug') ? $e->getTraceAsString() : null,
+            ], 500);
         }
-
-        // Handle cover image upload
-        if ($request->hasFile('cover_image')) {
-            $coverImage = $request->file('cover_image');
-            $coverImageName = time() . '_' . $coverImage->getClientOriginalName();
-            $coverPath = $coverImage->storeAs('ebooks/covers', $coverImageName, 'public');
-            $data['cover_image'] = Storage::url($coverPath);
-        }
-
-        // Remove only the uploaded file field from data array (already processed).
-        // Keep cover_image path so it is saved to the database.
-        unset($data['file']);
-
-        // Set default status
-        $data['status'] = 'active';
-
-        $ebook = Ebook::create($data);
-
-        return response()->json($ebook->load(['user', 'category']), 201);
     }
 
     /**
