@@ -52,6 +52,10 @@ class UserController extends Controller
         'name' => $user->name,
         'email' => $user->email,
         'role' => $user->role,
+        // Expose seller verification fields so admin panel can show correct status
+        'seller_verified' => $user->seller_verified,
+        'seller_verification_fee_paid' => $user->seller_verification_fee_paid,
+        'seller_verified_at' => $user->seller_verified_at,
         'location' => $locationString ?: null,
         'location_id' => $user->location_id,
         'selected_local_address' => $user->selected_local_address,

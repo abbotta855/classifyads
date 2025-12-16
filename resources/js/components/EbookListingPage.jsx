@@ -95,7 +95,7 @@ function EbookListingPage() {
                       )}
                       <div className="flex items-center justify-between">
                         <span className="text-lg font-bold text-primary">
-                          ${parseFloat(ebook.price || 0).toFixed(2)}
+                          Rs {parseFloat(ebook.price || 0).toFixed(2)}
                         </span>
                         {ebook.overall_rating > 0 && (
                           <div className="flex items-center gap-1">

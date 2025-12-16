@@ -174,6 +174,16 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::get('/ebooks/{id}', [App\Http\Controllers\EbookController::class, 'show']);
   Route::get('/ebooks/{id}/download', [App\Http\Controllers\EbookController::class, 'download']);
 
+  // Seller eBook management routes (authenticated sellers only)
+  Route::prefix('seller/ebooks')->group(function () {
+    Route::get('/', [App\Http\Controllers\SellerEbookController::class, 'index']);
+    Route::post('/', [App\Http\Controllers\SellerEbookController::class, 'store']);
+    Route::get('/sales-report', [App\Http\Controllers\SellerEbookController::class, 'salesReport']);
+    Route::get('/{id}', [App\Http\Controllers\SellerEbookController::class, 'show']);
+    Route::put('/{id}', [App\Http\Controllers\SellerEbookController::class, 'update']);
+    Route::delete('/{id}', [App\Http\Controllers\SellerEbookController::class, 'destroy']);
+  });
+
   // eBook payment routes
   Route::post('/ebooks/{id}/payment/initiate', [App\Http\Controllers\EbookPaymentController::class, 'initiatePayment']);
   Route::get('/ebooks/payment/success', [App\Http\Controllers\EbookPaymentController::class, 'paymentSuccess']);

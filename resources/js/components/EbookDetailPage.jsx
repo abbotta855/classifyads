@@ -4,7 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import Layout from './Layout';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
-import { ebookAPI } from '../utils/api';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { ebookAPI, ratingAPI } from '../utils/api';
+import axios from 'axios';
 
 function EbookDetailPage() {
   const { id } = useParams();
@@ -17,6 +20,16 @@ function EbookDetailPage() {
   const [purchasing, setPurchasing] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState(null);
+  const [allReviews, setAllReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewPurchaseCode, setReviewPurchaseCode] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [existingReview, setExistingReview] = useState(null);
+  const [ratingCriteria, setRatingCriteria] = useState([]);
+  const [criteriaScores, setCriteriaScores] = useState({});
 
   useEffect(() => {
     // Check for payment success/cancel messages from URL
@@ -45,7 +58,16 @@ function EbookDetailPage() {
     }
 
     fetchEbook();
-  }, [id]);
+    if (user) {
+      checkExistingReview();
+    }
+  }, [id, user]);
+
+  useEffect(() => {
+    if (ebook) {
+      fetchAllReviews();
+    }
+  }, [ebook]);
 
   const fetchEbook = async () => {
     setLoading(true);
@@ -58,6 +80,113 @@ function EbookDetailPage() {
       console.error('Error loading eBook:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAllReviews = async () => {
+    if (!ebook) return;
+    setLoadingReviews(true);
+    try {
+      const response = await axios.get(`/api/ratings/seller/${ebook.user_id}`, { params: { ebook_id: id } });
+      setAllReviews(response.data || []);
+    } catch (err) {
+      console.error('Error loading reviews:', err);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  const checkExistingReview = async () => {
+    try {
+      const response = await axios.get(`/api/ratings/check/0`, { params: { ebook_id: id } });
+      if (response.data.has_rated) {
+        setExistingReview(response.data.rating);
+        setReviewRating(response.data.rating.rating);
+        setReviewComment(response.data.rating.comment || '');
+        setReviewPurchaseCode(response.data.rating.purchase_code || '');
+        
+        // Load criteria scores if available
+        if (response.data.rating.criteria_scores) {
+          const scores = {};
+          response.data.rating.criteria_scores.forEach(cs => {
+            scores[cs.rating_criteria_id] = cs.score;
+          });
+          setCriteriaScores(scores);
+        }
+      }
+    } catch (err) {
+      console.error('Error checking existing review:', err);
+    }
+  };
+
+  const loadRatingCriteria = async () => {
+    try {
+      const response = await ratingAPI.getCriteria();
+      setRatingCriteria(response.data || []);
+      // Initialize criteria scores with default value of 5
+      const initialScores = {};
+      (response.data || []).forEach(c => {
+        initialScores[c.id] = criteriaScores[c.id] || 5;
+      });
+      setCriteriaScores(initialScores);
+    } catch (err) {
+      console.error('Error loading rating criteria:', err);
+    }
+  };
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!user) {
+      navigate('/login', { state: { from: `/ebooks/${id}` } });
+      return;
+    }
+
+    if (!ebook?.is_purchased) {
+      setPaymentMessage({
+        type: 'error',
+        message: 'You must purchase this eBook before leaving a review.',
+      });
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      const criteriaScoresArray = Object.keys(criteriaScores).map(criteriaId => ({
+        criteria_id: parseInt(criteriaId),
+        score: criteriaScores[criteriaId],
+      }));
+
+      const data = {
+        ebook_id: id,
+        rating: reviewRating,
+        comment: reviewComment.trim() || null,
+        criteria_scores: criteriaScoresArray,
+        purchase_code: reviewPurchaseCode.trim() || ebook.verification_code || null,
+      };
+
+      if (existingReview) {
+        await ratingAPI.updateRating(existingReview.id, data);
+      } else {
+        await ratingAPI.submitRating(data);
+      }
+
+      // Refresh eBook data and reviews
+      await fetchEbook();
+      await fetchAllReviews();
+      await checkExistingReview();
+      
+      setShowReviewForm(false);
+      setPaymentMessage({
+        type: 'success',
+        message: existingReview ? 'Review updated successfully!' : 'Review submitted successfully!',
+      });
+    } catch (err) {
+      setPaymentMessage({
+        type: 'error',
+        message: err.response?.data?.error || err.response?.data?.message || 'Failed to submit review. Please try again.',
+      });
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -195,7 +324,7 @@ function EbookDetailPage() {
                 <div className="space-y-4">
                   <div>
                     <p className="text-3xl font-bold text-primary mb-2">
-                      ${parseFloat(ebook.price || 0).toFixed(2)}
+                      Rs {parseFloat(ebook.price || 0).toFixed(2)}
                     </p>
                     {ebook.overall_rating > 0 && (
                       <div className="flex items-center gap-2">
@@ -255,7 +384,7 @@ function EbookDetailPage() {
                     <div className="pt-4 border-t">
                       <p className="text-sm font-semibold mb-2">Shipping Information:</p>
                       {ebook.shipping_cost && (
-                        <p className="text-sm">Shipping: ${parseFloat(ebook.shipping_cost).toFixed(2)}</p>
+                        <p className="text-sm">Shipping: Rs {parseFloat(ebook.shipping_cost).toFixed(2)}</p>
                       )}
                       {ebook.delivery_time && (
                         <p className="text-sm">Delivery: {ebook.delivery_time}</p>
@@ -315,6 +444,12 @@ function EbookDetailPage() {
                       </p>
                     </div>
                   )}
+                  {ebook.book_size && (
+                    <div>
+                      <p className="text-sm text-gray-600">Book Size</p>
+                      <p className="font-semibold">{ebook.book_size}</p>
+                    </div>
+                  )}
                   {ebook.book_type && (
                     <div>
                       <p className="text-sm text-gray-600">Type</p>
@@ -361,9 +496,162 @@ function EbookDetailPage() {
           </div>
         </div>
 
-        {/* Positive Feedback Section */}
-        {ebook.positive_feedback && ebook.positive_feedback.length > 0 && (
-          <div className="mt-8">
+        {/* Reviews Section */}
+        <div className="mt-8 space-y-6">
+          {/* Write Review Section (for purchased users) */}
+          {user && ebook?.is_purchased && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">Write a Review</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!showReviewForm ? (
+                  <div className="space-y-4">
+                    {existingReview ? (
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-800 mb-2">
+                          You have already submitted a review. Click below to update it.
+                        </p>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="flex">
+                            {[...Array(5)].map((_, i) => (
+                              <span
+                                key={i}
+                                className={i < existingReview.rating ? 'text-yellow-500' : 'text-gray-300'}
+                              >
+                                ★
+                              </span>
+                            ))}
+                          </div>
+                          <span className="text-sm text-gray-600">
+                            {existingReview.comment ? existingReview.comment.substring(0, 100) + '...' : 'No comment'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-600">
+                        Share your thoughts about this eBook with other readers.
+                      </p>
+                    )}
+                    <Button
+                      onClick={() => {
+                        setShowReviewForm(true);
+                        loadRatingCriteria();
+                      }}
+                      variant="outline"
+                    >
+                      {existingReview ? 'Update Review' : 'Write a Review'}
+                    </Button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubmitReview} className="space-y-4">
+                    {/* Overall Rating */}
+                    <div>
+                      <Label>Overall Rating</Label>
+                      <div className="flex items-center gap-2 mt-2">
+                        {[...Array(5)].map((_, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setReviewRating(i + 1)}
+                            className={`text-3xl transition-colors ${
+                              i < reviewRating ? 'text-yellow-500' : 'text-gray-300'
+                            } hover:text-yellow-400`}
+                          >
+                            ★
+                          </button>
+                        ))}
+                        <span className="ml-2 text-sm text-gray-600">{reviewRating} out of 5</span>
+                      </div>
+                    </div>
+
+                    {/* Rating Criteria */}
+                    {ratingCriteria.length > 0 && (
+                      <div>
+                        <Label>Additional Ratings</Label>
+                        <div className="space-y-2 mt-2">
+                          {ratingCriteria.map((criterion) => (
+                            <div key={criterion.id} className="flex items-center justify-between">
+                              <span className="text-sm">{criterion.name}</span>
+                              <div className="flex items-center gap-1">
+                                {[...Array(5)].map((_, i) => (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => setCriteriaScores({...criteriaScores, [criterion.id]: i + 1})}
+                                    className={`text-lg transition-colors ${
+                                      i < (criteriaScores[criterion.id] || 5) ? 'text-yellow-500' : 'text-gray-300'
+                                    } hover:text-yellow-400`}
+                                  >
+                                    ★
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Comment */}
+                    <div>
+                      <Label htmlFor="review-comment">Your Review</Label>
+                      <textarea
+                        id="review-comment"
+                        value={reviewComment}
+                        onChange={(e) => setReviewComment(e.target.value)}
+                        className="w-full mt-2 px-3 py-2 border rounded-md min-h-[100px]"
+                        placeholder="Share your thoughts about this eBook..."
+                      />
+                    </div>
+
+                    {/* Verification Code (pre-filled if available) */}
+                    {ebook.verification_code && (
+                      <div>
+                        <Label htmlFor="review-code">Verification Code (pre-filled)</Label>
+                        <Input
+                          id="review-code"
+                          type="text"
+                          value={reviewPurchaseCode || ebook.verification_code}
+                          onChange={(e) => setReviewPurchaseCode(e.target.value)}
+                          className="mt-2"
+                          placeholder="Enter purchase verification code"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          This code helps verify your purchase. It's pre-filled from your purchase.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Submit Buttons */}
+                    <div className="flex gap-2">
+                      <Button type="submit" disabled={submittingReview}>
+                        {submittingReview ? 'Submitting...' : existingReview ? 'Update Review' : 'Submit Review'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setShowReviewForm(false);
+                          // Reset form if not editing
+                          if (!existingReview) {
+                            setReviewRating(5);
+                            setReviewComment('');
+                            setReviewPurchaseCode('');
+                          }
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Positive Feedback Section */}
+          {ebook.positive_feedback && ebook.positive_feedback.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-xl">What Readers Are Saying</CardTitle>
@@ -422,8 +710,68 @@ function EbookDetailPage() {
                 </div>
               </CardContent>
             </Card>
-          </div>
-        )}
+          )}
+
+          {/* All Reviews Section */}
+          {allReviews.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">All Reviews ({allReviews.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingReviews ? (
+                  <p className="text-center text-gray-500 py-4">Loading reviews...</p>
+                ) : (
+                  <div className="space-y-4">
+                    {allReviews.map((review) => (
+                      <div key={review.id} className="border-b pb-4 last:border-b-0">
+                        <div className="flex items-start gap-3">
+                          {review.user?.profile_picture ? (
+                            <img
+                              src={review.user.profile_picture}
+                              alt={review.user.name}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                              <span className="text-gray-500 text-sm font-semibold">
+                                {review.user?.name?.charAt(0).toUpperCase() || '?'}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-semibold text-sm">{review.user?.name || 'Anonymous'}</p>
+                              <div className="flex items-center gap-1">
+                                {[...Array(5)].map((_, i) => (
+                                  <span
+                                    key={i}
+                                    className={i < review.rating ? 'text-yellow-500 text-xs' : 'text-gray-300 text-xs'}
+                                  >
+                                    ★
+                                  </span>
+                                ))}
+                              </div>
+                              {review.purchase_verified && (
+                                <span className="text-xs text-green-600">✓ Verified</span>
+                              )}
+                            </div>
+                            {review.comment && (
+                              <p className="text-sm text-gray-700 mb-2">{review.comment}</p>
+                            )}
+                            <p className="text-xs text-gray-500">
+                              {new Date(review.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </Layout>
   );

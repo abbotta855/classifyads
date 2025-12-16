@@ -457,6 +457,57 @@ export const ebookAPI = {
   getPositiveFeedback: (id) => axios.get(`/api/ebooks/${id}/positive-feedback`),
 };
 
+// Seller eBook API (authenticated sellers only)
+export const sellerEbookAPI = {
+  getMyEbooks: () => axios.get('/api/seller/ebooks'),
+  getMyEbook: (id) => axios.get(`/api/seller/ebooks/${id}`),
+  createEbook: (data) => {
+    const formData = data instanceof FormData ? data : new FormData();
+    if (!(data instanceof FormData)) {
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          if (data[key] instanceof File) {
+            formData.append(key, data[key]);
+          } else if (typeof data[key] === 'boolean') {
+            formData.append(key, data[key] ? '1' : '0');
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+    }
+    return axios.post('/api/seller/ebooks', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  updateEbook: (id, data) => {
+    const formData = data instanceof FormData ? data : new FormData();
+    if (!(data instanceof FormData)) {
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          if (data[key] instanceof File) {
+            formData.append(key, data[key]);
+          } else if (typeof data[key] === 'boolean') {
+            formData.append(key, data[key] ? '1' : '0');
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+    }
+    formData.append('_method', 'PUT');
+    return axios.post(`/api/seller/ebooks/${id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+  deleteEbook: (id) => axios.delete(`/api/seller/ebooks/${id}`),
+  getSalesReport: () => axios.get('/api/seller/ebooks/sales-report'),
+};
+
 // Sales Report API (user-facing)
 export const salesReportAPI = {
   getSalesReport: (params) => axios.get('/api/sales-report', { params }),

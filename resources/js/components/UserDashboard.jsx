@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI, sellerOfferAPI, buyerSellerMessageAPI, sellerVerificationAPI } from '../utils/api';
+import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI, sellerOfferAPI, buyerSellerMessageAPI, sellerVerificationAPI, sellerEbookAPI } from '../utils/api';
 import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import RatingModal from './RatingModal';
 import PhotoCropModal from './PhotoCropModal';
@@ -198,6 +198,7 @@ function UserDashboard({ mode: propMode }) {
     { id: 'ad-post', label: 'Ad Post', icon: '📝' },
     { id: 'categories', label: 'Categories', icon: '📂' },
     { id: 'e-wallet', label: 'E-Wallet', icon: '💳' },
+    ...(user?.seller_verified ? [{ id: 'my-ebooks', label: 'My eBooks', icon: '📚' }] : []),
     { id: 'favourite-list', label: 'Favourite List', icon: '❤️' },
     { id: 'watch-list', label: 'Watch List', icon: '👁️' },
     { id: 'inbox', label: 'Inbox', icon: '📬' },
@@ -282,6 +283,12 @@ function UserDashboard({ mode: propMode }) {
         return <MyRatingsSection user={user} />;
       case 'bought-items':
         return <TotalBoughtItemsSection user={user} />;
+      case 'my-ebooks':
+        // Only show for verified sellers
+        if (!user?.seller_verified) {
+          return <DashboardOverview user={user} />;
+        }
+        return <MyEbooksSection user={user} />;
       default:
         return dashboardMode === 'seller'
           ? <SellerDashboardOverview user={user} userAds={userAds} />
@@ -6026,6 +6033,734 @@ function TotalBoughtItemsSection({ user }) {
                         )}
                       </div>
                     )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// My eBooks Section (for verified sellers)
+function MyEbooksSection({ user }) {
+  const [ebooks, setEbooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingEbookId, setEditingEbookId] = useState(null);
+  const [editingEbookData, setEditingEbookData] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [ebookFile, setEbookFile] = useState(null);
+  const [ebookCoverImage, setEbookCoverImage] = useState(null);
+  const [salesReport, setSalesReport] = useState(null);
+  const [showSalesReport, setShowSalesReport] = useState(false);
+
+  const [ebookFormData, setEbookFormData] = useState({
+    category_id: '',
+    title: '',
+    description: '',
+    writer: '',
+    language: '',
+    pages: '',
+    book_size: '',
+    file_format: '',
+    price: '',
+    publisher_name: '',
+    publisher_address: '',
+    publisher_website: '',
+    publisher_email: '',
+    publisher_phone: '',
+    copyright_declared: false,
+    book_type: 'ebook',
+    shipping_cost: '',
+    delivery_time: '',
+  });
+
+  useEffect(() => {
+    fetchEbooks();
+    fetchCategories();
+    fetchSalesReport();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get('/api/categories');
+      const flattenCategories = (cats, parentName = '') => {
+        let result = [];
+        cats.forEach(cat => {
+          result.push({ id: cat.id, name: parentName ? `${parentName} > ${cat.name}` : cat.name });
+          if (cat.subcategories && cat.subcategories.length > 0) {
+            result = result.concat(flattenCategories(cat.subcategories, parentName ? `${parentName} > ${cat.name}` : cat.name));
+          }
+        });
+        return result;
+      };
+      setCategories(flattenCategories(response.data || []));
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+    }
+  };
+
+  const fetchEbooks = async () => {
+    try {
+      setLoading(true);
+      const response = await sellerEbookAPI.getMyEbooks();
+      setEbooks(response.data || []);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load eBooks');
+      console.error('Error fetching eBooks:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchSalesReport = async () => {
+    try {
+      const response = await sellerEbookAPI.getSalesReport();
+      setSalesReport(response.data);
+    } catch (err) {
+      console.error('Error fetching sales report:', err);
+    }
+  };
+
+  const handleAddEbook = async (e) => {
+    e.preventDefault();
+    try {
+      const formData = new FormData();
+      Object.keys(ebookFormData).forEach(key => {
+        if (ebookFormData[key] !== null && ebookFormData[key] !== undefined && ebookFormData[key] !== '') {
+          if (typeof ebookFormData[key] === 'boolean') {
+            formData.append(key, ebookFormData[key] ? '1' : '0');
+          } else {
+            formData.append(key, ebookFormData[key]);
+          }
+        }
+      });
+      if (ebookFile) formData.append('file', ebookFile);
+      if (ebookCoverImage) formData.append('cover_image', ebookCoverImage);
+
+      await sellerEbookAPI.createEbook(formData);
+      setShowAddForm(false);
+      setEbookFormData({
+        category_id: '', title: '', description: '', writer: '', language: '', pages: '',
+        book_size: '', file_format: '', price: '', publisher_name: '', publisher_address: '',
+        publisher_website: '', publisher_email: '', publisher_phone: '', copyright_declared: false,
+        book_type: 'ebook', shipping_cost: '', delivery_time: '',
+      });
+      setEbookFile(null);
+      setEbookCoverImage(null);
+      fetchEbooks();
+      fetchSalesReport();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to create eBook');
+    }
+  };
+
+  const handleEditEbook = (ebook) => {
+    setEditingEbookId(ebook.id);
+    setEditingEbookData({ ...ebook });
+    setEbookFile(null);
+    setEbookCoverImage(null);
+  };
+
+  const handleSaveEbook = async () => {
+    try {
+      const formData = new FormData();
+      const dataToSend = { ...editingEbookData };
+      delete dataToSend.cover_image; // Remove existing cover URL
+      delete dataToSend.file_url; // Remove existing file URL
+      delete dataToSend.user;
+      delete dataToSend.category;
+      delete dataToSend.id;
+      delete dataToSend.created_at;
+      delete dataToSend.updated_at;
+
+      Object.keys(dataToSend).forEach(key => {
+        if (dataToSend[key] !== null && dataToSend[key] !== undefined && dataToSend[key] !== '') {
+          if (typeof dataToSend[key] === 'boolean') {
+            formData.append(key, dataToSend[key] ? '1' : '0');
+          } else {
+            formData.append(key, dataToSend[key]);
+          }
+        }
+      });
+      if (ebookFile) formData.append('file', ebookFile);
+      if (ebookCoverImage) formData.append('cover_image', ebookCoverImage);
+
+      await sellerEbookAPI.updateEbook(editingEbookId, formData);
+      setEditingEbookId(null);
+      setEditingEbookData(null);
+      setEbookFile(null);
+      setEbookCoverImage(null);
+      fetchEbooks();
+      fetchSalesReport();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to update eBook');
+    }
+  };
+
+  const handleDeleteEbook = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this eBook?')) return;
+    try {
+      await sellerEbookAPI.deleteEbook(id);
+      fetchEbooks();
+      fetchSalesReport();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to delete eBook');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">My eBooks</h1>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p>Loading eBooks...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">My eBooks</h1>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowSalesReport(!showSalesReport)} variant="outline">
+            {showSalesReport ? 'Hide' : 'Show'} Sales Report
+          </Button>
+          <Button onClick={() => setShowAddForm(true)}>Add New eBook</Button>
+        </div>
+      </div>
+
+      {error && (
+        <Card className="border-red-500 bg-red-50">
+          <CardContent className="p-4">
+            <p className="text-red-600">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {showSalesReport && salesReport && (
+        <Card>
+          <CardHeader>
+            <CardTitle>eBook Sales Report</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-4 gap-4 mb-4">
+              <div>
+                <p className="text-sm text-gray-600">Total eBooks</p>
+                <p className="text-2xl font-bold">{salesReport.total_ebooks}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Sales</p>
+                <p className="text-2xl font-bold">{salesReport.total_sales}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Revenue</p>
+                <p className="text-2xl font-bold">Rs {parseFloat(salesReport.total_revenue || 0).toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Downloads</p>
+                <p className="text-2xl font-bold">{salesReport.total_downloads}</p>
+              </div>
+            </div>
+            {salesReport.sales_by_ebook && salesReport.sales_by_ebook.length > 0 && (
+              <div className="mt-4">
+                <h3 className="font-semibold mb-2">Sales by eBook</h3>
+                <div className="space-y-2">
+                  {salesReport.sales_by_ebook.map((item) => (
+                    <div key={item.ebook_id} className="flex justify-between p-2 border rounded">
+                      <span>{item.title}</span>
+                      <span>Sales: {item.sales_count} | Revenue: Rs {parseFloat(item.revenue || 0).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {showAddForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Add New eBook</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleAddEbook} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Category</Label>
+                  <select
+                    value={ebookFormData.category_id}
+                    onChange={(e) => setEbookFormData({...ebookFormData, category_id: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-md"
+                  >
+                    <option value="">Select Category</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>Book Type *</Label>
+                  <select
+                    value={ebookFormData.book_type}
+                    onChange={(e) => setEbookFormData({...ebookFormData, book_type: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-md"
+                    required
+                  >
+                    <option value="ebook">eBook</option>
+                    <option value="hard_copy">Hard Copy</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <Label>Title *</Label>
+                <Input
+                  value={ebookFormData.title}
+                  onChange={(e) => setEbookFormData({...ebookFormData, title: e.target.value})}
+                  required
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <textarea
+                  value={ebookFormData.description}
+                  onChange={(e) => setEbookFormData({...ebookFormData, description: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-md"
+                  rows="3"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label>Writer</Label>
+                  <Input
+                    value={ebookFormData.writer}
+                    onChange={(e) => setEbookFormData({...ebookFormData, writer: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label>Language</Label>
+                  <Input
+                    value={ebookFormData.language}
+                    onChange={(e) => setEbookFormData({...ebookFormData, language: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label>Pages</Label>
+                  <Input
+                    type="number"
+                    value={ebookFormData.pages}
+                    onChange={(e) => setEbookFormData({...ebookFormData, pages: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Book Size</Label>
+                  <Input
+                    value={ebookFormData.book_size}
+                    onChange={(e) => setEbookFormData({...ebookFormData, book_size: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label>File Format</Label>
+                  <Input
+                    value={ebookFormData.file_format}
+                    onChange={(e) => setEbookFormData({...ebookFormData, file_format: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Price *</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={ebookFormData.price}
+                  onChange={(e) => setEbookFormData({...ebookFormData, price: e.target.value})}
+                  required
+                />
+              </div>
+              <div>
+                <Label>eBook File * (PDF, EPUB, MOBI, DOC, DOCX)</Label>
+                <Input
+                  type="file"
+                  accept=".pdf,.epub,.mobi,.doc,.docx"
+                  onChange={(e) => setEbookFile(e.target.files[0])}
+                  required
+                />
+              </div>
+              <div>
+                <Label>Cover Image</Label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setEbookCoverImage(e.target.files[0])}
+                />
+              </div>
+              {(ebookFormData.book_type === 'hard_copy' || ebookFormData.book_type === 'both') && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Shipping Cost</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={ebookFormData.shipping_cost}
+                      onChange={(e) => setEbookFormData({...ebookFormData, shipping_cost: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label>Delivery Time</Label>
+                    <Input
+                      value={ebookFormData.delivery_time}
+                      onChange={(e) => setEbookFormData({...ebookFormData, delivery_time: e.target.value})}
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="mt-4 space-y-2">
+                <p className="text-sm font-semibold">Publisher Information (optional)</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <Label>Publisher Name</Label>
+                    <Input
+                      value={ebookFormData.publisher_name}
+                      onChange={(e) => setEbookFormData({...ebookFormData, publisher_name: e.target.value})}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Publisher Address</Label>
+                    <textarea
+                      value={ebookFormData.publisher_address}
+                      onChange={(e) => setEbookFormData({...ebookFormData, publisher_address: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-md"
+                      rows="2"
+                    />
+                  </div>
+                  <div>
+                    <Label>Publisher Email</Label>
+                    <Input
+                      type="email"
+                      value={ebookFormData.publisher_email}
+                      onChange={(e) => setEbookFormData({...ebookFormData, publisher_email: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label>Publisher Phone</Label>
+                    <Input
+                      value={ebookFormData.publisher_phone}
+                      onChange={(e) => setEbookFormData({...ebookFormData, publisher_phone: e.target.value})}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Publisher Website</Label>
+                    <Input
+                      type="url"
+                      placeholder="https://example.com"
+                      value={ebookFormData.publisher_website}
+                      onChange={(e) => setEbookFormData({...ebookFormData, publisher_website: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <Label>
+                  <input
+                    type="checkbox"
+                    checked={ebookFormData.copyright_declared}
+                    onChange={(e) => setEbookFormData({...ebookFormData, copyright_declared: e.target.checked})}
+                  />
+                  {' '}Copyright Declared *
+                </Label>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" onClick={() => setShowAddForm(false)}>Cancel</Button>
+                <Button type="submit">Add eBook</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Edit eBook Modal */}
+      {editingEbookId && editingEbookData && (
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+          <Card className="w-full max-w-3xl max-h-[90vh] overflow-y-auto px-4 mx-auto">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Edit eBook</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setEditingEbookId(null);
+                  setEditingEbookData(null);
+                  setEbookFile(null);
+                  setEbookCoverImage(null);
+                }}
+              >
+                ✕
+              </Button>
+            </CardHeader>
+            <CardContent className="p-6">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSaveEbook();
+                }}
+                className="space-y-4"
+              >
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Category</Label>
+                  <select
+                    value={editingEbookData.category_id || ''}
+                    onChange={(e) => setEditingEbookData({...editingEbookData, category_id: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-md"
+                  >
+                    <option value="">Select Category</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label>Book Type *</Label>
+                  <select
+                    value={editingEbookData.book_type || 'ebook'}
+                    onChange={(e) => setEditingEbookData({...editingEbookData, book_type: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-md"
+                    required
+                  >
+                    <option value="ebook">eBook</option>
+                    <option value="hard_copy">Hard Copy</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <Label>Title *</Label>
+                <Input
+                  value={editingEbookData.title || ''}
+                  onChange={(e) => setEditingEbookData({...editingEbookData, title: e.target.value})}
+                  required
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <textarea
+                  value={editingEbookData.description || ''}
+                  onChange={(e) => setEditingEbookData({...editingEbookData, description: e.target.value})}
+                  className="w-full px-3 py-2 border rounded-md"
+                  rows="3"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label>Writer</Label>
+                  <Input
+                    value={editingEbookData.writer || ''}
+                    onChange={(e) => setEditingEbookData({...editingEbookData, writer: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label>Language</Label>
+                  <Input
+                    value={editingEbookData.language || ''}
+                    onChange={(e) => setEditingEbookData({...editingEbookData, language: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label>Pages</Label>
+                  <Input
+                    type="number"
+                    value={editingEbookData.pages || ''}
+                    onChange={(e) => setEditingEbookData({...editingEbookData, pages: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Price *</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editingEbookData.price || ''}
+                  onChange={(e) => setEditingEbookData({...editingEbookData, price: e.target.value})}
+                  required
+                />
+              </div>
+              <div>
+                <Label>eBook File (leave empty to keep current file)</Label>
+                <Input
+                  type="file"
+                  accept=".pdf,.epub,.mobi,.doc,.docx"
+                  onChange={(e) => setEbookFile(e.target.files[0])}
+                />
+              </div>
+              <div>
+                <Label>Cover Image (leave empty to keep current cover)</Label>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setEbookCoverImage(e.target.files[0])}
+                />
+              </div>
+              {(editingEbookData.book_type === 'hard_copy' || editingEbookData.book_type === 'both') && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Shipping Cost</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editingEbookData.shipping_cost || ''}
+                      onChange={(e) => setEditingEbookData({...editingEbookData, shipping_cost: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label>Delivery Time</Label>
+                    <Input
+                      value={editingEbookData.delivery_time || ''}
+                      onChange={(e) => setEditingEbookData({...editingEbookData, delivery_time: e.target.value})}
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="mt-4 space-y-2">
+                <p className="text-sm font-semibold">Publisher Information (optional)</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <Label>Publisher Name</Label>
+                    <Input
+                      value={editingEbookData.publisher_name || ''}
+                      onChange={(e) => setEditingEbookData({...editingEbookData, publisher_name: e.target.value})}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Publisher Address</Label>
+                    <textarea
+                      value={editingEbookData.publisher_address || ''}
+                      onChange={(e) => setEditingEbookData({...editingEbookData, publisher_address: e.target.value})}
+                      className="w-full px-3 py-2 border rounded-md"
+                      rows="2"
+                    />
+                  </div>
+                  <div>
+                    <Label>Publisher Email</Label>
+                    <Input
+                      type="email"
+                      value={editingEbookData.publisher_email || ''}
+                      onChange={(e) => setEditingEbookData({...editingEbookData, publisher_email: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label>Publisher Phone</Label>
+                    <Input
+                      value={editingEbookData.publisher_phone || ''}
+                      onChange={(e) => setEditingEbookData({...editingEbookData, publisher_phone: e.target.value})}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Publisher Website</Label>
+                    <Input
+                      type="url"
+                      placeholder="https://example.com"
+                      value={editingEbookData.publisher_website || ''}
+                      onChange={(e) => setEditingEbookData({...editingEbookData, publisher_website: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <Label>
+                  <input
+                    type="checkbox"
+                    checked={editingEbookData.copyright_declared || false}
+                    onChange={(e) => setEditingEbookData({...editingEbookData, copyright_declared: e.target.checked})}
+                  />
+                  {' '}Copyright Declared
+                </Label>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" onClick={() => {
+                  setEditingEbookId(null);
+                  setEditingEbookData(null);
+                  setEbookFile(null);
+                  setEbookCoverImage(null);
+                }}>Cancel</Button>
+                <Button type="submit">Save Changes</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+        </div>
+      )}
+
+      {ebooks.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-gray-500 mb-4">You haven't uploaded any eBooks yet.</p>
+            <Button onClick={() => setShowAddForm(true)}>Add Your First eBook</Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {ebooks.map((ebook) => (
+            <Card key={ebook.id}>
+              <CardContent className="p-6">
+                <div className="flex gap-4">
+                  {ebook.cover_image && (
+                    <img
+                      src={ebook.cover_image}
+                      alt={ebook.title}
+                      className="w-24 h-32 object-cover rounded"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold mb-2">{ebook.title}</h3>
+                    {ebook.writer && <p className="text-sm text-gray-600 mb-1">By {ebook.writer}</p>}
+                    <div className="flex items-center gap-4 text-sm mb-2">
+                      <span className="font-semibold text-primary">Rs {parseFloat(ebook.price || 0).toFixed(2)}</span>
+                      {ebook.overall_rating > 0 && (
+                        <span className="flex items-center gap-1">
+                          <span className="text-yellow-500">★</span>
+                          {ebook.overall_rating.toFixed(1)}
+                        </span>
+                      )}
+                      <span className="text-gray-600">Sales: {ebook.purchase_count || 0}</span>
+                      <span className="text-gray-600">Downloads: {ebook.download_count || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEditEbook(ebook)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteEbook(ebook.id)}
+                      >
+                        Delete
+                      </Button>
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        ebook.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {ebook.status || 'active'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </CardContent>
