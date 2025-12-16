@@ -11192,13 +11192,13 @@ function AdminPanel() {
                                 required
                               >
                                 <option value="">Select User</option>
-                                {users.filter(u => u.role !== 'admin' && u.role !== 'super_admin').map(u => (
+                                {users.filter(u => u.role === 'super_admin' || (u.role !== 'admin' && u.seller_verified)).map(u => (
                                   <option key={u.id} value={u.id}>
-                                    {u.name} ({u.email}) {u.seller_verified ? '✓ Verified' : '⚠ Not Verified'}
+                                    {u.name} ({u.email}) {u.role === 'super_admin' ? ' Super Admin' : '✓ Verified'}
                                   </option>
                                 ))}
                               </select>
-                              {users.filter(u => u.role !== 'admin' && u.role !== 'super_admin').length === 0 && (
+                              {users.filter(u => u.role === 'super_admin' || (u.role !== 'admin' && u.seller_verified)).length === 0 && (
                                 <p className="text-sm text-red-500 mt-1">No users available. Please create a user first.</p>
                               )}
                             </div>
@@ -11342,10 +11342,10 @@ function AdminPanel() {
                               >
                                 <option value="">Select User</option>
                                 {users
-                                  .filter(u => u.role !== 'admin' && u.role !== 'super_admin')
+                                  .filter(u => u.role === 'super_admin' || (u.role !== 'admin' && u.seller_verified))
                                   .map(u => (
                                     <option key={u.id} value={u.id}>
-                                      {u.name} ({u.email}) {u.seller_verified ? '✓ Verified' : '⚠ Not Verified'}
+                                      {u.name} ({u.email}) {u.role === 'super_admin' ? ' Super Admin' : '✓ Verified'}
                                     </option>
                                   ))}
                               </select>
@@ -12582,10 +12582,10 @@ function AdminPanel() {
                         >
                           <option value="">Select User</option>
                           {users
-                            .filter(u => u.role !== 'admin' && u.role !== 'super_admin')
+                            .filter(u => u.role === 'super_admin' || (u.role !== 'admin' && u.seller_verified))
                             .map(u => (
                               <option key={u.id} value={u.id}>
-                                {u.name} ({u.email}) {u.seller_verified ? '✓ Verified' : '⚠ Not Verified'}
+                                {u.name} ({u.email}) {u.role === 'super_admin' ? '👑 Super Admin' : '✓ Verified'}
                               </option>
                             ))}
                         </select>

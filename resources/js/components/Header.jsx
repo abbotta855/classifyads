@@ -36,7 +36,7 @@ function Header() {
                     eBooks
                   </Link>
                 )}
-                {!isAdminPage && !isUserDashboardPage && user.role !== 'admin' && (
+                {!isAdminPage && !isUserDashboardPage && user.role !== 'admin' && user.role !== 'super_admin' && (
                   <Link
                     to="/dashboard"
                     className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
@@ -156,7 +156,7 @@ function Header() {
                       eBooks
                     </Link>
                   )}
-                  {!isAdminPage && !isUserDashboardPage && user.role !== 'admin' && (
+                  {!isAdminPage && !isUserDashboardPage && user.role !== 'admin' && user.role !== 'super_admin' && (
                     <Link
                       to="/dashboard"
                       onClick={() => setMobileMenuOpen(false)}
