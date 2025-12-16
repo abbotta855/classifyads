@@ -388,7 +388,7 @@ function AdDetailPage() {
                   <div className="flex items-center gap-2">
                     <span>📅</span>
                     <span className="text-[hsl(var(--foreground))]">
-                      {new Date(ad.created_at).toLocaleDateString()}
+                      {new Date(ad.created_at).toLocaleString()}
                     </span>
                   </div>
 

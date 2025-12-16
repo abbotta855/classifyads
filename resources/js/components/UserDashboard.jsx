@@ -1795,14 +1795,34 @@ function AdPostSection({ user }) {
     if (selectedLocations.size === 0) {
       return 'Select Location';
     }
-    const locationId = Array.from(selectedLocations)[0];
+    const selectedId = Array.from(selectedLocations)[0];
+    
+    // Check if it's a local address (format: wardId-index)
+    let wardId = null;
+    let addressIndex = null;
+    if (typeof selectedId === 'string' && selectedId.includes('-')) {
+      const parts = selectedId.split('-');
+      wardId = parseInt(parts[0]);
+      addressIndex = parseInt(parts[parts.length - 1]); // Last part is the index
+    } else {
+      wardId = typeof selectedId === 'number' ? selectedId : parseInt(selectedId);
+    }
+    
     // Find location in hierarchy
     for (const province of locationData.provinces || []) {
       for (const district of province.districts || []) {
         for (const localLevel of district.localLevels || []) {
           for (const ward of localLevel.wards || []) {
-            if (ward.id === locationId) {
-              return `${province.name} > ${district.name} > ${localLevel.name}${ward.ward_number ? ' > Ward ' + ward.ward_number : ''}`;
+            if (ward.id === wardId) {
+              let path = `${province.name} > ${district.name} > ${localLevel.name}`;
+              if (ward.ward_number) {
+                path += ` > Ward ${ward.ward_number}`;
+              }
+              // If a specific local address is selected, add it to the path
+              if (addressIndex !== null && ward.local_addresses && ward.local_addresses[addressIndex]) {
+                path += ` > ${ward.local_addresses[addressIndex]}`;
+              }
+              return path;
             }
           }
         }

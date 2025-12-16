@@ -421,47 +421,52 @@ function Homepage() {
         filtered = filtered.filter(ad => {
         // Check if ad's location matches any selected location ID
         const adLocationId = ad.location_id || ad.locationId;
-        return adLocationId && selectedLocations.has(adLocationId.toString());
+        if (!adLocationId) return false;
+        
+        // Normalize ad location ID to both string and number
+        const adLocationIdStr = String(adLocationId);
+        const adLocationIdNum = Number(adLocationId);
+        
+        // Check all selected location IDs
+        for (const selectedId of selectedLocations) {
+          // If selectedId is a number, compare directly
+          if (typeof selectedId === 'number') {
+            if (selectedId === adLocationIdNum) {
+              return true;
+            }
+          }
+          // If selectedId is a string
+          else if (typeof selectedId === 'string') {
+            // Check exact match (string comparison)
+            if (selectedId === adLocationIdStr) {
+              return true;
+            }
+            // Check if it's an address ID (format: "wardId-index")
+            if (selectedId.includes('-')) {
+              const [wardIdStr] = selectedId.split('-');
+              const wardIdNum = parseInt(wardIdStr, 10);
+              // If the ward ID matches, include this ad
+              if (!isNaN(wardIdNum) && (wardIdNum === adLocationIdNum || String(wardIdNum) === adLocationIdStr)) {
+                return true;
+              }
+            }
+            // Try parsing as number and comparing
+            else {
+              const selectedIdNum = parseInt(selectedId, 10);
+              if (!isNaN(selectedIdNum) && selectedIdNum === adLocationIdNum) {
+                return true;
+              }
+            }
+          }
+        }
+        
+        return false;
         });
     }
 
     // Note: Sidebar category filters use the same selectedCategories/selectedSubcategories Sets
-    // So the filtering above already handles both search bar and sidebar selections
-
-    // Filter by sidebar location hierarchy (new structure: province → district → localLevel → ward)
-    if (locationHierarchy.province) {
-      const province = getSelectedProvince();
-      if (province) {
-        filtered = filtered.filter(ad => {
-          const adProvince = ad.locationHierarchy?.province;
-          return adProvince && parseInt(adProvince) === parseInt(locationHierarchy.province);
-        });
-      }
-    }
-    if (locationHierarchy.district) {
-      const district = getSelectedDistrict();
-      if (district) {
-        filtered = filtered.filter(ad => {
-          const adDistrict = ad.locationHierarchy?.district;
-          return adDistrict && parseInt(adDistrict) === parseInt(locationHierarchy.district);
-        });
-      }
-    }
-    if (locationHierarchy.localLevel) {
-      const localLevel = getSelectedLocalLevel();
-      if (localLevel) {
-        filtered = filtered.filter(ad => {
-          const adLocalLevel = ad.locationHierarchy?.localLevel;
-          return adLocalLevel && parseInt(adLocalLevel) === parseInt(locationHierarchy.localLevel);
-        });
-      }
-    }
-    if (locationHierarchy.ward) {
-      filtered = filtered.filter(ad => {
-        const adWard = ad.locationHierarchy?.ward;
-        return adWard && adWard === locationHierarchy.ward;
-      });
-    }
+    // Note: Both search bar and sidebar location filters now use the same selectedLocations Set
+    // The old locationHierarchy filtering has been removed since we're using checkbox-based selection
 
     // Filter by price range
     if (priceRange.min !== '') {
@@ -510,7 +515,6 @@ function Homepage() {
     selectedLocations, 
     selectedCategories, 
     selectedSubcategories, // Add this - it was missing!
-    locationHierarchy, 
     priceRange, 
     sortBy, 
     currentPage,
@@ -519,7 +523,7 @@ function Homepage() {
   ]);
 
   // Reset to page 1 when filters change (except currentPage)
-  const prevFiltersRef = useRef({ searchQuery, searchCategory, selectedLocations, selectedCategories, locationHierarchy, priceRange, sortBy });
+  const prevFiltersRef = useRef({ searchQuery, searchCategory, selectedLocations, selectedCategories, priceRange, sortBy });
   useEffect(() => {
     const prevFilters = prevFiltersRef.current;
     const filtersChanged = 
@@ -527,7 +531,6 @@ function Homepage() {
       prevFilters.searchCategory !== searchCategory ||
       prevFilters.selectedLocations?.size !== selectedLocations.size ||
       JSON.stringify(prevFilters.selectedCategories) !== JSON.stringify(selectedCategories) ||
-      JSON.stringify(prevFilters.locationHierarchy) !== JSON.stringify(locationHierarchy) ||
       JSON.stringify(prevFilters.priceRange) !== JSON.stringify(priceRange) ||
       prevFilters.sortBy !== sortBy;
     
@@ -535,9 +538,9 @@ function Homepage() {
       setCurrentPage(1);
     }
     
-    prevFiltersRef.current = { searchQuery, searchCategory, selectedLocations, selectedCategories, locationHierarchy, priceRange, sortBy };
+    prevFiltersRef.current = { searchQuery, searchCategory, selectedLocations, selectedCategories, priceRange, sortBy };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, searchCategory, selectedLocations, selectedCategories, locationHierarchy, priceRange, sortBy]);
+  }, [searchQuery, searchCategory, selectedLocations, selectedCategories, priceRange, sortBy]);
 
   const fetchCategories = async () => {
     try {
@@ -710,14 +713,14 @@ function Homepage() {
       if (searchCategory.includes(' > ')) {
         const [categoryName] = searchCategory.split(' > ');
         const category = categories.find(c => c.name === categoryName);
-        if (category && !selectedCategories.includes(category.id)) {
-          setSelectedCategories([category.id]);
+        if (category && !selectedCategories.has(category.id)) {
+          setSelectedCategories(new Set([category.id]));
         }
       } else {
         // Main category only
       const category = categories.find(c => c.name === searchCategory);
-      if (category && !selectedCategories.includes(category.id)) {
-        setSelectedCategories([category.id]);
+      if (category && !selectedCategories.has(category.id)) {
+        setSelectedCategories(new Set([category.id]));
       }
     }
     }
@@ -784,10 +787,10 @@ function Homepage() {
                     <button
                       type="button"
                       onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-                      className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                      className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center"
                     >
+                      <span className="mr-2 flex-shrink-0">{showCategoryDropdown ? '▼' : '▶'}</span>
                       <span>{buildCategorySearchString() || 'All Categories'}</span>
-                      <span className="ml-2">{showCategoryDropdown ? '▼' : '▶'}</span>
                     </button>
                     
                     {/* Hierarchical Category Menu - Following location dropdown pattern */}
@@ -943,10 +946,10 @@ function Homepage() {
                     <button
                       type="button"
                       onClick={() => setShowLocationDropdown(!showLocationDropdown)}
-                      className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                      className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center"
                     >
+                      <span className="mr-2 flex-shrink-0">{showLocationDropdown ? '▼' : '▶'}</span>
                       <span>{buildSearchLocationString()}</span>
-                      <span className="ml-2">{showLocationDropdown ? '▼' : '▶'}</span>
                     </button>
                     
                     {/* Hierarchical Checkbox Menu */}
@@ -1271,7 +1274,7 @@ function Homepage() {
                               <label className="flex items-center space-x-2 cursor-pointer flex-1">
                                 <input
                                   type="checkbox"
-                                  checked={selectedCategories.includes(category.id)}
+                                  checked={selectedCategories.has(category.id)}
                                   onChange={() => handleCategoryToggle(category.id)}
                                   className="w-4 h-4"
                                 />
@@ -1293,8 +1296,8 @@ function Homepage() {
                                     <label className="flex items-center space-x-2 cursor-pointer flex-1">
                                       <input
                                         type="checkbox"
-                                        checked={selectedCategories.includes(subcategory.id)}
-                                        onChange={() => handleCategoryToggle(subcategory.id)}
+                                        checked={selectedSubcategories.has(subcategory.id)}
+                                        onChange={() => handleSubcategoryToggle(subcategory.id)}
                                         className="w-4 h-4"
                                       />
                                       <span className="text-sm text-[hsl(var(--muted-foreground))]">{subcategory.name}</span>
@@ -1314,195 +1317,291 @@ function Homepage() {
                   )}
                 </div>
 
-                {/* Location Filter - Tree View (Windows Explorer style) */}
+                {/* Location Filter - Same design as search bar location dropdown */}
                 <div className="mb-6">
                   <button
                     type="button"
-                    onClick={() => setExpandedLocationItems(prev => ({ ...prev, provinces: !prev.provinces }))}
+                    onClick={() => setShowSidebarLocationDropdown(!showSidebarLocationDropdown)}
                     className="flex items-center justify-between w-full font-semibold text-[hsl(var(--foreground))] mb-2 hover:text-[hsl(var(--primary))] transition-colors"
                   >
                     <span>Location</span>
-                    <span className="text-sm">{expandedLocationItems.provinces ? '▼' : '▶'}</span>
+                    <span className="text-sm">{showSidebarLocationDropdown ? '▼' : '▶'}</span>
                   </button>
                   
-                  {/* Current Location Path Display */}
-                  {buildLocationString() && (
-                    <div className="mb-2 px-2 py-1.5 text-xs text-[hsl(var(--muted-foreground))] bg-[hsl(var(--accent))] rounded border border-[hsl(var(--border))]">
-                      {buildLocationString()}
-                    </div>
-                  )}
-                  
-                  {/* Provinces - shown when Location is expanded */}
-                  {expandedLocationItems.provinces && (
-                    <div className="space-y-1 ml-4">
-                      {locationData.provinces.map((province) => {
-                        const isProvinceExpanded = expandedLocationItems.districts[province.id] || false;
-                        const isProvinceSelected = locationHierarchy.province === province.id.toString();
-                        
-                        return (
-                          <div key={province.id} className="space-y-1">
-                            {/* Province Item */}
-                            <div className="flex items-center">
+                  {showSidebarLocationDropdown && (
+                    <div className="space-y-1 max-h-96 overflow-y-auto border border-[hsl(var(--border))] rounded-md p-3 bg-[hsl(var(--card))]">
+                      <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
+                        <span className="font-semibold text-sm text-[hsl(var(--foreground))]">Select Locations</span>
+                        <button
+                          onClick={handleSelectAllLocations}
+                          className="text-xs text-[hsl(var(--primary))] hover:underline"
+                        >
+                          {selectedLocations.size > 0 ? 'Clear All' : 'Select All'}
+                        </button>
+                      </div>
+                      
+                      {/* Hierarchical Location Tree - Same as search bar */}
+                      <div className="space-y-1">
+                        {locationData.provinces.map((province) => (
+                          <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
+                            {/* Province Level */}
+                            <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setExpandedLocationItems(prev => ({
-                                    ...prev,
-                                    districts: {
-                                      ...prev.districts,
-                                      [province.id]: !prev.districts[province.id]
-                                    }
-                                  }));
-                                }}
-                                className="w-4 h-4 flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] mr-1"
+                                onClick={() => toggleProvince(province.id)}
+                                className="mr-2 text-xs"
                               >
-                                {province.districts.length > 0 ? (isProvinceExpanded ? '▼' : '▶') : '•'}
+                                {expandedProvinces.has(province.id) ? '▼' : '▶'}
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  handleLocationHierarchyChange('province', province.id.toString());
-                                  handleLocationHierarchyChange('district', '');
-                                  handleLocationHierarchyChange('localLevel', '');
-                                  handleLocationHierarchyChange('ward', '');
+                              <input
+                                type="checkbox"
+                                className="mr-2"
+                                checked={(() => {
+                                  const allLocationIds = [];
+                                  province.districts.forEach(d => {
+                                    d.localLevels.forEach(ll => {
+                                      if (ll.wards) {
+                                        ll.wards.forEach(w => {
+                                          allLocationIds.push(w.id);
+                                          if (w.local_addresses) {
+                                            w.local_addresses.forEach((_, idx) => {
+                                              allLocationIds.push(`${w.id}-${idx}`);
+                                            });
+                                          }
+                                        });
+                                      }
+                                    });
+                                  });
+                                  return allLocationIds.length > 0 && allLocationIds.every(id => selectedLocations.has(id));
+                                })()}
+                                onChange={() => {
+                                  const allLocationIds = [];
+                                  province.districts.forEach(d => {
+                                    d.localLevels.forEach(ll => {
+                                      if (ll.wards) {
+                                        ll.wards.forEach(w => {
+                                          allLocationIds.push(w.id);
+                                          if (w.local_addresses) {
+                                            w.local_addresses.forEach((_, idx) => {
+                                              allLocationIds.push(`${w.id}-${idx}`);
+                                            });
+                                          }
+                                        });
+                                      }
+                                    });
+                                  });
+                                  setSelectedLocations(prev => {
+                                    const newSet = new Set(prev);
+                                    const allSelected = allLocationIds.every(id => newSet.has(id));
+                                    allLocationIds.forEach(id => {
+                                      if (allSelected) {
+                                        newSet.delete(id);
+                                      } else {
+                                        newSet.add(id);
+                                      }
+                                    });
+                                    return newSet;
+                                  });
                                 }}
-                                className={`flex-1 text-left text-sm px-2 py-1 rounded hover:bg-[hsl(var(--accent))] ${
-                                  isProvinceSelected ? 'bg-[hsl(var(--accent))] font-medium' : ''
-                                }`}
-                              >
-                                {province.name}
-                              </button>
+                              />
+                              <span className="text-sm font-medium text-[hsl(var(--foreground))]">{province.name}</span>
                             </div>
                             
-                            {/* Districts - shown when province is expanded */}
-                            {isProvinceExpanded && (
-                              <div className="space-y-1 ml-6">
-                                {province.districts.map((district) => {
-                                  const isDistrictExpanded = expandedLocationItems.localLevels[district.id] || false;
-                                  const isDistrictSelected = locationHierarchy.district === district.id.toString() && 
-                                                             locationHierarchy.province === province.id.toString();
-                                  
-                                  return (
-                                    <div key={district.id} className="space-y-1">
-                                      {/* District Item */}
-                                      <div className="flex items-center">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setExpandedLocationItems(prev => ({
-                                              ...prev,
-                                              localLevels: {
-                                                ...prev.localLevels,
-                                                [district.id]: !prev.localLevels[district.id]
+                            {/* Districts */}
+                            {expandedProvinces.has(province.id) && province.districts.map((district) => {
+                              const districtKey = `${province.id}-${district.id}`;
+                              return (
+                                <div key={district.id} className="ml-6 mt-1">
+                                  <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleDistrict(districtKey)}
+                                      className="mr-2 text-xs"
+                                    >
+                                      {expandedDistricts.has(districtKey) ? '▼' : '▶'}
+                                    </button>
+                                    <input
+                                      type="checkbox"
+                                      className="mr-2"
+                                      checked={(() => {
+                                        const allLocationIds = [];
+                                        district.localLevels.forEach(ll => {
+                                          if (ll.wards) {
+                                            ll.wards.forEach(w => {
+                                              allLocationIds.push(w.id);
+                                              if (w.local_addresses) {
+                                                w.local_addresses.forEach((_, idx) => {
+                                                  allLocationIds.push(`${w.id}-${idx}`);
+                                                });
                                               }
-                                            }));
-                                          }}
-                                          className="w-4 h-4 flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] mr-1"
-                                        >
-                                          {district.localLevels.length > 0 ? (isDistrictExpanded ? '▼' : '▶') : '•'}
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            handleLocationHierarchyChange('province', province.id.toString());
-                                            handleLocationHierarchyChange('district', district.id.toString());
-                                            handleLocationHierarchyChange('localLevel', '');
-                                            handleLocationHierarchyChange('ward', '');
-                                          }}
-                                          className={`flex-1 text-left text-sm px-2 py-1 rounded hover:bg-[hsl(var(--accent))] ${
-                                            isDistrictSelected ? 'bg-[hsl(var(--accent))] font-medium' : ''
-                                          }`}
-                                        >
-                                          {district.name}
-                                        </button>
-                                      </div>
-                                      
-                                      {/* Local Levels - shown when district is expanded */}
-                                      {isDistrictExpanded && (
-                                        <div className="space-y-1 ml-6">
-                                          {district.localLevels.map((localLevel) => {
-                                            const isLocalLevelExpanded = expandedLocationItems.wards[localLevel.id] || false;
-                                            const isLocalLevelSelected = locationHierarchy.localLevel === localLevel.id.toString() &&
-                                                                         locationHierarchy.district === district.id.toString();
-                                            
-                                            return (
-                                              <div key={localLevel.id} className="space-y-1">
-                                                {/* Local Level Item */}
-                                                <div className="flex items-center">
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                      setExpandedLocationItems(prev => ({
-                                                        ...prev,
-                                                        wards: {
-                                                          ...prev.wards,
-                                                          [localLevel.id]: !prev.wards[localLevel.id]
-                                                        }
-                                                      }));
-                                                    }}
-                                                    className="w-4 h-4 flex items-center justify-center text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))] mr-1"
-                                                  >
-                                                    {localLevel.wards.length > 0 ? (isLocalLevelExpanded ? '▼' : '▶') : '•'}
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                      handleLocationHierarchyChange('province', province.id.toString());
-                                                      handleLocationHierarchyChange('district', district.id.toString());
-                                                      handleLocationHierarchyChange('localLevel', localLevel.id.toString());
-                                                      handleLocationHierarchyChange('ward', '');
-                                                    }}
-                                                    className={`flex-1 text-left text-sm px-2 py-1 rounded hover:bg-[hsl(var(--accent))] ${
-                                                      isLocalLevelSelected ? 'bg-[hsl(var(--accent))] font-medium' : ''
-                                                    }`}
-                                                  >
-                                                    {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
-                                                  </button>
-                                                </div>
-                                                
-                                                {/* Wards - shown when local level is expanded */}
-                                                {isLocalLevelExpanded && (
-                                                  <div className="space-y-1 ml-6">
-                                                    {localLevel.wards.map((ward) => {
-                                                      const wardValue = `${ward.ward_id}-${ward.ward_number}`;
-                                                      const isWardSelected = locationHierarchy.ward === wardValue &&
-                                                                             locationHierarchy.localLevel === localLevel.id.toString();
-                                                      
-                                                      return (
-                                                        <div key={wardValue} className="flex items-center">
-                                                          <span className="w-4 h-4 mr-1">•</span>
-                                                          <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                              handleLocationHierarchyChange('province', province.id.toString());
-                                                              handleLocationHierarchyChange('district', district.id.toString());
-                                                              handleLocationHierarchyChange('localLevel', localLevel.id.toString());
-                                                              handleLocationHierarchyChange('ward', wardValue);
-                                                            }}
-                                                            className={`flex-1 text-left text-sm px-2 py-1 rounded hover:bg-[hsl(var(--accent))] ${
-                                                              isWardSelected ? 'bg-[hsl(var(--accent))] font-medium' : ''
-                                                            }`}
-                                                          >
-                                                            Ward {ward.ward_id}-{ward.ward_number}
-                                                          </button>
-                                                        </div>
-                                                      );
-                                                    })}
-                                                  </div>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
+                                            });
+                                          }
+                                        });
+                                        return allLocationIds.length > 0 && allLocationIds.every(id => selectedLocations.has(id));
+                                      })()}
+                                      onChange={() => {
+                                        const allLocationIds = [];
+                                        district.localLevels.forEach(ll => {
+                                          if (ll.wards) {
+                                            ll.wards.forEach(w => {
+                                              allLocationIds.push(w.id);
+                                              if (w.local_addresses) {
+                                                w.local_addresses.forEach((_, idx) => {
+                                                  allLocationIds.push(`${w.id}-${idx}`);
+                                                });
+                                              }
+                                            });
+                                          }
+                                        });
+                                        setSelectedLocations(prev => {
+                                          const newSet = new Set(prev);
+                                          const allSelected = allLocationIds.every(id => newSet.has(id));
+                                          allLocationIds.forEach(id => {
+                                            if (allSelected) {
+                                              newSet.delete(id);
+                                            } else {
+                                              newSet.add(id);
+                                            }
+                                          });
+                                          return newSet;
+                                        });
+                                      }}
+                                    />
+                                    <span className="text-sm text-[hsl(var(--foreground))]">{district.name}</span>
+                                  </div>
+                                  
+                                  {/* Local Levels */}
+                                  {expandedDistricts.has(districtKey) && district.localLevels.map((localLevel) => {
+                                    const localLevelKey = `${districtKey}-${localLevel.id}`;
+                                    return (
+                                      <div key={localLevel.id} className="ml-6 mt-1">
+                                        <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleLocalLevel(localLevelKey)}
+                                            className="mr-2 text-xs"
+                                          >
+                                            {expandedLocalLevels.has(localLevelKey) ? '▼' : '▶'}
+                                          </button>
+                                          <input
+                                            type="checkbox"
+                                            className="mr-2"
+                                            checked={(() => {
+                                              if (!localLevel.wards) return false;
+                                              const allLocationIds = [];
+                                              localLevel.wards.forEach(w => {
+                                                allLocationIds.push(w.id);
+                                                if (w.local_addresses) {
+                                                  w.local_addresses.forEach((_, idx) => {
+                                                    allLocationIds.push(`${w.id}-${idx}`);
+                                                  });
+                                                }
+                                              });
+                                              return allLocationIds.length > 0 && allLocationIds.every(id => selectedLocations.has(id));
+                                            })()}
+                                            onChange={() => {
+                                              if (localLevel.wards) {
+                                                const allLocationIds = [];
+                                                localLevel.wards.forEach(w => {
+                                                  allLocationIds.push(w.id);
+                                                  if (w.local_addresses) {
+                                                    w.local_addresses.forEach((_, idx) => {
+                                                      allLocationIds.push(`${w.id}-${idx}`);
+                                                    });
+                                                  }
+                                                });
+                                                setSelectedLocations(prev => {
+                                                  const newSet = new Set(prev);
+                                                  const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                  allLocationIds.forEach(id => {
+                                                    if (allSelected) {
+                                                      newSet.delete(id);
+                                                    } else {
+                                                      newSet.add(id);
+                                                    }
+                                                  });
+                                                  return newSet;
+                                                });
+                                              }
+                                            }}
+                                          />
+                                          <span className="text-sm text-[hsl(var(--foreground))]">
+                                            {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
+                                          </span>
                                         </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
+                                        
+                                        {/* Wards and Local Addresses */}
+                                        {expandedLocalLevels.has(localLevelKey) && localLevel.wards && localLevel.wards.map((ward) => (
+                                          <div key={ward.id} className="ml-6 mt-1">
+                                            <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                              <input
+                                                type="checkbox"
+                                                className="mr-2"
+                                                checked={(() => {
+                                                  const allIds = [ward.id];
+                                                  if (ward.local_addresses) {
+                                                    ward.local_addresses.forEach((_, idx) => {
+                                                      allIds.push(`${ward.id}-${idx}`);
+                                                    });
+                                                  }
+                                                  return allIds.every(id => selectedLocations.has(id));
+                                                })()}
+                                                onChange={() => {
+                                                  const allIds = [ward.id];
+                                                  if (ward.local_addresses) {
+                                                    ward.local_addresses.forEach((_, idx) => {
+                                                      allIds.push(`${ward.id}-${idx}`);
+                                                    });
+                                                  }
+                                                  const allSelected = allIds.every(id => selectedLocations.has(id));
+                                                  setSelectedLocations(prev => {
+                                                    const newSet = new Set(prev);
+                                                    allIds.forEach(id => {
+                                                      if (allSelected) {
+                                                        newSet.delete(id);
+                                                      } else {
+                                                        newSet.add(id);
+                                                      }
+                                                    });
+                                                    return newSet;
+                                                  });
+                                                }}
+                                              />
+                                              <span className="text-sm text-[hsl(var(--foreground))]">
+                                                Ward {ward.ward_number}
+                                              </span>
+                                            </div>
+                                            
+                                            {/* Local Addresses */}
+                                            {ward.local_addresses && ward.local_addresses.length > 0 && (
+                                              <div className="ml-6 mt-1 space-y-1">
+                                                {ward.local_addresses.map((address, idx) => {
+                                                  const addressId = `${ward.id}-${idx}`;
+                                                  return (
+                                                    <div key={addressId} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                      <input
+                                                        type="checkbox"
+                                                        className="mr-2"
+                                                        checked={selectedLocations.has(addressId)}
+                                                        onChange={() => handleLocationToggle(addressId)}
+                                                      />
+                                                      <span className="text-sm text-[hsl(var(--muted-foreground))]">{address}</span>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })}
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
