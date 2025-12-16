@@ -22,24 +22,24 @@ return new class extends Migration
                 $table->dropColumn('ad_id');
             }
             
-            // Add user_id if it doesn't exist
+            // Add user_id if it doesn't exist (PostgreSQL doesn't support after())
             if (!Schema::hasColumn('ebooks', 'user_id')) {
-                $table->foreignId('user_id')->after('id')->constrained()->onDelete('cascade');
+                $table->foreignId('user_id')->constrained()->onDelete('cascade');
             }
             
             // Add category_id if it doesn't exist
             if (!Schema::hasColumn('ebooks', 'category_id')) {
-                $table->foreignId('category_id')->nullable()->after('user_id')->constrained()->onDelete('set null');
+                $table->foreignId('category_id')->nullable()->constrained()->onDelete('set null');
             }
             
             // Add title if it doesn't exist
             if (!Schema::hasColumn('ebooks', 'title')) {
-                $table->string('title', 255)->after('category_id');
+                $table->string('title', 255);
             }
             
             // Add description if it doesn't exist
             if (!Schema::hasColumn('ebooks', 'description')) {
-                $table->text('description')->nullable()->after('title');
+                $table->text('description')->nullable();
             }
             
             // Rename author to writer if author exists
@@ -48,21 +48,21 @@ return new class extends Migration
                     $table->renameColumn('author', 'writer');
                 });
             } elseif (!Schema::hasColumn('ebooks', 'writer')) {
-                $table->string('writer', 255)->nullable()->after('description');
+                $table->string('writer', 255)->nullable();
             }
             
             // Add other book details
             if (!Schema::hasColumn('ebooks', 'language')) {
-                $table->string('language', 50)->nullable()->after('writer');
+                $table->string('language', 50)->nullable();
             }
             if (!Schema::hasColumn('ebooks', 'pages')) {
-                $table->integer('pages')->nullable()->after('language');
+                $table->integer('pages')->nullable();
             }
             if (!Schema::hasColumn('ebooks', 'book_size')) {
-                $table->string('book_size', 50)->nullable()->after('pages');
+                $table->string('book_size', 50)->nullable();
             }
             if (!Schema::hasColumn('ebooks', 'file_format')) {
-                $table->string('file_format', 50)->nullable()->after('book_size');
+                $table->string('file_format', 50)->nullable();
             }
             
             // Handle file_url vs file_path
@@ -72,83 +72,79 @@ return new class extends Migration
                     $table->renameColumn('file_path', 'file_url');
                 });
             } elseif (!Schema::hasColumn('ebooks', 'file_url')) {
-                $table->string('file_url', 500)->after('file_format');
+                $table->string('file_url', 500);
             }
             
             // Add file_name if it doesn't exist
             if (!Schema::hasColumn('ebooks', 'file_name')) {
-                $table->string('file_name', 255)->nullable()->after('file_url');
+                $table->string('file_name', 255)->nullable();
             }
             
-            // Add file_size if it doesn't exist
+            // file_size and file_type already exist in original migration, but check anyway
             if (!Schema::hasColumn('ebooks', 'file_size')) {
-                $table->bigInteger('file_size')->nullable()->after('file_name');
+                $table->bigInteger('file_size')->nullable();
             }
-            
-            // Add file_type if it doesn't exist
             if (!Schema::hasColumn('ebooks', 'file_type')) {
-                $table->string('file_type', 50)->nullable()->after('file_size');
+                $table->string('file_type', 50)->nullable();
             }
             
             // Add cover_image if it doesn't exist
             if (!Schema::hasColumn('ebooks', 'cover_image')) {
-                $table->string('cover_image', 500)->nullable()->after('file_type');
+                $table->string('cover_image', 500)->nullable();
             }
             
             // Publisher information
             if (!Schema::hasColumn('ebooks', 'publisher_name')) {
-                $table->string('publisher_name', 255)->nullable()->after('cover_image');
+                $table->string('publisher_name', 255)->nullable();
             }
             if (!Schema::hasColumn('ebooks', 'publisher_address')) {
-                $table->text('publisher_address')->nullable()->after('publisher_name');
+                $table->text('publisher_address')->nullable();
             }
             if (!Schema::hasColumn('ebooks', 'publisher_website')) {
-                $table->string('publisher_website', 500)->nullable()->after('publisher_address');
+                $table->string('publisher_website', 500)->nullable();
             }
             if (!Schema::hasColumn('ebooks', 'publisher_email')) {
-                $table->string('publisher_email', 255)->nullable()->after('publisher_website');
+                $table->string('publisher_email', 255)->nullable();
             }
             if (!Schema::hasColumn('ebooks', 'publisher_phone')) {
-                $table->string('publisher_phone', 50)->nullable()->after('publisher_email');
+                $table->string('publisher_phone', 50)->nullable();
             }
             
             // Copyright and book type
             if (!Schema::hasColumn('ebooks', 'copyright_declared')) {
-                $table->boolean('copyright_declared')->default(false)->after('publisher_phone');
+                $table->boolean('copyright_declared')->default(false);
             }
             if (!Schema::hasColumn('ebooks', 'book_type')) {
-                $table->enum('book_type', ['ebook', 'hard_copy', 'both'])->default('ebook')->after('copyright_declared');
+                $table->enum('book_type', ['ebook', 'hard_copy', 'both'])->default('ebook');
             }
             
             // Hard copy shipping information
             if (!Schema::hasColumn('ebooks', 'shipping_cost')) {
-                $table->decimal('shipping_cost', 10, 2)->nullable()->after('book_type');
+                $table->decimal('shipping_cost', 10, 2)->nullable();
             }
             if (!Schema::hasColumn('ebooks', 'delivery_time')) {
-                $table->string('delivery_time', 100)->nullable()->after('shipping_cost');
+                $table->string('delivery_time', 100)->nullable();
             }
             
             // Rating and statistics
             if (!Schema::hasColumn('ebooks', 'overall_rating')) {
-                $table->decimal('overall_rating', 3, 2)->default(0)->after('delivery_time');
+                $table->decimal('overall_rating', 3, 2)->default(0);
             }
             if (!Schema::hasColumn('ebooks', 'purchase_count')) {
-                $table->integer('purchase_count')->default(0)->after('overall_rating');
+                $table->integer('purchase_count')->default(0);
             }
             
             // Status field
             if (!Schema::hasColumn('ebooks', 'status')) {
-                $table->enum('status', ['draft', 'active', 'inactive', 'removed'])->default('draft')->after('purchase_count');
+                $table->enum('status', ['draft', 'active', 'inactive', 'removed'])->default('draft');
             }
             
-            // Add download_count if it doesn't exist
+            // download_count and unlocked already exist in original migration, but check anyway
             if (!Schema::hasColumn('ebooks', 'download_count')) {
-                $table->integer('download_count')->default(0)->after('purchase_count');
+                $table->integer('download_count')->default(0);
             }
-            
-            // Add unlocked if it doesn't exist
             if (!Schema::hasColumn('ebooks', 'unlocked')) {
-                $table->boolean('unlocked')->default(false)->after('status');
+                $table->boolean('unlocked')->default(false);
             }
             
             // Make price nullable if needed
