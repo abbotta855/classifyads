@@ -11581,7 +11581,7 @@ function AdminPanel() {
                   <div className="max-w-2xl mx-auto">
                     <h3 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-2">Change User Password</h3>
                     <p className="text-sm text-[hsl(var(--muted-foreground))] mb-6">
-                      As super admin, you can change passwords for admin, user, and vendor accounts. Super admin passwords cannot be changed through this interface.
+                      As super admin, you can change passwords for admin, user, and super admin accounts.
                     </p>
                     
                     <form onSubmit={handleChangePassword} className="space-y-4">
@@ -11597,7 +11597,17 @@ function AdminPanel() {
                         >
                           <option value="">-- Select a user --</option>
                           {users
-                            .filter(u => u.role !== 'super_admin') // Exclude super_admin users
+                            .sort((a, b) => {
+                              // Sort order: super_admin first, then admin, then others
+                              const roleOrder = { 'super_admin': 1, 'admin': 2, 'user': 3 };
+                              const aOrder = roleOrder[a.role] || 99;
+                              const bOrder = roleOrder[b.role] || 99;
+                              if (aOrder !== bOrder) {
+                                return aOrder - bOrder;
+                              }
+                              // If same role, sort alphabetically by name
+                              return a.name.localeCompare(b.name);
+                            })
                             .map((user) => (
                               <option key={user.id} value={user.id}>
                                 {user.name} ({user.email}) - {user.role}
@@ -11605,7 +11615,7 @@ function AdminPanel() {
                             ))}
                         </select>
                         <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                          Only non-super-admin users are listed
+                          You can change passwords for admin, user, and super admin accounts.
                         </p>
                       </div>
 

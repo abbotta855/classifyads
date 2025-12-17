@@ -134,13 +134,7 @@ class AuthController extends Controller
 
     $targetUser = User::findOrFail($validated['user_id']);
 
-    // Prevent changing super_admin passwords
-    if ($targetUser->role === 'super_admin') {
-      return response()->json([
-        'message' => 'Cannot change password for super admin accounts.',
-      ], 403);
-    }
-
+    // Allow changing passwords for all roles (admin, user, super_admin)
     // Update password
     $targetUser->password = Hash::make($validated['new_password']);
     $targetUser->save();
