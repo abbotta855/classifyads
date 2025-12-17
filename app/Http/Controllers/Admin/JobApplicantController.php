@@ -14,7 +14,7 @@ class JobApplicantController extends Controller
      */
     public function index()
     {
-        $applicants = JobApplicant::orderBy('created_at', 'desc')->get();
+        $applicants = JobApplicant::with('jobCategory')->orderBy('created_at', 'desc')->get();
         return response()->json($applicants);
     }
 
@@ -28,6 +28,7 @@ class JobApplicantController extends Controller
             'posted_date' => 'nullable|date',
             'expected_salary' => 'nullable|numeric|min:0',
             'applicant_name' => 'required|string|max:255',
+            'job_category_id' => 'required|exists:job_categories,id',
             'cv_file' => 'nullable|file|mimes:pdf,doc,docx|max:10240', // 10MB max
             'cover_letter_file' => 'nullable|file|mimes:pdf,doc,docx|max:10240',
             'reference_letter_file' => 'nullable|file|mimes:pdf,doc,docx|max:10240',
@@ -40,6 +41,7 @@ class JobApplicantController extends Controller
             'posted_date' => $validated['posted_date'] ?? null,
             'expected_salary' => $validated['expected_salary'] ?? null,
             'applicant_name' => $validated['applicant_name'],
+            'job_category_id' => $validated['job_category_id'],
             'interview_date' => $validated['interview_date'] ?? null,
             'job_progress' => $validated['job_progress'],
         ];
@@ -88,6 +90,7 @@ class JobApplicantController extends Controller
             'posted_date' => 'sometimes|nullable|date',
             'expected_salary' => 'sometimes|nullable|numeric|min:0',
             'applicant_name' => 'sometimes|string|max:255',
+            'job_category_id' => 'sometimes|exists:job_categories,id',
             'cv_file' => 'sometimes|nullable|file|mimes:pdf,doc,docx|max:10240',
             'cover_letter_file' => 'sometimes|nullable|file|mimes:pdf,doc,docx|max:10240',
             'reference_letter_file' => 'sometimes|nullable|file|mimes:pdf,doc,docx|max:10240',
@@ -100,6 +103,7 @@ class JobApplicantController extends Controller
             'posted_date' => $validated['posted_date'] ?? $applicant->posted_date,
             'expected_salary' => $validated['expected_salary'] ?? $applicant->expected_salary,
             'applicant_name' => $validated['applicant_name'] ?? $applicant->applicant_name,
+            'job_category_id' => $validated['job_category_id'] ?? $applicant->job_category_id,
             'interview_date' => $validated['interview_date'] ?? $applicant->interview_date,
             'job_progress' => $validated['job_progress'] ?? $applicant->job_progress,
         ];

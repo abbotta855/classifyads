@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class JobCategory extends Model
 {
@@ -12,4 +13,12 @@ class JobCategory extends Model
         'posted_job',
         'job_status',
     ];
+
+    /**
+     * Get all job applicants for this category
+     */
+    public function jobApplicants(): HasMany
+    {
+        return $this->hasMany(JobApplicant::class);
+    }
 }

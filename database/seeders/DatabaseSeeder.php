@@ -27,7 +27,7 @@ class DatabaseSeeder extends Seeder
             CategorySeeder::class,
             LocationSeeder::class,
             AdminDataSeeder::class,
-            JobCategorySeeder::class,
+            JobCategoryInitialSeeder::class,
             JobApplicantSeeder::class,
             LiveChatSeeder::class,
             OfferSeeder::class,

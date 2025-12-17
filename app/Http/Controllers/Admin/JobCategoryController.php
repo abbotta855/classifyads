@@ -13,8 +13,15 @@ class JobCategoryController extends Controller
      */
     public function index()
     {
-        $categories = JobCategory::orderBy('job_category_name')
+        $categories = JobCategory::withCount('jobApplicants')
+            ->orderBy('job_category_name')
             ->get();
+
+        // Add calculated count to each category
+        $categories->transform(function ($category) {
+            $category->posted_job = $category->job_applicants_count;
+            return $category;
+        });
 
         return response()->json($categories);
     }
@@ -26,13 +33,11 @@ class JobCategoryController extends Controller
     {
         $validated = $request->validate([
             'job_category_name' => 'required|string|max:255',
-            'posted_job' => 'nullable|integer|min:0',
             'job_status' => 'required|in:draft,active,closed',
         ]);
 
-        if (!isset($validated['posted_job'])) {
-            $validated['posted_job'] = 0;
-        }
+        // Set default posted_job to 0 (will be calculated automatically via relationship)
+        $validated['posted_job'] = 0;
 
         $category = JobCategory::create($validated);
 
@@ -57,10 +62,10 @@ class JobCategoryController extends Controller
 
         $validated = $request->validate([
             'job_category_name' => 'sometimes|string|max:255',
-            'posted_job' => 'sometimes|integer|min:0',
             'job_status' => 'sometimes|in:draft,active,closed',
         ]);
 
+        // Don't update posted_job - it's calculated automatically
         $category->update($validated);
 
         return response()->json($category);

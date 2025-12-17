@@ -263,7 +263,6 @@ function AdminPanel() {
   const [showAddJobCategoryForm, setShowAddJobCategoryForm] = useState(false);
   const [jobCategoryFormData, setJobCategoryFormData] = useState({
     job_category_name: '',
-    posted_job: 0,
     job_status: 'draft',
   });
 
@@ -280,6 +279,7 @@ function AdminPanel() {
     applicant_name: '',
     interview_date: '',
     job_progress: 'applied',
+    job_category_id: '',
   });
   const [applyJobFormData, setApplyJobFormData] = useState({
     job_title: '',
@@ -1108,14 +1108,12 @@ function AdminPanel() {
     try {
       await adminAPI.createJobCategory({
         job_category_name: jobCategoryFormData.job_category_name,
-        posted_job: parseInt(jobCategoryFormData.posted_job, 10) || 0,
         job_status: jobCategoryFormData.job_status,
       });
       setSuccessMessage('Job category created successfully');
       setShowAddJobCategoryForm(false);
       setJobCategoryFormData({
         job_category_name: '',
-        posted_job: 0,
         job_status: 'draft',
       });
       fetchJobCategories();
@@ -1131,7 +1129,6 @@ function AdminPanel() {
     setEditingJobCategoryId(category.id);
     setEditingJobCategoryData({
       job_category_name: category.job_category_name || '',
-      posted_job: category.posted_job,
       job_status: category.job_status,
     });
   };
@@ -1146,7 +1143,6 @@ function AdminPanel() {
 
       await adminAPI.updateJobCategory(categoryId, {
         job_category_name: editingJobCategoryData.job_category_name,
-        posted_job: parseInt(editingJobCategoryData.posted_job, 10) || 0,
         job_status: editingJobCategoryData.job_status,
       });
       setSuccessMessage('Job category updated successfully');
@@ -1189,6 +1185,7 @@ function AdminPanel() {
       formData.append('job_title', jobApplicantFormData.job_title);
       formData.append('applicant_name', jobApplicantFormData.applicant_name);
       formData.append('job_progress', jobApplicantFormData.job_progress);
+      formData.append('job_category_id', jobApplicantFormData.job_category_id);
       
       if (jobApplicantFormData.posted_date) {
         formData.append('posted_date', jobApplicantFormData.posted_date);
@@ -1221,6 +1218,7 @@ function AdminPanel() {
         applicant_name: '',
         interview_date: '',
         job_progress: 'applied',
+        job_category_id: '',
       });
       setJobApplicantFiles({
         cv_file: null,
@@ -1228,6 +1226,7 @@ function AdminPanel() {
         reference_letter_file: null,
       });
       fetchJobApplicants();
+      fetchJobCategories(); // Refresh categories to update counts
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       setError('Failed to post job applicant: ' + (err.response?.data?.message || err.message));
@@ -1299,6 +1298,7 @@ function AdminPanel() {
       applicant_name: applicant.applicant_name,
       interview_date: applicant.interview_date || '',
       job_progress: applicant.job_progress,
+      job_category_id: applicant.job_category_id || '',
     });
     setShowEditJobApplicantModal(true);
   };
@@ -1312,12 +1312,14 @@ function AdminPanel() {
           : null,
         posted_date: editingJobApplicantData.posted_date || null,
         interview_date: editingJobApplicantData.interview_date || null,
+        job_category_id: editingJobApplicantData.job_category_id || null,
       });
       setSuccessMessage('Job applicant updated successfully');
       setEditingJobApplicantId(null);
       setEditingJobApplicantData(null);
       setShowEditJobApplicantModal(false);
       fetchJobApplicants();
+      fetchJobCategories(); // Refresh categories to update counts
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       setError('Failed to update job applicant: ' + (err.response?.data?.message || err.message));
@@ -1340,6 +1342,7 @@ function AdminPanel() {
       await adminAPI.deleteJobApplicant(applicantId);
       setSuccessMessage('Job applicant deleted successfully');
       fetchJobApplicants();
+      fetchJobCategories(); // Refresh categories to update counts
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       setError('Failed to delete job applicant: ' + (err.response?.data?.message || err.message));
@@ -7247,15 +7250,6 @@ function AdminPanel() {
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Posted Jobs</label>
-                            <Input
-                              type="number"
-                              min="0"
-                              value={jobCategoryFormData.posted_job}
-                              onChange={(e) => setJobCategoryFormData({ ...jobCategoryFormData, posted_job: e.target.value })}
-                            />
-                          </div>
-                          <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Job Status *</label>
                             <select
                               value={jobCategoryFormData.job_status}
@@ -7328,17 +7322,7 @@ function AdminPanel() {
                                 )}
                               </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">
-                                {editingJobCategoryId === category.id ? (
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    value={editingJobCategoryData.posted_job}
-                                    onChange={(e) => setEditingJobCategoryData({ ...editingJobCategoryData, posted_job: e.target.value })}
-                                    className="w-full text-xs"
-                                  />
-                                ) : (
-                                  category.posted_job
-                                )}
+                                {category.posted_job || 0}
                               </td>
                               <td className="p-3 text-sm">
                                 {editingJobCategoryId === category.id ? (
@@ -7400,6 +7384,24 @@ function AdminPanel() {
                         <h4 className="text-sm font-semibold mb-3 text-[hsl(var(--foreground))]">Post New Job</h4>
                         <form onSubmit={handlePostJobApplicantSubmit} className="space-y-4">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Job Category *</label>
+                              <select
+                                value={jobApplicantFormData.job_category_id}
+                                onChange={(e) => setJobApplicantFormData({ ...jobApplicantFormData, job_category_id: e.target.value })}
+                                className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                                required
+                              >
+                                <option value="">Select Job Category</option>
+                                {jobCategories
+                                  .filter(cat => cat.job_status === 'active')
+                                  .map(category => (
+                                    <option key={category.id} value={category.id}>
+                                      {category.job_category_name}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
                             <div>
                               <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Job Title *</label>
                               <Input
@@ -7882,6 +7884,25 @@ function AdminPanel() {
                 </CardHeader>
                 <CardContent className="p-6">
                   <form onSubmit={(e) => { e.preventDefault(); handleSaveJobApplicant(editingJobApplicantId); }} className="space-y-4">
+                    <div>
+                      <Label htmlFor="edit-job-category">Job Category *</Label>
+                      <select
+                        id="edit-job-category"
+                        value={editingJobApplicantData.job_category_id || ''}
+                        onChange={(e) => setEditingJobApplicantData({ ...editingJobApplicantData, job_category_id: e.target.value })}
+                        className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] mt-1"
+                        required
+                      >
+                        <option value="">Select Job Category</option>
+                        {jobCategories
+                          .filter(cat => cat.job_status === 'active')
+                          .map(category => (
+                            <option key={category.id} value={category.id}>
+                              {category.job_category_name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
                     <div>
                       <Label htmlFor="edit-job-title">Job Title *</Label>
                       <Input
