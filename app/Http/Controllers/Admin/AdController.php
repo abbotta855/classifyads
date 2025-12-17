@@ -51,6 +51,7 @@ class AdController extends Controller
       'user_id' => 'required|exists:users,id',
       'posted_by' => 'required|in:user,vendor,admin',
       'location_id' => 'nullable|exists:locations,id',
+      'selected_local_address' => 'nullable|string', // Address index as string (e.g., "0", "1", "2")
       'images' => 'required|array|min:1|max:4',
       'images.*' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048', // Max 2MB per image
     ]);
@@ -72,6 +73,14 @@ class AdController extends Controller
       }
     }
 
+    // Extract address index from selected_local_address (format: "0", "1", "2", etc.)
+    $addressIndex = null;
+    if (!empty($validated['selected_local_address'])) {
+        $addressIndexStr = $validated['selected_local_address'];
+        // Convert string to integer (e.g., "0" -> 0, "1" -> 1)
+        $addressIndex = is_numeric($addressIndexStr) ? (int) $addressIndexStr : null;
+    }
+
     // Create the ad with image URLs
     $ad = Ad::create([
       'title' => $validated['title'],
@@ -81,6 +90,7 @@ class AdController extends Controller
       'user_id' => $validated['user_id'],
       'posted_by' => $validated['posted_by'],
       'location_id' => $validated['location_id'] ?? null,
+      'selected_local_address_index' => $addressIndex,
       'status' => 'active',
       'image1_url' => $imageUrls[0],
       'image2_url' => $imageUrls[1],

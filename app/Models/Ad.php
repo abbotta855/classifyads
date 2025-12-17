@@ -18,6 +18,7 @@ class Ad extends Model
     'posted_by',
     'views',
     'location_id',
+    'selected_local_address_index',
     'image1_url',
     'image2_url',
     'image3_url',

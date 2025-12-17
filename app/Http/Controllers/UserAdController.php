@@ -34,6 +34,7 @@ class UserAdController extends Controller
             'price' => 'required|numeric|min:0',
             'category_id' => 'required|exists:categories,id',
             'location_id' => 'nullable|exists:locations,id',
+            'selected_local_address' => 'nullable|string', // Address index as string (e.g., "0", "1", "2")
             'images' => 'required|array|min:1|max:4',
             'images.*' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
@@ -55,6 +56,14 @@ class UserAdController extends Controller
             }
         }
 
+        // Extract address index from selected_local_address (format: "0", "1", "2", etc.)
+        $addressIndex = null;
+        if (!empty($validated['selected_local_address'])) {
+            $addressIndexStr = $validated['selected_local_address'];
+            // Convert string to integer (e.g., "0" -> 0, "1" -> 1)
+            $addressIndex = is_numeric($addressIndexStr) ? (int) $addressIndexStr : null;
+        }
+
         // Create the ad
         $ad = Ad::create([
             'title' => $validated['title'],
@@ -64,6 +73,7 @@ class UserAdController extends Controller
             'user_id' => Auth::id(),
             'posted_by' => 'user',
             'location_id' => $validated['location_id'] ?? null,
+            'selected_local_address_index' => $addressIndex,
             'status' => 'active',
             'views' => 0,
             'image1_url' => $imageUrls[0],
@@ -105,6 +115,7 @@ class UserAdController extends Controller
             'price' => 'sometimes|numeric|min:0',
             'category_id' => 'sometimes|exists:categories,id',
             'location_id' => 'nullable|exists:locations,id',
+            'selected_local_address' => 'nullable|string', // Address index as string (e.g., "0", "1", "2")
             'images' => 'sometimes|array|max:4',
             'images.*' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
@@ -137,6 +148,18 @@ class UserAdController extends Controller
             $validated['image2_url'] = $imageUrls[1];
             $validated['image3_url'] = $imageUrls[2];
             $validated['image4_url'] = $imageUrls[3];
+        }
+
+        // Extract address index from selected_local_address if provided
+        if (isset($validated['selected_local_address'])) {
+            $addressIndex = null;
+            if (!empty($validated['selected_local_address'])) {
+                $addressIndexStr = $validated['selected_local_address'];
+                // Convert string to integer (e.g., "0" -> 0, "1" -> 1)
+                $addressIndex = is_numeric($addressIndexStr) ? (int) $addressIndexStr : null;
+            }
+            $validated['selected_local_address_index'] = $addressIndex;
+            unset($validated['selected_local_address']); // Remove the string field, we only store the index
         }
 
         $ad->update($validated);

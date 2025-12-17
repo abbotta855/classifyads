@@ -62,6 +62,7 @@ class AdController extends Controller
                         'category_id' => $ad->category_id, // Add category_id for filtering
                         'location' => $locationString,
                         'location_id' => $ad->location_id,
+                        'selected_local_address_index' => $ad->selected_local_address_index, // Address index for accurate counting
                         'user_id' => $ad->user_id, // Add seller user ID
                         'locationHierarchy' => $ad->location ? [
                             'province' => $ad->location->province,
@@ -158,6 +159,7 @@ class AdController extends Controller
                 'sub_category' => $subcategoryName,
                 'location' => $locationString,
                 'location_id' => $ad->location_id,
+                'selected_local_address_index' => $ad->selected_local_address_index, // Address index for accurate counting
                 'user_id' => $ad->user_id,
                 'seller' => $seller,
                 'views' => $ad->views ?? 0,

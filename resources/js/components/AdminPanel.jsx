@@ -2762,9 +2762,10 @@ function AdminPanel() {
     
     try {
       // Get the first selected location ID (ward ID from locations table)
-      // If user selected a local address (ward.id-0), extract the ward.id
+      // If user selected a local address (ward.id-0), extract the ward.id and address index
       const selectedLocationIds = Array.from(postAdSelectedLocations);
       let locationId = null;
+      let selectedLocalAddress = null;
       
       // Find the first valid location ID (ward ID, not address index)
       for (const locId of selectedLocationIds) {
@@ -2774,10 +2775,13 @@ function AdminPanel() {
           break;
         } else if (typeof locId === 'string') {
           if (locId.includes('-')) {
-            // It's a local address ID like "123-0", extract the ward ID (123)
-            const wardId = locId.split('-')[0];
+            // It's a local address ID like "123-0", extract the ward ID (123) and address index (0)
+            const parts = locId.split('-');
+            const wardId = parts[0];
             if (!isNaN(wardId)) {
               locationId = parseInt(wardId);
+              // Extract address index (everything after the first dash)
+              selectedLocalAddress = parts.slice(1).join('-');
               break;
             }
           } else if (!isNaN(locId)) {
@@ -2802,6 +2806,9 @@ function AdminPanel() {
       formData.append('category_id', parseInt(postAdFormData.category_id));
       formData.append('user_id', parseInt(postAdFormData.user_id));
       formData.append('location_id', locationId);
+      if (selectedLocalAddress !== null) {
+        formData.append('selected_local_address', selectedLocalAddress);
+      }
       formData.append('posted_by', 'admin');
 
       // Append images (only non-null ones)
