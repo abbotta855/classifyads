@@ -2595,7 +2595,8 @@ function AdminPanel() {
         price: parseFloat(ad.price) || 0,
         views: ad.views || 0,
         date: ad.created_at,
-        postedBy: ad.posted_by || 'user'
+        postedBy: ad.posted_by || 'user',
+        status: ad.status || 'active'
       }));
       
       setAds(transformedAds);
@@ -2634,6 +2635,7 @@ function AdminPanel() {
       price: ad.price,
       category_id: ad.category_id || '',
       location_id: ad.location_id || null,
+      status: ad.status || 'active',
     });
 
     // Initialize category selection
@@ -2715,6 +2717,7 @@ function AdminPanel() {
         price: parseFloat(editingAdData.price),
         category_id: parseInt(editingAdData.category_id),
         location_id: locationId,
+        status: editingAdData.status || 'active',
       });
       setSuccessMessage('Ad updated successfully');
       setEditingAdId(null);
@@ -6440,6 +6443,7 @@ function AdminPanel() {
                             <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Location</th>
                             <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Description</th>
                             <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Price</th>
+                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Status</th>
                             <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">View</th>
                             <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Data</th>
                             <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
@@ -6447,24 +6451,39 @@ function AdminPanel() {
                         </thead>
                         <tbody>
                           {sortedAds.map((ad, index) => (
-                            <tr key={ad.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                            <tr key={ad.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]/30 transition-colors">
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
-                              <td className="p-3 text-sm">
-                                <span className="font-medium">{ad.title}</span>
+                              <td className="p-3 text-sm max-w-[200px]">
+                                <span className="font-medium text-[hsl(var(--foreground))] line-clamp-2" title={ad.title}>
+                                  {ad.title && ad.title.length > 60 ? `${ad.title.substring(0, 60)}...` : ad.title}
+                                </span>
                               </td>
                               <td className="p-3 text-sm">
                                 <span className="text-[hsl(var(--foreground))]">{ad.category}</span>
                               </td>
-                              <td className="p-3 text-sm max-w-xs">
-                                <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block">
-                                  {ad.location || '-'}
+                              <td className="p-3 text-sm max-w-[180px]">
+                                <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block" title={ad.location || '-'}>
+                                  {ad.location && ad.location.length > 40 ? `${ad.location.substring(0, 40)}...` : (ad.location || '-')}
                                 </span>
                               </td>
-                              <td className="p-3 text-sm max-w-xs">
-                                <span className="text-[hsl(var(--muted-foreground))] truncate block">{ad.description}</span>
+                              <td className="p-3 text-sm max-w-[200px]">
+                                <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block" title={ad.description}>
+                                  {ad.description && ad.description.length > 50 ? `${ad.description.substring(0, 50)}...` : ad.description}
+                                </span>
                               </td>
                               <td className="p-3 text-sm">
                                 <span className="font-semibold">Rs. {ad.price.toLocaleString()}</span>
+                              </td>
+                              <td className="p-3 text-sm">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  ad.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                                  ad.status === 'sold' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                                  ad.status === 'draft' ? 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' :
+                                  ad.status === 'expired' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                                  'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                }`}>
+                                  {ad.status ? ad.status.charAt(0).toUpperCase() + ad.status.slice(1) : 'Active'}
+                                </span>
                               </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views}</td>
                               <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(ad.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
@@ -6537,7 +6556,7 @@ function AdminPanel() {
                           ads
                             .filter(ad => ad.postedBy === 'admin')
                             .map((ad, index) => (
-                              <tr key={ad.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                              <tr key={ad.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]/30 transition-colors">
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                                 <td className="p-3 text-sm">
                                   <span className="font-medium">{ad.title}</span>
@@ -6872,6 +6891,22 @@ function AdminPanel() {
                         required
                         className="mt-1"
                       />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-ad-status">Status *</Label>
+                      <select
+                        id="edit-ad-status"
+                        value={editingAdData.status || 'active'}
+                        onChange={(e) => setEditingAdData({...editingAdData, status: e.target.value})}
+                        className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] mt-1"
+                        required
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="active">Active</option>
+                        <option value="sold">Sold</option>
+                        <option value="expired">Expired</option>
+                        <option value="removed">Removed</option>
+                      </select>
                     </div>
                     <div>
                       <Label>Category *</Label>

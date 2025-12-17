@@ -142,6 +142,7 @@ class AdController extends Controller
       'user_id' => 'sometimes|exists:users,id',
       'location_id' => 'nullable|exists:locations,id',
       'posted_by' => 'sometimes|in:user,vendor,admin',
+      'status' => 'sometimes|in:draft,active,sold,expired,removed',
     ]);
 
     $ad->update($validated);

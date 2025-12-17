@@ -1496,12 +1496,8 @@ function Homepage() {
                             d.localLevels.forEach(ll => {
                               if (ll.wards) {
                                 ll.wards.forEach(w => {
+                                  // Only count ward-level ads, not address-level (addresses are subsets of wards)
                                   count += getLocationAdCount(w.id);
-                                  if (w.local_addresses) {
-                                    w.local_addresses.forEach((_, idx) => {
-                                      count += getLocationAdCount(`${w.id}-${idx}`);
-                                    });
-                                  }
                                 });
                               }
                             });
@@ -1652,12 +1648,8 @@ function Homepage() {
                                     district.localLevels.forEach(ll => {
                                       if (ll.wards) {
                                         ll.wards.forEach(w => {
+                                          // Only count ward-level ads, not address-level (addresses are subsets of wards)
                                           count += getLocationAdCount(w.id);
-                                          if (w.local_addresses) {
-                                            w.local_addresses.forEach((_, idx) => {
-                                              count += getLocationAdCount(`${w.id}-${idx}`);
-                                            });
-                                          }
                                         });
                                       }
                                     });
@@ -1798,12 +1790,8 @@ function Homepage() {
                                               if (!localLevel.wards) return 0;
                                               let count = 0;
                                               localLevel.wards.forEach(w => {
+                                                // Only count ward-level ads, not address-level (addresses are subsets of wards)
                                                 count += getLocationAdCount(w.id);
-                                                if (w.local_addresses) {
-                                                  w.local_addresses.forEach((_, idx) => {
-                                                    count += getLocationAdCount(`${w.id}-${idx}`);
-                                                  });
-                                                }
                                               });
                                               return count;
                                             })();
@@ -1926,15 +1914,7 @@ function Homepage() {
                                                   <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
                                                     {localLevel.wards.map((ward) => {
                                                       const hasAddresses = ward.local_addresses && ward.local_addresses.length > 0;
-                                                      const wardAdCount = (() => {
-                                                        let count = getLocationAdCount(ward.id);
-                                                        if (ward.local_addresses) {
-                                                          ward.local_addresses.forEach((_, idx) => {
-                                                            count += getLocationAdCount(`${ward.id}-${idx}`);
-                                                          });
-                                                        }
-                                                        return count;
-                                                      })();
+                                                      const wardAdCount = getLocationAdCount(ward.id);
                                                       
                                                       return (
                                                         <div key={ward.id} className="space-y-1">
