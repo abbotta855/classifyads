@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { recentlyViewedAPI } from '../../utils/api';
+import { recentlyViewedAPI, getAdUrl } from '../../utils/api';
 
 export default function RecentlyViewedWidget() {
   const [recentlyViewed, setRecentlyViewed] = useState([]);
@@ -49,7 +49,9 @@ export default function RecentlyViewedWidget() {
               <div
                 key={item.id}
                 className="group cursor-pointer"
-                onClick={() => window.location.href = `/ads/${ad.id}`}
+                onClick={() => {
+                  window.location.href = getAdUrl(ad);
+                }}
               >
                 <div className="relative aspect-square rounded-lg overflow-hidden bg-[hsl(var(--muted))] mb-2">
                   <img

@@ -11,6 +11,7 @@ class Ad extends Model
     'user_id',
     'category_id',
     'title',
+    'slug',
     'description',
     'price',
     'status',
@@ -83,5 +84,47 @@ class Ad extends Model
   public function buyerSellerMessages()
   {
     return $this->hasMany(\App\Models\BuyerSellerMessage::class);
+  }
+
+  /**
+   * Generate a unique slug from the title
+   */
+  public static function generateSlug($title, $excludeId = null)
+  {
+    $slug = \Illuminate\Support\Str::slug($title);
+    $originalSlug = $slug;
+    $counter = 1;
+
+    while (self::where('slug', $slug)
+      ->when($excludeId, function ($query) use ($excludeId) {
+        return $query->where('id', '!=', $excludeId);
+      })
+      ->exists()) {
+      $slug = $originalSlug . '-' . $counter;
+      $counter++;
+    }
+
+    return $slug;
+  }
+
+  /**
+   * Boot method to auto-generate slug
+   */
+  protected static function boot()
+  {
+    parent::boot();
+
+    static::creating(function ($ad) {
+      if (empty($ad->slug) && !empty($ad->title)) {
+        $ad->slug = self::generateSlug($ad->title);
+      }
+    });
+
+    static::updating(function ($ad) {
+      // Regenerate slug if title changed and slug is empty or needs update
+      if ($ad->isDirty('title') && (empty($ad->slug) || $ad->slug === '')) {
+        $ad->slug = self::generateSlug($ad->title, $ad->id);
+      }
+    });
   }
 }

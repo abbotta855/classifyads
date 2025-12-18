@@ -4,6 +4,7 @@ import Layout from './Layout';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { getAdUrl } from '../utils/api';
 
 function Homepage() {
   const navigate = useNavigate();
@@ -614,17 +615,17 @@ function Homepage() {
   // Removed generateMockAds() - now using fetchAds() to get real data from API
 
   // Handle ad click - navigate to detail page
-  const handleAdClick = async (adId) => {
+  const handleAdClick = async (ad) => {
     // Track click (fire and forget - don't wait for response)
     try {
-      await window.axios.post(`/api/ads/${adId}/click`);
+      await window.axios.post(`/api/ads/${ad.id}/click`);
     } catch (err) {
       // Silently fail - don't block navigation
       console.error('Failed to track click:', err);
     }
     
-    // Navigate to ad detail page
-    navigate(`/ads/${adId}`);
+    // Navigate to ad detail page using category slug + ad slug format
+    navigate(getAdUrl(ad));
   };
 
 
@@ -926,7 +927,6 @@ function Homepage() {
                       onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
                       className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center"
                     >
-                      <span className="mr-2 flex-shrink-0">{showCategoryDropdown ? '▼' : '▶'}</span>
                       <span>{buildCategorySearchString() || 'All Categories'}</span>
                     </button>
                     
@@ -1032,7 +1032,6 @@ function Homepage() {
                       onClick={() => setShowLocationDropdown(!showLocationDropdown)}
                       className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center"
                     >
-                      <span className="mr-2 flex-shrink-0">{showLocationDropdown ? '▼' : '▶'}</span>
                       <span>{buildSearchLocationString()}</span>
                     </button>
                     
@@ -1633,7 +1632,6 @@ function Homepage() {
                     className="flex items-center justify-between w-full font-semibold text-[hsl(var(--foreground))] mb-2 hover:text-[hsl(var(--primary))] transition-colors"
                   >
                     <span>Category</span>
-                    <span className="text-sm">{showCategoryFilter ? '▼' : '▶'}</span>
                   </button>
                   {showCategoryFilter && (
                     <div className="space-y-1 max-h-96 overflow-y-auto">
@@ -1732,7 +1730,6 @@ function Homepage() {
                     className="flex items-center justify-between w-full font-semibold text-[hsl(var(--foreground))] mb-2 hover:text-[hsl(var(--primary))] transition-colors"
                   >
                     <span>Location</span>
-                    <span className="text-sm">{showSidebarLocationDropdown ? '▼' : '▶'}</span>
                   </button>
                   
                   {showSidebarLocationDropdown && (
@@ -2370,7 +2367,7 @@ function Homepage() {
                   <Card 
                     key={ad.id} 
                     className="hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => handleAdClick(ad.id)}
+                    onClick={() => handleAdClick(ad)}
                   >
                     <CardContent className="p-0">
                       <img

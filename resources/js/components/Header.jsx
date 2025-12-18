@@ -29,12 +29,28 @@ function Header() {
             {user ? (
               <>
                 {!isAdminPage && !isUserDashboardPage && (
-                  <Link
-                    to="/ebooks"
-                    className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
-                  >
-                    eBooks
-                  </Link>
+                  <>
+                    <Link
+                      to="/ebooks"
+                      className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                    >
+                      eBooks
+                    </Link>
+                    <Link
+                      to="/user_dashboard/favourite-list"
+                      className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                      title="Favourite List"
+                    >
+                      Favourite
+                    </Link>
+                    <Link
+                      to="/user_dashboard/watch-list"
+                      className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                      title="Watch List"
+                    >
+                      Watchlist
+                    </Link>
+                  </>
                 )}
                 {!isAdminPage && !isUserDashboardPage && user.role !== 'admin' && user.role !== 'super_admin' && (
                   <Link
@@ -148,13 +164,29 @@ function Header() {
               {user ? (
                 <>
                   {!isAdminPage && !isUserDashboardPage && (
-                    <Link
-                      to="/ebooks"
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors py-2"
-                    >
-                      eBooks
-                    </Link>
+                    <>
+                      <Link
+                        to="/ebooks"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors py-2"
+                      >
+                        eBooks
+                      </Link>
+                      <Link
+                        to="/user_dashboard/favourite-list"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors py-2"
+                      >
+                        Favourite
+                      </Link>
+                      <Link
+                        to="/user_dashboard/watch-list"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors py-2"
+                      >
+                        Watchlist
+                      </Link>
+                    </>
                   )}
                   {!isAdminPage && !isUserDashboardPage && user.role !== 'admin' && user.role !== 'super_admin' && (
                     <Link

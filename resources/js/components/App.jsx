@@ -92,10 +92,12 @@ function AppRoutes() {
       <Route path="/categories" element={<CategoriesPage />} />
       <Route path="/categories/:slug" element={<CategoryPage />} />
       <Route path="/categories/:slug/:subSlug" element={<CategoryPage />} />
-      <Route path="/ads/:id" element={<AdDetailPage />} />
+      <Route path="/ads/:slug" element={<AdDetailPage />} />
       <Route path="/ebooks" element={<EbookListingPage />} />
       <Route path="/ebooks/:id" element={<EbookDetailPage />} />
       <Route path="/profile/:userId" element={<PublicProfile />} />
+      {/* Category-based ad URLs - must be last to avoid conflicts with other routes */}
+      <Route path="/:categorySlug/:adSlug" element={<AdDetailPage />} />
       <Route
         path="/login"
         element={

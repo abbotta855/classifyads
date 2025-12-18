@@ -10,7 +10,7 @@ import RatingModal from './RatingModal';
 import axios from 'axios';
 
 function AdDetailPage() {
-  const { id } = useParams();
+  const { slug, categorySlug, adSlug } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [ad, setAd] = useState(null);
@@ -35,9 +35,40 @@ function AdDetailPage() {
   const [sellerProfile, setSellerProfile] = useState(null);
   const [sendingTextToSeller, setSendingTextToSeller] = useState(false);
 
+  // Determine which identifier to use (categorySlug/adSlug or slug)
+  const adIdentifier = adSlug || slug;
+
   useEffect(() => {
     loadAd();
-  }, [id]);
+  }, [adIdentifier]);
+
+  // Helper function to generate category slug from category name
+  const generateCategorySlug = (categoryName) => {
+    if (!categoryName) return 'uncategorized';
+    return categoryName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+
+  // Update URL to use category slug + ad slug format
+  useEffect(() => {
+    if (ad && ad.slug && ad.category) {
+      const currentPath = window.location.pathname;
+      const categorySlug = generateCategorySlug(ad.category);
+      const newPath = `/${categorySlug}/${ad.slug}`;
+      
+      // Check if current URL uses numeric ID (either in /ads/ID or /category/ID format)
+      const isNumericId = /^\/(?:ads|[\w-]+)\/\d+$/.test(currentPath);
+      const isOldAdsFormat = /^\/ads\/(\d+|.+)$/.test(currentPath);
+      
+      // Update URL if it's using numeric ID or old /ads/ format
+      if ((isNumericId || isOldAdsFormat) && currentPath !== newPath) {
+        // Replace with category-based URL using React Router (without page reload)
+        navigate(newPath, { replace: true });
+      }
+    }
+  }, [ad, navigate]);
 
   useEffect(() => {
     if (ad && user) {
@@ -60,19 +91,19 @@ function AdDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await axios.get(`/api/ads/${id}`);
+      const response = await axios.get(`/api/ads/${adIdentifier}`);
       setAd(response.data);
       
       if (user) {
         try {
-          await userAdAPI.incrementView(id);
+          await userAdAPI.incrementView(response.data.id);
         } catch (err) {
           // Silently fail
         }
       }
       
       try {
-        await publicAdAPI.trackClick(id);
+        await publicAdAPI.trackClick(response.data.id);
       } catch (err) {
         // Silently fail
       }
@@ -344,6 +375,28 @@ function AdDetailPage() {
               loadSellerRating();
             }}
           />
+        )}
+
+        {/* Watchlist & Favourite Buttons - Top of Page */}
+        {user && ad && user.id !== ad.user_id && (
+          <div className="mb-4 flex gap-2 justify-end">
+            <Button
+              onClick={handleToggleFavourite}
+              variant={isFavourite ? 'default' : 'outline'}
+              className="flex items-center gap-2"
+              size="lg"
+            >
+              {isFavourite ? '❤️' : '🤍'} Favourite
+            </Button>
+            <Button
+              onClick={handleToggleWatchlist}
+              variant={isWatchlist ? 'default' : 'outline'}
+              className="flex items-center gap-2"
+              size="lg"
+            >
+              {isWatchlist ? '👁️' : '👁️'} Watchlist
+            </Button>
+          </div>
         )}
 
         {/* Back Button */}

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { adminAPI } from '../utils/api';
+import { adminAPI, getAdUrl } from '../utils/api';
 import axios from 'axios';
 
 // Job category options
@@ -5265,7 +5265,6 @@ function AdminPanel() {
                         onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
                         className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center"
                       >
-                        <span className="mr-2 flex-shrink-0">{showCategoryDropdown ? '▼' : '▶'}</span>
                         <span>{buildCategorySearchString() || 'All Categories'}</span>
                       </button>
                       
@@ -5371,7 +5370,6 @@ function AdminPanel() {
                         onClick={() => setShowLocationDropdown(!showLocationDropdown)}
                         className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center"
                       >
-                        <span className="mr-2 flex-shrink-0">{showLocationDropdown ? '▼' : '▶'}</span>
                         <span>{buildSearchLocationString()}</span>
                       </button>
                       
@@ -6547,7 +6545,9 @@ function AdminPanel() {
                         <Card 
                           key={ad.id} 
                           className="hover:shadow-lg transition-shadow cursor-pointer"
-                          onClick={() => navigate(`/ads/${ad.id}`)}
+                          onClick={() => {
+                            navigate(getAdUrl(ad));
+                          }}
                         >
                           <CardContent className="p-0">
                             <img

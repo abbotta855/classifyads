@@ -52,6 +52,7 @@ class AdController extends Controller
 
                     return [
                         'id' => $ad->id,
+                        'slug' => $ad->slug,
                         'title' => $ad->title,
                         'description' => $ad->description,
                         'price' => (float) $ad->price,
@@ -88,13 +89,21 @@ class AdController extends Controller
     }
 
     /**
-     * Display a single ad by ID (public)
+     * Display a single ad by slug or ID (public)
+     * Supports both SEO-friendly slugs and numeric IDs for backward compatibility
      */
-    public function show($id)
+    public function show($identifier)
     {
         try {
+            // Check if identifier is numeric (ID) or string (slug)
             $ad = Ad::with(['category', 'location', 'user'])
-                ->where('id', $id)
+                ->where(function ($query) use ($identifier) {
+                    if (is_numeric($identifier)) {
+                        $query->where('id', $identifier);
+                    } else {
+                        $query->where('slug', $identifier);
+                    }
+                })
                 ->where('status', 'active')
                 ->firstOrFail();
 
@@ -149,6 +158,7 @@ class AdController extends Controller
 
             return response()->json([
                 'id' => $ad->id,
+                'slug' => $ad->slug,
                 'title' => $ad->title,
                 'description' => $ad->description,
                 'price' => (float) $ad->price,
@@ -184,12 +194,19 @@ class AdController extends Controller
     }
 
     /**
-     * Track a click on an ad
+     * Track a click on an ad (by slug or ID)
      */
-    public function trackClick(Request $request, $id)
+    public function trackClick(Request $request, $identifier)
     {
         try {
-            $ad = Ad::findOrFail($id);
+            // Support both slug and ID
+            $ad = Ad::where(function ($query) use ($identifier) {
+                if (is_numeric($identifier)) {
+                    $query->where('id', $identifier);
+                } else {
+                    $query->where('slug', $identifier);
+                }
+            })->firstOrFail();
 
             // Get user if authenticated
             $userId = $request->user() ? $request->user()->id : null;

@@ -219,7 +219,17 @@ function PublicProfile() {
                     {ads.map((ad) => (
                       <Link
                         key={ad.id}
-                        to={`/ads/${ad.id}`}
+                        to={(() => {
+                          // Generate category-based URL
+                          const generateCategorySlug = (categoryName) => {
+                            if (!categoryName) return 'uncategorized';
+                            return categoryName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                          };
+                          const categoryName = ad.category?.category || 'uncategorized';
+                          const categorySlug = generateCategorySlug(categoryName);
+                          const adSlug = ad.slug || ad.id;
+                          return `/${categorySlug}/${adSlug}`;
+                        })()}
                         className="block group"
                       >
                         <Card className="overflow-hidden hover:shadow-lg transition-shadow">

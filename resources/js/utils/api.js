@@ -431,6 +431,28 @@ export const publicAdAPI = {
   trackClick: (adId) => axios.post(`/api/ads/${adId}/click`),
 };
 
+// Helper function to generate SEO-friendly ad URL with category
+export const getAdUrl = (ad) => {
+  if (!ad) return '/';
+  
+  const adSlug = ad.slug || ad.id;
+  if (!adSlug) return '/';
+  
+  // Generate category slug from category name
+  const generateCategorySlug = (categoryName) => {
+    if (!categoryName) return 'uncategorized';
+    return categoryName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+  
+  const categoryName = ad.category || ad.categoryName || 'uncategorized';
+  const categorySlug = generateCategorySlug(categoryName);
+  
+  return `/${categorySlug}/${adSlug}`;
+};
+
 // Buyer-Seller Messaging API
 export const buyerSellerMessageAPI = {
   getConversation: (adId) => axios.get(`/api/messages/conversation/${adId}`),
