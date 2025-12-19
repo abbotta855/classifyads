@@ -17,6 +17,8 @@ class Transaction extends Model
         'description',
         'related_ad_id',
         'ebook_id',
+        'auction_id',
+        'bid_id',
         'verification_code',
     ];
 
@@ -37,6 +39,16 @@ class Transaction extends Model
     public function ebook(): BelongsTo
     {
         return $this->belongsTo(Ebook::class);
+    }
+
+    public function auction(): BelongsTo
+    {
+        return $this->belongsTo(Auction::class);
+    }
+
+    public function bid(): BelongsTo
+    {
+        return $this->belongsTo(Bid::class);
     }
 }
 

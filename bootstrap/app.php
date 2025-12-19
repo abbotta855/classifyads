@@ -14,6 +14,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         //
     })
+    ->withSchedule(function ($schedule) {
+        // Check for ended auctions every minute
+        $schedule->command('auctions:check-ended')->everyMinute();
+        // Notify about auctions ending soon every 15 minutes
+        $schedule->command('auctions:notify-ending-soon')->everyFifteenMinutes();
+    })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
     })->create();

@@ -13,6 +13,8 @@ import PublicProfile from './PublicProfile';
 import AdDetailPage from './AdDetailPage';
 import EbookListingPage from './EbookListingPage';
 import EbookDetailPage from './EbookDetailPage';
+import AuctionListingPage from './AuctionListingPage';
+import AuctionDetailPage from './AuctionDetailPage';
 import { Card, CardContent } from './ui/card';
 
 function LoadingCard() {
@@ -95,6 +97,8 @@ function AppRoutes() {
       <Route path="/ads/:slug" element={<AdDetailPage />} />
       <Route path="/ebooks" element={<EbookListingPage />} />
       <Route path="/ebooks/:id" element={<EbookDetailPage />} />
+      <Route path="/auctions" element={<AuctionListingPage />} />
+      <Route path="/auctions/:id" element={<AuctionDetailPage />} />
       <Route path="/profile/:userId" element={<PublicProfile />} />
       {/* Category-based ad URLs - must be last to avoid conflicts with other routes */}
       <Route path="/:categorySlug/:adSlug" element={<AdDetailPage />} />

@@ -431,6 +431,22 @@ export const publicAdAPI = {
   trackClick: (adId) => axios.post(`/api/ads/${adId}/click`),
 };
 
+// Public Auction API
+export const publicAuctionAPI = {
+  getAuctions: (params) => axios.get('/api/auctions', { params }),
+  getAuction: (id) => axios.get(`/api/auctions/${id}`),
+  getBidHistory: (id, page = 1) => axios.get(`/api/auctions/${id}/bids`, { params: { page } }),
+  placeBid: (id, amount) => axios.post(`/api/auctions/${id}/bid`, { amount }),
+  trackClick: (id) => axios.post(`/api/auctions/${id}/click`),
+};
+
+// User Auction API
+export const userAuctionAPI = {
+  getMyAuctions: () => axios.get('/api/user/auctions/my-auctions'),
+  getMyBids: () => axios.get('/api/user/auctions/my-bids'),
+  getWonAuctions: () => axios.get('/api/user/auctions/won'),
+};
+
 // Helper function to generate SEO-friendly ad URL with category
 export const getAdUrl = (ad) => {
   if (!ad) return '/';

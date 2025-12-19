@@ -182,6 +182,30 @@ class User extends Authenticatable
     }
 
     /**
+     * Get all auctions created by this user (as seller)
+     */
+    public function createdAuctions()
+    {
+        return $this->hasMany(Auction::class, 'user_id');
+    }
+
+    /**
+     * Get all auctions won by this user
+     */
+    public function wonAuctions()
+    {
+        return $this->hasMany(Auction::class, 'winner_id');
+    }
+
+    /**
+     * Get all bids placed by this user
+     */
+    public function bids()
+    {
+        return $this->hasMany(Bid::class);
+    }
+
+    /**
      * Get the location for this user
      */
     public function locationRelation()

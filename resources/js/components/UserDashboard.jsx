@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI, sellerOfferAPI, buyerSellerMessageAPI, sellerVerificationAPI, sellerEbookAPI, getAdUrl } from '../utils/api';
+import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI, sellerOfferAPI, buyerSellerMessageAPI, sellerVerificationAPI, sellerEbookAPI, userAuctionAPI, getAdUrl } from '../utils/api';
 import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import RatingModal from './RatingModal';
 import PhotoCropModal from './PhotoCropModal';
@@ -199,6 +199,9 @@ function UserDashboard({ mode: propMode }) {
     { id: 'categories', label: 'Categories', icon: '📂' },
     { id: 'e-wallet', label: 'E-Wallet', icon: '💳' },
     ...(user?.seller_verified ? [{ id: 'my-ebooks', label: 'My eBooks', icon: '📚' }] : []),
+    { id: 'my-auctions', label: 'My Auctions', icon: '🔨' },
+    { id: 'my-bids', label: 'My Bids', icon: '💰' },
+    { id: 'won-auctions', label: 'Won Auctions', icon: '🏆' },
     { id: 'favourite-list', label: 'Favourite List', icon: '❤️' },
     { id: 'watch-list', label: 'Watch List', icon: '👁️' },
     { id: 'inbox', label: 'Inbox', icon: '📬' },
@@ -289,6 +292,12 @@ function UserDashboard({ mode: propMode }) {
           return <DashboardOverview user={user} />;
         }
         return <MyEbooksSection user={user} />;
+      case 'my-auctions':
+        return <MyAuctionsSection user={user} />;
+      case 'my-bids':
+        return <MyBidsSection user={user} />;
+      case 'won-auctions':
+        return <WonAuctionsSection user={user} />;
       default:
         return dashboardMode === 'seller'
           ? <SellerDashboardOverview user={user} userAds={userAds} />
@@ -8121,6 +8130,278 @@ function MyEbooksSection({ user }) {
                       </span>
                     </div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// My Auctions Section
+function MyAuctionsSection({ user }) {
+  const [auctions, setAuctions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchAuctions();
+  }, []);
+
+  const fetchAuctions = async () => {
+    try {
+      setLoading(true);
+      const response = await userAuctionAPI.getMyAuctions();
+      setAuctions(response.data || []);
+    } catch (error) {
+      console.error('Error fetching auctions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAuctionClick = (auction) => {
+    navigate(`/auctions/${auction.slug || auction.id}`);
+  };
+
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">My Auctions</h1>
+      
+      {loading ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p>Loading auctions...</p>
+          </CardContent>
+        </Card>
+      ) : auctions.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-gray-600">You haven't created any auctions yet.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {auctions.map(auction => (
+            <Card
+              key={auction.id}
+              className="cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => handleAuctionClick(auction)}
+            >
+              <CardContent className="p-0">
+                <img
+                  src={auction.image || 'https://via.placeholder.com/300x300?text=No+Image'}
+                  alt={auction.title}
+                  className="w-full h-48 object-cover rounded-t-lg"
+                />
+                <div className="p-4">
+                  <h3 className="font-semibold text-lg mb-2 line-clamp-2">{auction.title}</h3>
+                  <p className="text-xl font-bold text-blue-600 mb-2">
+                    Rs. {auction.current_bid_price?.toLocaleString() || auction.starting_price?.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-2">
+                    {auction.bid_count || 0} bid{auction.bid_count !== 1 ? 's' : ''}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      auction.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {auction.status}
+                    </span>
+                    <p className="text-sm text-gray-500">{auction.time_remaining}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// My Bids Section
+function MyBidsSection({ user }) {
+  const [bids, setBids] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchBids();
+  }, []);
+
+  const fetchBids = async () => {
+    try {
+      setLoading(true);
+      const response = await userAuctionAPI.getMyBids();
+      setBids(response.data || []);
+    } catch (error) {
+      console.error('Error fetching bids:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAuctionClick = (auction) => {
+    navigate(`/auctions/${auction.slug || auction.id}`);
+  };
+
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">My Bids</h1>
+      
+      {loading ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p>Loading bids...</p>
+          </CardContent>
+        </Card>
+      ) : bids.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-gray-600">You haven't placed any bids yet.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {bids.map((bidGroup, index) => (
+            <Card
+              key={index}
+              className="cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => handleAuctionClick(bidGroup.auction)}
+            >
+              <CardContent className="p-6">
+                <div className="flex gap-4">
+                  <img
+                    src={bidGroup.auction.image || 'https://via.placeholder.com/150x150?text=No+Image'}
+                    alt={bidGroup.auction.title}
+                    className="w-32 h-32 object-cover rounded-lg"
+                  />
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-lg mb-2">{bidGroup.auction.title}</h3>
+                    <div className="grid grid-cols-2 gap-4 mb-3">
+                      <div>
+                        <p className="text-sm text-gray-600">Current Bid</p>
+                        <p className="text-lg font-bold text-blue-600">
+                          Rs. {bidGroup.current_bid?.toLocaleString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">Your Highest Bid</p>
+                        <p className="text-lg font-bold">
+                          Rs. {bidGroup.my_highest_bid.amount.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        bidGroup.auction.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {bidGroup.auction.status}
+                      </span>
+                      {bidGroup.my_highest_bid.is_winning ? (
+                        <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-800 font-medium">
+                          ✓ You are winning!
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 rounded text-xs bg-red-100 text-red-800 font-medium">
+                          You have been outbid
+                        </span>
+                      )}
+                      <p className="text-sm text-gray-500">{bidGroup.auction.time_remaining}</p>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-2">
+                      {bidGroup.my_bids.length} bid{bidGroup.my_bids.length !== 1 ? 's' : ''} placed
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Won Auctions Section
+function WonAuctionsSection({ user }) {
+  const [auctions, setAuctions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchWonAuctions();
+  }, []);
+
+  const fetchWonAuctions = async () => {
+    try {
+      setLoading(true);
+      const response = await userAuctionAPI.getWonAuctions();
+      setAuctions(response.data || []);
+    } catch (error) {
+      console.error('Error fetching won auctions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAuctionClick = (auction) => {
+    navigate(`/auctions/${auction.slug || auction.id}`);
+  };
+
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">Won Auctions</h1>
+      
+      {loading ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p>Loading won auctions...</p>
+          </CardContent>
+        </Card>
+      ) : auctions.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-gray-600">You haven't won any auctions yet.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {auctions.map(auction => (
+            <Card
+              key={auction.id}
+              className="cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => handleAuctionClick(auction)}
+            >
+              <CardContent className="p-0">
+                <img
+                  src={auction.image || 'https://via.placeholder.com/300x300?text=No+Image'}
+                  alt={auction.title}
+                  className="w-full h-48 object-cover rounded-t-lg"
+                />
+                <div className="p-4">
+                  <h3 className="font-semibold text-lg mb-2 line-clamp-2">{auction.title}</h3>
+                  <p className="text-xl font-bold text-green-600 mb-2">
+                    Won for: Rs. {auction.winning_bid_amount?.toLocaleString()}
+                  </p>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      auction.payment_completed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {auction.payment_completed ? 'Payment Completed' : 'Payment Pending'}
+                    </span>
+                  </div>
+                  {auction.seller && (
+                    <p className="text-sm text-gray-600">
+                      Seller: {auction.seller.name}
+                    </p>
+                  )}
+                  <p className="text-sm text-gray-500 mt-2">
+                    Won on: {new Date(auction.won_at).toLocaleDateString()}
+                  </p>
                 </div>
               </CardContent>
             </Card>

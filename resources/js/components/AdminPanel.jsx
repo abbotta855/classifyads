@@ -95,17 +95,23 @@ function AdminPanel() {
   const [showPostAdForm, setShowPostAdForm] = useState(false);
   const [showAddLocationForm, setShowAddLocationForm] = useState(false);
   const [showAddCategoryForm, setShowAddCategoryForm] = useState(false);
+  const [auctions, setAuctions] = useState([]);
+  const [auctionsLoading, setAuctionsLoading] = useState(false);
+  const [editingAuction, setEditingAuction] = useState(null);
   const [auctionFormData, setAuctionFormData] = useState({
     user_id: '',
     category_id: '',
+    location_id: '',
     title: '',
     description: '',
     starting_price: '',
     reserve_price: '',
     buy_now_price: '',
-    start_date_time: '',
-    end_date_time: '',
+    bid_increment: '1.00',
+    start_time: '',
+    end_time: '',
   });
+  const [auctionImages, setAuctionImages] = useState([null, null, null, null]);
   const [postAdFormData, setPostAdFormData] = useState({
     title: '',
     description: '',
@@ -3013,35 +3019,122 @@ function AdminPanel() {
   const handleStartAuctionSubmit = async (e) => {
     e.preventDefault();
     try {
-      await adminAPI.createAuction({
-        user_id: parseInt(auctionFormData.user_id),
-        category_id: parseInt(auctionFormData.category_id),
-        title: auctionFormData.title,
-        description: auctionFormData.description,
-        starting_price: parseFloat(auctionFormData.starting_price),
-        reserve_price: auctionFormData.reserve_price ? parseFloat(auctionFormData.reserve_price) : null,
-        buy_now_price: auctionFormData.buy_now_price ? parseFloat(auctionFormData.buy_now_price) : null,
-        current_bid_price: parseFloat(auctionFormData.starting_price), // Start with starting price
-        start_date_time: auctionFormData.start_date_time,
-        end_date_time: auctionFormData.end_date_time,
-      });
+      const formData = new FormData();
+      formData.append('user_id', auctionFormData.user_id);
+      formData.append('category_id', auctionFormData.category_id);
+      if (auctionFormData.location_id) {
+        formData.append('location_id', auctionFormData.location_id);
+      }
+      formData.append('title', auctionFormData.title);
+      formData.append('description', auctionFormData.description);
+      formData.append('starting_price', auctionFormData.starting_price);
+      if (auctionFormData.reserve_price) {
+        formData.append('reserve_price', auctionFormData.reserve_price);
+      }
+      if (auctionFormData.buy_now_price) {
+        formData.append('buy_now_price', auctionFormData.buy_now_price);
+      }
+      formData.append('bid_increment', auctionFormData.bid_increment || '1.00');
+      formData.append('start_time', auctionFormData.start_time);
+      formData.append('end_time', auctionFormData.end_time);
       
-      setSuccessMessage('Auction created successfully');
+      // Add images
+      auctionImages.forEach((image, index) => {
+        if (image) {
+          formData.append(`images[${index}]`, image);
+        }
+      });
+
+      if (editingAuction) {
+        await adminAPI.updateAuction(editingAuction.id, formData);
+        setSuccessMessage('Auction updated successfully');
+      } else {
+        await adminAPI.createAuction(formData);
+        setSuccessMessage('Auction created successfully');
+      }
+      
       setShowAuctionForm(false);
+      setEditingAuction(null);
       setAuctionFormData({
         user_id: '',
         category_id: '',
+        location_id: '',
         title: '',
         description: '',
         starting_price: '',
         reserve_price: '',
         buy_now_price: '',
-        start_date_time: '',
-        end_date_time: '',
+        bid_increment: '1.00',
+        start_time: '',
+        end_time: '',
       });
+      setAuctionImages([null, null, null, null]);
+      fetchAuctions();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      setError('Failed to create auction: ' + (err.response?.data?.message || err.message));
+      // Handle validation errors - show all errors
+      let errorMessage = 'Failed to ' + (editingAuction ? 'update' : 'create') + ' auction: ';
+      
+      if (err.response?.data?.errors) {
+        // Laravel validation errors
+        const errors = err.response.data.errors;
+        const errorList = [];
+        Object.keys(errors).forEach(field => {
+          errors[field].forEach(msg => errorList.push(msg));
+        });
+        errorMessage += errorList.join('. ');
+      } else if (err.response?.data?.message) {
+        errorMessage += err.response.data.message;
+      } else {
+        errorMessage += err.message;
+      }
+      
+      setError(errorMessage);
+      setTimeout(() => setError(null), 8000); // Show longer for multiple errors
+    }
+  };
+
+  const handleEditAuction = (auction) => {
+    setEditingAuction(auction);
+    setAuctionFormData({
+      user_id: auction.user?.id || '',
+      category_id: auction.category_id || '',
+      location_id: auction.location_id || '',
+      title: auction.title || '',
+      description: auction.description || '',
+      starting_price: auction.starting_price || '',
+      reserve_price: auction.reserve_price || '',
+      buy_now_price: auction.buy_now_price || '',
+      bid_increment: auction.bid_increment || '1.00',
+      start_time: auction.start_time ? new Date(auction.start_time).toISOString().slice(0, 16) : '',
+      end_time: auction.end_time ? new Date(auction.end_time).toISOString().slice(0, 16) : '',
+    });
+    setAuctionImages([null, null, null, null]); // Reset images - could load existing if needed
+    setShowAuctionForm(true);
+  };
+
+  const handleDeleteAuction = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this auction?')) return;
+    try {
+      await adminAPI.deleteAuction(id);
+      setSuccessMessage('Auction deleted successfully');
+      fetchAuctions();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete auction: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleEndAuction = async (id) => {
+    if (!window.confirm('Are you sure you want to end this auction?')) return;
+    try {
+      await axios.post(`/api/admin/auctions/${id}/end`);
+      setSuccessMessage('Auction ended successfully');
+      fetchAuctions();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to end auction: ' + (err.response?.data?.message || err.message));
       setTimeout(() => setError(null), 5000);
     }
   };
@@ -3064,6 +3157,7 @@ function AdminPanel() {
   // Fetch auction-related data
   useEffect(() => {
     if (activeSection === 'auction-management') {
+      fetchAuctions();
       fetchBiddingHistory();
       fetchBidWinners();
       fetchBlockedUsers();
@@ -3431,6 +3525,19 @@ function AdminPanel() {
   };
 
   // Fetch bidding history
+  const fetchAuctions = async () => {
+    setAuctionsLoading(true);
+    try {
+      const response = await adminAPI.getAuctions();
+      setAuctions(response.data.auctions || response.data || []);
+    } catch (err) {
+      console.error('Error fetching auctions:', err);
+      setAuctions([]);
+    } finally {
+      setAuctionsLoading(false);
+    }
+  };
+
   const fetchBiddingHistory = async () => {
     setBiddingHistoryLoading(true);
     setError(null);
@@ -11134,7 +11241,28 @@ function AdminPanel() {
                         <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-2">Auction Management</h2>
                         <p className="text-sm text-[hsl(var(--muted-foreground))]">The form of auction is submitted by super admin</p>
                       </div>
-                      <Button onClick={() => setShowAuctionForm(!showAuctionForm)}>Start Auction</Button>
+                      <Button onClick={() => {
+                        setShowAuctionForm(!showAuctionForm);
+                        if (!showAuctionForm) {
+                          setEditingAuction(null);
+                          setAuctionFormData({
+                            user_id: '',
+                            category_id: '',
+                            location_id: '',
+                            title: '',
+                            description: '',
+                            starting_price: '',
+                            reserve_price: '',
+                            buy_now_price: '',
+                            bid_increment: '1.00',
+                            start_time: '',
+                            end_time: '',
+                          });
+                          setAuctionImages([null, null, null, null]);
+                        }
+                      }}>
+                        {showAuctionForm ? 'Cancel' : (editingAuction ? 'Edit Auction' : 'Start Auction')}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -11155,7 +11283,9 @@ function AdminPanel() {
                   <section>
                     <Card>
                     <CardContent className="p-6">
-                      <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Create New Auction</h3>
+                      <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">
+                        {editingAuction ? 'Edit Auction' : 'Create New Auction'}
+                      </h3>
                       <form 
                         className="grid grid-cols-2 gap-4"
                         onSubmit={handleStartAuctionSubmit}
@@ -11229,6 +11359,27 @@ function AdminPanel() {
                             </select>
                           </div>
                           <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Location (Optional)</label>
+                            <select
+                              value={auctionFormData.location_id}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, location_id: e.target.value})}
+                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                            >
+                              <option value="">Select Location</option>
+                              {locationData.provinces?.flatMap(province => 
+                                province.districts?.flatMap(district =>
+                                  district.localLevels?.flatMap(localLevel =>
+                                    localLevel.wards?.map(ward => (
+                                      <option key={ward.id} value={ward.id}>
+                                        {province.name} &gt; {district.name} &gt; {localLevel.name} &gt; Ward {ward.ward_number}
+                                      </option>
+                                    ))
+                                  )
+                                )
+                              )}
+                            </select>
+                          </div>
+                          <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Reserve Price (Optional)</label>
                             <Input
                               type="number"
@@ -11251,11 +11402,23 @@ function AdminPanel() {
                             />
                           </div>
                           <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Bid Increment *</label>
+                            <Input
+                              type="number"
+                              value={auctionFormData.bid_increment}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, bid_increment: e.target.value})}
+                              className="w-full"
+                              min="0.01"
+                              step="0.01"
+                              required
+                            />
+                          </div>
+                          <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction Start Date and Time *</label>
                             <Input
                               type="datetime-local"
-                              value={auctionFormData.start_date_time}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, start_date_time: e.target.value})}
+                              value={auctionFormData.start_time}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, start_time: e.target.value})}
                               className="w-full"
                               required
                             />
@@ -11264,11 +11427,33 @@ function AdminPanel() {
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction End Date and Time *</label>
                             <Input
                               type="datetime-local"
-                              value={auctionFormData.end_date_time}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, end_date_time: e.target.value})}
+                              value={auctionFormData.end_time}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, end_time: e.target.value})}
                               className="w-full"
                               required
                             />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Images (Up to 4)</label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {[0, 1, 2, 3].map((index) => (
+                                <div key={index}>
+                                  <Input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                      const newImages = [...auctionImages];
+                                      newImages[index] = e.target.files[0] || null;
+                                      setAuctionImages(newImages);
+                                    }}
+                                    className="w-full text-sm"
+                                  />
+                                  {auctionImages[index] && (
+                                    <p className="text-xs text-gray-500 mt-1">{auctionImages[index].name}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                         <div className="col-span-2 flex justify-end gap-2 mt-6">
@@ -11277,22 +11462,26 @@ function AdminPanel() {
                             variant="ghost"
                             onClick={() => {
                               setShowAuctionForm(false);
+                              setEditingAuction(null);
                               setAuctionFormData({
                                 user_id: '',
                                 category_id: '',
+                                location_id: '',
                                 title: '',
                                 description: '',
                                 starting_price: '',
                                 reserve_price: '',
                                 buy_now_price: '',
-                                start_date_time: '',
-                                end_date_time: '',
+                                bid_increment: '1.00',
+                                start_time: '',
+                                end_time: '',
                               });
+                              setAuctionImages([null, null, null, null]);
                             }}
                           >
                             Cancel
                           </Button>
-                          <Button type="submit">Submit</Button>
+                          <Button type="submit">{editingAuction ? 'Update Auction' : 'Create Auction'}</Button>
                         </div>
                       </form>
                     </CardContent>
@@ -11300,6 +11489,98 @@ function AdminPanel() {
                   </section>
                 )}
               </div>
+
+              {/* Auctions List Table */}
+              <section className="mb-6">
+                <Card>
+                  <CardContent className="p-4">
+                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">All Auctions</h2>
+                    {auctionsLoading ? (
+                      <div className="text-center py-8">Loading auctions...</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="border-b border-[hsl(var(--border))]">
+                              <th className="text-left p-3 text-sm font-semibold">S.N.</th>
+                              <th className="text-left p-3 text-sm font-semibold">Title</th>
+                              <th className="text-left p-3 text-sm font-semibold">User</th>
+                              <th className="text-left p-3 text-sm font-semibold">Current Bid</th>
+                              <th className="text-left p-3 text-sm font-semibold">Bids</th>
+                              <th className="text-left p-3 text-sm font-semibold">Status</th>
+                              <th className="text-left p-3 text-sm font-semibold">End Time</th>
+                              <th className="text-left p-3 text-sm font-semibold">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {auctions.length === 0 ? (
+                              <tr>
+                                <td colSpan="8" className="p-8 text-center text-gray-500">
+                                  No auctions found
+                                </td>
+                              </tr>
+                            ) : (
+                              auctions.map((auction, index) => (
+                                <tr key={auction.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]/30 transition-colors">
+                                  <td className="p-3 text-sm">{index + 1}</td>
+                                  <td className="p-3 text-sm">
+                                    <div className="max-w-xs truncate" title={auction.title}>
+                                      {auction.title}
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-sm">{auction.user?.name || 'N/A'}</td>
+                                  <td className="p-3 text-sm">Rs. {auction.current_bid_price?.toLocaleString() || auction.starting_price?.toLocaleString()}</td>
+                                  <td className="p-3 text-sm">{auction.bid_count || 0}</td>
+                                  <td className="p-3 text-sm">
+                                    <span className={`px-2 py-1 rounded text-xs ${
+                                      auction.status === 'active' ? 'bg-green-100 text-green-800' :
+                                      auction.status === 'ended' ? 'bg-gray-100 text-gray-800' :
+                                      auction.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                                      'bg-yellow-100 text-yellow-800'
+                                    }`}>
+                                      {auction.status}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-sm">
+                                    {auction.end_time ? new Date(auction.end_time).toLocaleString() : 'N/A'}
+                                  </td>
+                                  <td className="p-3 text-sm">
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleEditAuction(auction)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      {auction.status === 'active' && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleEndAuction(auction.id)}
+                                        >
+                                          End
+                                        </Button>
+                                      )}
+                                      <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={() => handleDeleteAuction(auction.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </section>
 
               {biddingHistoryLoading && (
                 <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">

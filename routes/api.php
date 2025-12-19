@@ -70,6 +70,12 @@ Route::get('/ads', [App\Http\Controllers\AdController::class, 'index']);
 Route::get('/ads/{id}', [App\Http\Controllers\AdController::class, 'show']);
 Route::post('/ads/{id}/click', [App\Http\Controllers\AdController::class, 'trackClick']);
 
+// Public auction routes
+Route::get('/auctions', [App\Http\Controllers\AuctionController::class, 'index']);
+Route::get('/auctions/{id}', [App\Http\Controllers\AuctionController::class, 'show']);
+Route::get('/auctions/{id}/bids', [App\Http\Controllers\AuctionController::class, 'getBidHistory']);
+Route::post('/auctions/{id}/click', [App\Http\Controllers\AuctionController::class, 'trackClick']);
+
 // Public profile routes (no auth required)
 Route::get('/public/profile/{userId}', [App\Http\Controllers\PublicProfileController::class, 'show']);
 Route::get('/public/profile/{userId}/ratings', [App\Http\Controllers\PublicProfileController::class, 'getRatings']);
@@ -96,10 +102,18 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::prefix('user')->group(function () {
     Route::apiResource('ads', App\Http\Controllers\UserAdController::class);
     Route::post('ads/{id}/mark-sold', [App\Http\Controllers\UserAdController::class, 'markSold']);
+    
+    // User auction routes
+    Route::get('auctions/my-auctions', [App\Http\Controllers\UserAuctionController::class, 'myAuctions']);
+    Route::get('auctions/my-bids', [App\Http\Controllers\UserAuctionController::class, 'myBids']);
+    Route::get('auctions/won', [App\Http\Controllers\UserAuctionController::class, 'wonAuctions']);
   });
 
   // Increment ad view count (public but authenticated)
   Route::post('/ads/{id}/view', [App\Http\Controllers\UserAdController::class, 'incrementView']);
+
+  // Place bid on auction (authenticated)
+  Route::post('/auctions/{id}/bid', [App\Http\Controllers\AuctionController::class, 'placeBid']);
 
   // Favourites routes
   Route::get('/favourites', [App\Http\Controllers\FavouriteController::class, 'index']);
@@ -200,6 +214,8 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Auctions management
     Route::apiResource('auctions', AuctionController::class);
+    Route::post('auctions/{id}/end', [AuctionController::class, 'endAuction']);
+    Route::post('auctions/{id}/determine-winner', [AuctionController::class, 'determineWinner']);
     
     // Deliveries management
     Route::apiResource('deliveries', DeliveryController::class);
