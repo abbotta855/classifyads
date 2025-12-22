@@ -2879,9 +2879,9 @@ function AdminPanel() {
     }
   };
 
-  // Compress image before upload
+  // Compress image before upload - automatically handles any size
   const compressImage = (file, maxWidth = 1920, maxHeight = 1920, quality = 0.8) => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = (e) => {
@@ -2913,6 +2913,10 @@ function AdminPanel() {
 
           canvas.toBlob(
             (blob) => {
+              if (!blob) {
+                reject(new Error('Compression failed'));
+                return;
+              }
               const compressedFile = new File([blob], file.name, {
                 type: file.type,
                 lastModified: Date.now(),
@@ -2923,7 +2927,9 @@ function AdminPanel() {
             quality
           );
         };
+        img.onerror = () => reject(new Error('Failed to load image'));
       };
+      reader.onerror = () => reject(new Error('Failed to read file'));
     });
   };
 
@@ -11452,23 +11458,56 @@ function AdminPanel() {
                                     onChange={async (e) => {
                                       const file = e.target.files[0];
                                       if (file) {
-                                        // Check file size first (5MB limit)
-                                        if (file.size > 5 * 1024 * 1024) {
-                                          alert(`Image is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 5MB. Please compress or resize the image.`);
-                                          e.target.value = ''; // Clear the input
-                                          return;
+                                        // Show processing message for large files
+                                        const isLarge = file.size > 2 * 1024 * 1024; // > 2MB
+                                        if (isLarge) {
+                                          // Show a friendly message that compression is happening
+                                          const originalSize = (file.size / 1024 / 1024).toFixed(2);
+                                          console.log(`Compressing large image (${originalSize}MB)...`);
                                         }
-                                        // Compress image if > 500KB
+                                        
+                                        // Always compress if > 500KB, or if > 2MB compress more aggressively
                                         try {
-                                          const processedFile = file.size > 500 * 1024 
-                                            ? await compressImage(file, 1920, 1920, 0.8)
-                                            : file;
+                                          let processedFile = file;
+                                          
+                                          if (file.size > 2 * 1024 * 1024) {
+                                            // Large files: more aggressive compression
+                                            processedFile = await compressImage(file, 1600, 1600, 0.7);
+                                          } else if (file.size > 500 * 1024) {
+                                            // Medium files: normal compression
+                                            processedFile = await compressImage(file, 1920, 1920, 0.8);
+                                          }
+                                          
+                                          // Final check: if still too large after compression, reject
+                                          if (processedFile.size > 5 * 1024 * 1024) {
+                                            alert(
+                                              `Image is still too large after compression (${(processedFile.size / 1024 / 1024).toFixed(2)}MB). ` +
+                                              `Please use a smaller image or compress it manually before uploading.`
+                                            );
+                                            e.target.value = ''; // Clear the input
+                                            return;
+                                          }
+                                          
                                           const newImages = [...auctionImages];
                                           newImages[index] = processedFile;
                                           setAuctionImages(newImages);
+                                          
+                                          if (isLarge) {
+                                            const newSize = (processedFile.size / 1024 / 1024).toFixed(2);
+                                            console.log(`✓ Image compressed from ${(file.size / 1024 / 1024).toFixed(2)}MB to ${newSize}MB`);
+                                          }
                                         } catch (err) {
                                           console.error('Error processing image:', err);
-                                          // Fallback: use original file if compression fails
+                                          // If compression fails and file is too large, reject it
+                                          if (file.size > 5 * 1024 * 1024) {
+                                            alert(
+                                              `Image is too large (${(file.size / 1024 / 1024).toFixed(2)}MB) and compression failed. ` +
+                                              `Please use a smaller image (max 5MB).`
+                                            );
+                                            e.target.value = '';
+                                            return;
+                                          }
+                                          // If compression fails but file is small enough, use original
                                           const newImages = [...auctionImages];
                                           newImages[index] = file;
                                           setAuctionImages(newImages);
@@ -11815,23 +11854,56 @@ function AdminPanel() {
                                     onChange={async (e) => {
                                       const file = e.target.files[0];
                                       if (file) {
-                                        // Check file size first (5MB limit)
-                                        if (file.size > 5 * 1024 * 1024) {
-                                          alert(`Image is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 5MB. Please compress or resize the image.`);
-                                          e.target.value = ''; // Clear the input
-                                          return;
+                                        // Show processing message for large files
+                                        const isLarge = file.size > 2 * 1024 * 1024; // > 2MB
+                                        if (isLarge) {
+                                          // Show a friendly message that compression is happening
+                                          const originalSize = (file.size / 1024 / 1024).toFixed(2);
+                                          console.log(`Compressing large image (${originalSize}MB)...`);
                                         }
-                                        // Compress image if > 500KB
+                                        
+                                        // Always compress if > 500KB, or if > 2MB compress more aggressively
                                         try {
-                                          const processedFile = file.size > 500 * 1024 
-                                            ? await compressImage(file, 1920, 1920, 0.8)
-                                            : file;
+                                          let processedFile = file;
+                                          
+                                          if (file.size > 2 * 1024 * 1024) {
+                                            // Large files: more aggressive compression
+                                            processedFile = await compressImage(file, 1600, 1600, 0.7);
+                                          } else if (file.size > 500 * 1024) {
+                                            // Medium files: normal compression
+                                            processedFile = await compressImage(file, 1920, 1920, 0.8);
+                                          }
+                                          
+                                          // Final check: if still too large after compression, reject
+                                          if (processedFile.size > 5 * 1024 * 1024) {
+                                            alert(
+                                              `Image is still too large after compression (${(processedFile.size / 1024 / 1024).toFixed(2)}MB). ` +
+                                              `Please use a smaller image or compress it manually before uploading.`
+                                            );
+                                            e.target.value = ''; // Clear the input
+                                            return;
+                                          }
+                                          
                                           const newImages = [...auctionImages];
                                           newImages[index] = processedFile;
                                           setAuctionImages(newImages);
+                                          
+                                          if (isLarge) {
+                                            const newSize = (processedFile.size / 1024 / 1024).toFixed(2);
+                                            console.log(`✓ Image compressed from ${(file.size / 1024 / 1024).toFixed(2)}MB to ${newSize}MB`);
+                                          }
                                         } catch (err) {
                                           console.error('Error processing image:', err);
-                                          // Fallback: use original file if compression fails
+                                          // If compression fails and file is too large, reject it
+                                          if (file.size > 5 * 1024 * 1024) {
+                                            alert(
+                                              `Image is too large (${(file.size / 1024 / 1024).toFixed(2)}MB) and compression failed. ` +
+                                              `Please use a smaller image (max 5MB).`
+                                            );
+                                            e.target.value = '';
+                                            return;
+                                          }
+                                          // If compression fails but file is small enough, use original
                                           const newImages = [...auctionImages];
                                           newImages[index] = file;
                                           setAuctionImages(newImages);
