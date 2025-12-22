@@ -11449,15 +11449,43 @@ function AdminPanel() {
                                   <Input
                                     type="file"
                                     accept="image/*"
-                                    onChange={(e) => {
-                                      const newImages = [...auctionImages];
-                                      newImages[index] = e.target.files[0] || null;
-                                      setAuctionImages(newImages);
+                                    onChange={async (e) => {
+                                      const file = e.target.files[0];
+                                      if (file) {
+                                        // Check file size first (5MB limit)
+                                        if (file.size > 5 * 1024 * 1024) {
+                                          alert(`Image is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 5MB. Please compress or resize the image.`);
+                                          e.target.value = ''; // Clear the input
+                                          return;
+                                        }
+                                        // Compress image if > 500KB
+                                        try {
+                                          const processedFile = file.size > 500 * 1024 
+                                            ? await compressImage(file, 1920, 1920, 0.8)
+                                            : file;
+                                          const newImages = [...auctionImages];
+                                          newImages[index] = processedFile;
+                                          setAuctionImages(newImages);
+                                        } catch (err) {
+                                          console.error('Error processing image:', err);
+                                          // Fallback: use original file if compression fails
+                                          const newImages = [...auctionImages];
+                                          newImages[index] = file;
+                                          setAuctionImages(newImages);
+                                        }
+                                      } else {
+                                        const newImages = [...auctionImages];
+                                        newImages[index] = null;
+                                        setAuctionImages(newImages);
+                                      }
                                     }}
                                     className="w-full text-sm"
                                   />
                                   {auctionImages[index] && (
-                                    <p className="text-xs text-gray-500 mt-1">{auctionImages[index].name}</p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      {auctionImages[index].name} 
+                                      {auctionImages[index].size && ` (${(auctionImages[index].size / 1024 / 1024).toFixed(2)}MB)`}
+                                    </p>
                                   )}
                                 </div>
                               ))}
@@ -11784,15 +11812,43 @@ function AdminPanel() {
                                   <Input
                                     type="file"
                                     accept="image/*"
-                                    onChange={(e) => {
-                                      const newImages = [...auctionImages];
-                                      newImages[index] = e.target.files[0] || null;
-                                      setAuctionImages(newImages);
+                                    onChange={async (e) => {
+                                      const file = e.target.files[0];
+                                      if (file) {
+                                        // Check file size first (5MB limit)
+                                        if (file.size > 5 * 1024 * 1024) {
+                                          alert(`Image is too large (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum size is 5MB. Please compress or resize the image.`);
+                                          e.target.value = ''; // Clear the input
+                                          return;
+                                        }
+                                        // Compress image if > 500KB
+                                        try {
+                                          const processedFile = file.size > 500 * 1024 
+                                            ? await compressImage(file, 1920, 1920, 0.8)
+                                            : file;
+                                          const newImages = [...auctionImages];
+                                          newImages[index] = processedFile;
+                                          setAuctionImages(newImages);
+                                        } catch (err) {
+                                          console.error('Error processing image:', err);
+                                          // Fallback: use original file if compression fails
+                                          const newImages = [...auctionImages];
+                                          newImages[index] = file;
+                                          setAuctionImages(newImages);
+                                        }
+                                      } else {
+                                        const newImages = [...auctionImages];
+                                        newImages[index] = null;
+                                        setAuctionImages(newImages);
+                                      }
                                     }}
                                     className="w-full text-sm"
                                   />
                                   {auctionImages[index] && (
-                                    <p className="text-xs text-gray-500 mt-1">{auctionImages[index].name}</p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      {auctionImages[index].name} 
+                                      {auctionImages[index].size && ` (${(auctionImages[index].size / 1024 / 1024).toFixed(2)}MB)`}
+                                    </p>
                                   )}
                                 </div>
                               ))}
