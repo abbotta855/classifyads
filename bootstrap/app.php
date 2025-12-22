@@ -15,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withSchedule(function ($schedule) {
+        // Activate pending auctions when their start time arrives (every minute)
+        $schedule->command('auctions:activate-pending')->everyMinute();
         // Check for ended auctions every minute
         $schedule->command('auctions:check-ended')->everyMinute();
         // Notify about auctions ending soon every 15 minutes

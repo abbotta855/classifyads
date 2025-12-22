@@ -5389,6 +5389,10 @@ function NotificationsSection({ user }) {
       system: '🔔',
       payment: '💳',
       review: '⭐',
+      new_auction: '🔨',
+      auction_ending_soon: '⏰',
+      auction_finished: '🏁',
+      auction_won: '🎉',
     };
     return icons[type] || '🔔';
   };

@@ -172,6 +172,7 @@ class ProfileController extends Controller
             'location_id' => 'sometimes|nullable|exists:locations,id',
             'selected_local_address' => 'sometimes|nullable|string|max:255',
             'profile_picture' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'timezone' => 'sometimes|nullable|string|max:50',
         ]);
         
         // Only include show_phone if the column exists in the database
@@ -235,6 +236,26 @@ class ProfileController extends Controller
 
         return response()->json([
             'message' => 'Password changed successfully.',
+        ]);
+    }
+
+    /**
+     * Update user's timezone preference
+     */
+    public function updateTimezone(Request $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'timezone' => 'required|string|max:50',
+        ]);
+
+        $user->timezone = $validated['timezone'];
+        $user->save();
+
+        return response()->json([
+            'message' => 'Timezone updated successfully',
+            'timezone' => $user->timezone,
         ]);
     }
 }

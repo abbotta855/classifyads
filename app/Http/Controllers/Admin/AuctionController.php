@@ -45,6 +45,25 @@ class AuctionController extends Controller
 
     // Transform data (reuse AdminPanel pattern)
     $transformedAuctions = $auctions->getCollection()->map(function ($auction) {
+      // Calculate actual status based on times (not just database status)
+      // This ensures admin sees correct status even if scheduled commands haven't run
+      $actualStatus = $auction->status;
+      $now = now();
+      
+      // Don't override 'completed' status (payment already done)
+      if ($auction->status === 'completed') {
+        $actualStatus = 'completed';
+      } elseif ($auction->end_time <= $now) {
+        // Auction has already ended
+        $actualStatus = 'ended';
+      } elseif ($auction->start_time <= $now && $auction->end_time > $now) {
+        // Auction has started but not ended
+        $actualStatus = 'active';
+      } elseif ($auction->start_time > $now) {
+        // Auction hasn't started yet
+        $actualStatus = 'pending';
+      }
+      
       return [
         'id' => $auction->id,
         'slug' => $auction->slug,
@@ -54,11 +73,17 @@ class AuctionController extends Controller
           'id' => $auction->user->id,
           'name' => $auction->user->name,
         ] : null,
+        'category_id' => $auction->category_id,
         'category' => $auction->category ? $auction->category->category : null,
+        'location_id' => $auction->location_id,
+        'reserve_price' => $auction->reserve_price ? (float) $auction->reserve_price : null,
+        'buy_now_price' => $auction->buy_now_price ? (float) $auction->buy_now_price : null,
+        'bid_increment' => (float) $auction->bid_increment,
         'starting_price' => (float) $auction->starting_price,
         'current_bid_price' => (float) ($auction->current_bid_price ?? $auction->starting_price),
         'bid_count' => $auction->getBidCount(),
-        'status' => $auction->status,
+        'status' => $actualStatus, // Use calculated status
+        'db_status' => $auction->status, // Keep original for reference
         'start_time' => $auction->start_time->toIso8601String(),
         'end_time' => $auction->end_time->toIso8601String(),
         'winner' => $auction->winner ? [
@@ -119,10 +144,20 @@ class AuctionController extends Controller
       // Generate slug (reuse ad slug pattern)
       $slug = Auction::generateSlug($validated['title']);
 
-      // Determine initial status
-      $status = 'pending';
-      if (now() >= $validated['start_time']) {
+      // Determine initial status based on current time vs start_time and end_time
+      $now = now();
+      $startTime = \Carbon\Carbon::parse($validated['start_time']);
+      $endTime = \Carbon\Carbon::parse($validated['end_time']);
+      
+      if ($endTime <= $now) {
+        // Auction has already ended
+        $status = 'ended';
+      } elseif ($startTime <= $now) {
+        // Auction has started but not ended
         $status = 'active';
+      } else {
+        // Auction hasn't started yet
+        $status = 'pending';
       }
 
       // Create auction
@@ -218,6 +253,28 @@ class AuctionController extends Controller
     ]);
 
     try {
+      // Recalculate status if start_time or end_time is being updated
+      if (isset($validated['start_time']) || isset($validated['end_time'])) {
+        $now = now();
+        $startTime = isset($validated['start_time']) 
+          ? \Carbon\Carbon::parse($validated['start_time']) 
+          : $auction->start_time;
+        $endTime = isset($validated['end_time']) 
+          ? \Carbon\Carbon::parse($validated['end_time']) 
+          : $auction->end_time;
+        
+        if ($endTime <= $now) {
+          // Auction has already ended
+          $validated['status'] = 'ended';
+        } elseif ($startTime <= $now) {
+          // Auction has started but not ended
+          $validated['status'] = 'active';
+        } else {
+          // Auction hasn't started yet
+          $validated['status'] = 'pending';
+        }
+      }
+
       // Handle image uploads if provided
       if ($request->hasFile('images')) {
         $images = $request->file('images');
@@ -335,23 +392,118 @@ class AuctionController extends Controller
   private function sendNewAuctionNotification(Auction $auction): void
   {
     try {
-      // Get all active users (excluding the auction creator)
-      $users = User::where('id', '!=', $auction->user_id)
-        ->whereNotNull('email')
-        ->get();
+      $usersToNotify = collect();
 
-      foreach ($users as $user) {
-        UserNotification::create([
-          'user_id' => $user->id,
-          'type' => 'new_auction',
-          'title' => 'New Auction Available',
-          'message' => "A new auction has started: '{$auction->title}'. Starting price: Rs. " . number_format($auction->starting_price, 2),
-          'metadata' => ['auction_id' => $auction->id],
-          'is_read' => false,
-        ]);
+      // Strategy 1: Notify users who have bid on auctions in the same category
+      if ($auction->category_id) {
+        $categoryBidders = User::whereHas('bids', function($query) use ($auction) {
+          $query->whereHas('auction', function($q) use ($auction) {
+            $q->where('category_id', $auction->category_id)
+              ->where('id', '!=', $auction->id); // Exclude this auction
+          });
+        })
+        ->where('id', '!=', $auction->user_id)
+        ->get();
+        
+        $usersToNotify = $usersToNotify->merge($categoryBidders);
       }
+
+      // Strategy 2: Notify users with saved searches matching this auction
+      $savedSearchUsers = User::whereHas('savedSearches', function($query) use ($auction) {
+        $query->where('is_active', true)
+          ->where(function($q) use ($auction) {
+            // Category match: saved search category matches OR saved search has no category (matches all)
+            $q->where(function($categoryQuery) use ($auction) {
+              if ($auction->category_id) {
+                $categoryQuery->where('category_id', $auction->category_id)
+                  ->orWhereNull('category_id');
+              } else {
+                $categoryQuery->whereNull('category_id');
+              }
+            });
+            
+            // Location match: saved search location matches OR saved search has no location (matches all)
+            if ($auction->location_id) {
+              $q->where(function($locationQuery) use ($auction) {
+                $locationQuery->where('location_id', $auction->location_id)
+                  ->orWhereNull('location_id');
+              });
+            }
+            
+            // Price range match: starting price falls within saved search price range
+            $q->where(function($priceQuery) use ($auction) {
+              $priceQuery->where(function($p) use ($auction) {
+                // No min_price OR starting_price >= min_price
+                $p->whereNull('min_price')
+                  ->orWhere('min_price', '<=', $auction->starting_price);
+              })
+              ->where(function($p) use ($auction) {
+                // No max_price OR starting_price <= max_price
+                $p->whereNull('max_price')
+                  ->orWhere('max_price', '>=', $auction->starting_price);
+              });
+            });
+            
+            // Keyword match: if saved search has keywords, check if they appear in auction title
+            if ($auction->title) {
+              $q->orWhere(function($keywordQuery) use ($auction) {
+                $keywordQuery->whereNotNull('search_query')
+                  ->where('search_query', '!=', '')
+                  ->where(function($kq) use ($auction) {
+                    $titleWords = explode(' ', strtolower(trim($auction->title)));
+                    foreach ($titleWords as $word) {
+                      if (strlen($word) > 2) {
+                        $kq->orWhere('search_query', 'like', "%{$word}%");
+                      }
+                    }
+                  });
+              });
+            }
+          });
+      })
+      ->where('id', '!=', $auction->user_id)
+      ->get();
+      
+      $usersToNotify = $usersToNotify->merge($savedSearchUsers);
+
+      // Remove duplicates and limit to prevent spam (max 100 users per auction)
+      $usersToNotify = $usersToNotify->unique('id')->take(100);
+
+      $notificationCount = 0;
+      foreach ($usersToNotify as $user) {
+        try {
+          UserNotification::create([
+            'user_id' => $user->id,
+            'type' => 'new_auction',
+            'title' => 'New Auction You Might Like',
+            'message' => "A new auction has started: '{$auction->title}'. Starting price: Rs. " . number_format($auction->starting_price, 2),
+            'metadata' => ['auction_id' => $auction->id],
+            'link' => "/auctions/{$auction->id}",
+            'is_read' => false,
+          ]);
+          $notificationCount++;
+        } catch (\Exception $e) {
+          Log::warning('Failed to create notification for user', [
+            'user_id' => $user->id,
+            'auction_id' => $auction->id,
+            'error' => $e->getMessage()
+          ]);
+        }
+      }
+      
+      Log::info('New auction notifications sent (targeted)', [
+        'auction_id' => $auction->id,
+        'auction_title' => $auction->title,
+        'category_id' => $auction->category_id,
+        'notifications_sent' => $notificationCount,
+        'total_eligible_users' => $usersToNotify->count()
+      ]);
     } catch (\Exception $e) {
-      Log::error('Failed to send new auction notifications', ['auction_id' => $auction->id, 'error' => $e->getMessage()]);
+      Log::error('Failed to send new auction notifications', [
+        'auction_id' => $auction->id,
+        'error' => $e->getMessage(),
+        'trace' => $e->getTraceAsString()
+      ]);
     }
   }
 }

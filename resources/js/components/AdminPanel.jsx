@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { utcToLocalDateTime, localDateTimeToUTC, getUserTimezone, initializeTimezone } from '../utils/timezone';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import Layout from './Layout';
@@ -98,6 +99,7 @@ function AdminPanel() {
   const [auctions, setAuctions] = useState([]);
   const [auctionsLoading, setAuctionsLoading] = useState(false);
   const [editingAuction, setEditingAuction] = useState(null);
+  const [showEditAuctionModal, setShowEditAuctionModal] = useState(false);
   const [auctionFormData, setAuctionFormData] = useState({
     user_id: '',
     category_id: '',
@@ -3035,8 +3037,14 @@ function AdminPanel() {
         formData.append('buy_now_price', auctionFormData.buy_now_price);
       }
       formData.append('bid_increment', auctionFormData.bid_increment || '1.00');
-      formData.append('start_time', auctionFormData.start_time);
-      formData.append('end_time', auctionFormData.end_time);
+      
+      // Convert datetime-local to UTC ISO string for proper timezone handling
+      // datetime-local gives us local time without timezone, we need to convert to UTC
+      const startTimeUTC = localDateTimeToUTC(auctionFormData.start_time);
+      const endTimeUTC = localDateTimeToUTC(auctionFormData.end_time);
+      
+      formData.append('start_time', startTimeUTC);
+      formData.append('end_time', endTimeUTC);
       
       // Add images
       auctionImages.forEach((image, index) => {
@@ -3054,6 +3062,7 @@ function AdminPanel() {
       }
       
       setShowAuctionForm(false);
+      setShowEditAuctionModal(false);
       setEditingAuction(null);
       setAuctionFormData({
         user_id: '',
@@ -3095,6 +3104,7 @@ function AdminPanel() {
   };
 
   const handleEditAuction = (auction) => {
+    setShowAuctionForm(false); // Make sure inline form is hidden
     setEditingAuction(auction);
     setAuctionFormData({
       user_id: auction.user?.id || '',
@@ -3106,11 +3116,11 @@ function AdminPanel() {
       reserve_price: auction.reserve_price || '',
       buy_now_price: auction.buy_now_price || '',
       bid_increment: auction.bid_increment || '1.00',
-      start_time: auction.start_time ? new Date(auction.start_time).toISOString().slice(0, 16) : '',
+      start_time: auction.start_time ? utcToLocalDateTime(auction.start_time) : '',
       end_time: auction.end_time ? new Date(auction.end_time).toISOString().slice(0, 16) : '',
     });
     setAuctionImages([null, null, null, null]); // Reset images - could load existing if needed
-    setShowAuctionForm(true);
+    setShowEditAuctionModal(true);
   };
 
   const handleDeleteAuction = async (id) => {
@@ -3162,6 +3172,14 @@ function AdminPanel() {
       fetchBidWinners();
       fetchBlockedUsers();
       fetchBiddingTracking();
+      
+      // Auto-refresh auction status every 30 seconds
+      // This ensures status updates automatically based on current time vs start_time/end_time
+      const refreshInterval = setInterval(() => {
+        fetchAuctions();
+      }, 30000); // Refresh every 30 seconds
+      
+      return () => clearInterval(refreshInterval);
     }
   }, [activeSection]);
 
@@ -11232,61 +11250,51 @@ function AdminPanel() {
 
           {activeSection === 'auction-management' && (
             <>
-              {/* Auction Management Header */}
+              {/* Auction Management */}
               <section className="mb-6">
                 <Card>
                   <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between mb-4">
                       <div>
                         <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-2">Auction Management</h2>
                         <p className="text-sm text-[hsl(var(--muted-foreground))]">The form of auction is submitted by super admin</p>
                       </div>
                       <Button onClick={() => {
-                        setShowAuctionForm(!showAuctionForm);
-                        if (!showAuctionForm) {
-                          setEditingAuction(null);
-                          setAuctionFormData({
-                            user_id: '',
-                            category_id: '',
-                            location_id: '',
-                            title: '',
-                            description: '',
-                            starting_price: '',
-                            reserve_price: '',
-                            buy_now_price: '',
-                            bid_increment: '1.00',
-                            start_time: '',
-                            end_time: '',
-                          });
-                          setAuctionImages([null, null, null, null]);
+                        if (editingAuction) {
+                          // If editing, open modal instead
+                          setShowEditAuctionModal(true);
+                        } else {
+                          setShowAuctionForm(!showAuctionForm);
+                          if (!showAuctionForm) {
+                            setEditingAuction(null);
+                            setAuctionFormData({
+                              user_id: '',
+                              category_id: '',
+                              location_id: '',
+                              title: '',
+                              description: '',
+                              starting_price: '',
+                              reserve_price: '',
+                              buy_now_price: '',
+                              bid_increment: '1.00',
+                              start_time: '',
+                              end_time: '',
+                            });
+                            setAuctionImages([null, null, null, null]);
+                          }
                         }
                       }}>
-                        {showAuctionForm ? 'Cancel' : (editingAuction ? 'Edit Auction' : 'Start Auction')}
+                        {showAuctionForm ? 'Cancel' : 'Start Auction'}
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              </section>
 
-              {/* Auction Form - appears when Start Auction is clicked */}
-              <div
-                className={`mb-6 transition-all duration-400 ease-in-out ${
-                  showAuctionForm 
-                    ? 'opacity-100 translate-y-0' 
-                    : 'opacity-0 -translate-y-4 pointer-events-none'
-                }`}
-                style={{
-                  transition: 'opacity 0.4s ease-in-out, transform 0.4s ease-in-out'
-                }}
-              >
-                {showAuctionForm && (
-                  <section>
-                    <Card>
-                    <CardContent className="p-6">
-                      <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">
-                        {editingAuction ? 'Edit Auction' : 'Create New Auction'}
-                      </h3>
-                      <form 
+                    {/* Auction Form - appears when Start Auction is clicked (NOT for editing) */}
+                    {showAuctionForm && !editingAuction && (
+                      <div className="mt-6 pt-6 border-t border-[hsl(var(--border))]">
+                        <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">
+                          Create New Auction
+                        </h3>
+                        <form 
                         className="grid grid-cols-2 gap-4"
                         onSubmit={handleStartAuctionSubmit}
                       >
@@ -11484,11 +11492,11 @@ function AdminPanel() {
                           <Button type="submit">{editingAuction ? 'Update Auction' : 'Create Auction'}</Button>
                         </div>
                       </form>
-                    </CardContent>
-                  </Card>
-                  </section>
-                )}
-              </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </section>
 
               {/* Auctions List Table */}
               <section className="mb-6">
@@ -11542,7 +11550,14 @@ function AdminPanel() {
                                     </span>
                                   </td>
                                   <td className="p-3 text-sm">
-                                    {auction.end_time ? new Date(auction.end_time).toLocaleString() : 'N/A'}
+                                    {auction.end_time ? (
+                                      <>
+                                        {new Date(auction.end_time).toLocaleString()}
+                                        <span className="text-xs text-gray-500 ml-2">
+                                          ({getUserTimezone()})
+                                        </span>
+                                      </>
+                                    ) : 'N/A'}
                                   </td>
                                   <td className="p-3 text-sm">
                                     <div className="flex gap-2">
@@ -11587,6 +11602,236 @@ function AdminPanel() {
                   Loading bidding history...
                 </div>
               )}
+
+              {/* Edit Auction Modal */}
+              {showEditAuctionModal && editingAuction && (
+                <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}>
+                  <Card className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <CardTitle>Edit Auction</CardTitle>
+                      <Button variant="ghost" size="sm" onClick={() => {
+                        setShowEditAuctionModal(false);
+                        setEditingAuction(null);
+                        setAuctionFormData({
+                          user_id: '',
+                          category_id: '',
+                          location_id: '',
+                          title: '',
+                          description: '',
+                          starting_price: '',
+                          reserve_price: '',
+                          buy_now_price: '',
+                          bid_increment: '1.00',
+                          start_time: '',
+                          end_time: '',
+                        });
+                        setAuctionImages([null, null, null, null]);
+                      }}>✕</Button>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <form 
+                        className="grid grid-cols-2 gap-4"
+                        onSubmit={handleStartAuctionSubmit}
+                      >
+                        {/* Left Column */}
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">User *</label>
+                            <select
+                              value={auctionFormData.user_id}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, user_id: e.target.value})}
+                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                              required
+                            >
+                              <option value="">Select User</option>
+                              {Array.isArray(users) && users.map((user) => (
+                                <option key={user.id} value={user.id}>
+                                  {user.name} ({user.email})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction Item Name (Title) *</label>
+                            <Input
+                              value={auctionFormData.title}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, title: e.target.value})}
+                              className="w-full"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description *</label>
+                            <textarea
+                              value={auctionFormData.description}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, description: e.target.value})}
+                              className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Starting Price *</label>
+                            <Input
+                              type="number"
+                              value={auctionFormData.starting_price}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, starting_price: e.target.value})}
+                              className="w-full"
+                              min="0"
+                              step="0.01"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        {/* Right Column */}
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category/Subcategory *</label>
+                            <select
+                              value={auctionFormData.category_id}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, category_id: e.target.value})}
+                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                              required
+                            >
+                              <option value="">Select Category</option>
+                              {Array.isArray(flattenedCategories) && flattenedCategories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Location (Optional)</label>
+                            <select
+                              value={auctionFormData.location_id}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, location_id: e.target.value})}
+                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
+                            >
+                              <option value="">Select Location</option>
+                              {locationData.provinces?.flatMap(province => 
+                                province.districts?.flatMap(district =>
+                                  district.localLevels?.flatMap(localLevel =>
+                                    localLevel.wards?.map(ward => (
+                                      <option key={ward.id} value={ward.id}>
+                                        {province.name} &gt; {district.name} &gt; {localLevel.name} &gt; Ward {ward.ward_number}
+                                      </option>
+                                    ))
+                                  )
+                                )
+                              )}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Reserve Price (Optional)</label>
+                            <Input
+                              type="number"
+                              value={auctionFormData.reserve_price}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, reserve_price: e.target.value})}
+                              className="w-full"
+                              min="0"
+                              step="0.01"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Buy Now Price (Optional)</label>
+                            <Input
+                              type="number"
+                              value={auctionFormData.buy_now_price}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, buy_now_price: e.target.value})}
+                              className="w-full"
+                              min="0"
+                              step="0.01"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Bid Increment *</label>
+                            <Input
+                              type="number"
+                              value={auctionFormData.bid_increment}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, bid_increment: e.target.value})}
+                              className="w-full"
+                              min="0.01"
+                              step="0.01"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction Start Date and Time *</label>
+                            <Input
+                              type="datetime-local"
+                              value={auctionFormData.start_time}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, start_time: e.target.value})}
+                              className="w-full"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction End Date and Time *</label>
+                            <Input
+                              type="datetime-local"
+                              value={auctionFormData.end_time}
+                              onChange={(e) => setAuctionFormData({...auctionFormData, end_time: e.target.value})}
+                              className="w-full"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Images (Up to 4)</label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {[0, 1, 2, 3].map((index) => (
+                                <div key={index}>
+                                  <Input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                      const newImages = [...auctionImages];
+                                      newImages[index] = e.target.files[0] || null;
+                                      setAuctionImages(newImages);
+                                    }}
+                                    className="w-full text-sm"
+                                  />
+                                  {auctionImages[index] && (
+                                    <p className="text-xs text-gray-500 mt-1">{auctionImages[index].name}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="col-span-2 flex justify-end gap-2 mt-6">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                              setShowEditAuctionModal(false);
+                              setEditingAuction(null);
+                              setAuctionFormData({
+                                user_id: '',
+                                category_id: '',
+                                location_id: '',
+                                title: '',
+                                description: '',
+                                starting_price: '',
+                                reserve_price: '',
+                                buy_now_price: '',
+                                bid_increment: '1.00',
+                                start_time: '',
+                                end_time: '',
+                              });
+                              setAuctionImages([null, null, null, null]);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit">Update Auction</Button>
+                        </div>
+                      </form>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
               {/* Bidding history tracking Table */}
               <section className="mb-6">
                 <Card>

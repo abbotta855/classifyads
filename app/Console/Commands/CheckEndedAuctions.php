@@ -39,7 +39,8 @@ class CheckEndedAuctions extends Command
         $this->info('Checking for ended auctions...');
 
         // Find auctions that should be ended
-        $auctionsToEnd = Auction::where('status', 'active')
+        // Check both 'active' and 'pending' auctions that have passed their end_time
+        $auctionsToEnd = Auction::whereIn('status', ['active', 'pending'])
             ->where('end_time', '<=', now())
             ->get();
 

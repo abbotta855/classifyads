@@ -42,6 +42,7 @@ class User extends Authenticatable
         'show_phone',
         'profile_picture',
         'last_login_at',
+        'timezone',
     ];
 
     /**

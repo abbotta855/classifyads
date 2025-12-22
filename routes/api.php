@@ -89,6 +89,7 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'show']);
   Route::match(['put', 'post'], '/profile', [App\Http\Controllers\ProfileController::class, 'update']);
   Route::post('/profile/change-password', [App\Http\Controllers\ProfileController::class, 'changePassword']);
+  Route::put('/profile/timezone', [App\Http\Controllers\ProfileController::class, 'updateTimezone']);
 
   // Dashboard statistics
   Route::get('/dashboard/stats', [App\Http\Controllers\DashboardStatsController::class, 'index']);
@@ -114,6 +115,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
   // Place bid on auction (authenticated)
   Route::post('/auctions/{id}/bid', [App\Http\Controllers\AuctionController::class, 'placeBid']);
+  Route::post('/auctions/{id}/buy-now', [App\Http\Controllers\AuctionController::class, 'buyNow']);
+  Route::post('/auctions/{id}/payment/initiate', [App\Http\Controllers\AuctionPaymentController::class, 'initiatePayment']);
+  Route::get('/auctions/{id}/payment/success', [App\Http\Controllers\AuctionPaymentController::class, 'paymentSuccess']);
+  Route::get('/auctions/{id}/payment/cancel', [App\Http\Controllers\AuctionPaymentController::class, 'paymentCancel']);
+  Route::post('/auctions/payment/webhook', [App\Http\Controllers\AuctionPaymentController::class, 'webhook']);
 
   // Favourites routes
   Route::get('/favourites', [App\Http\Controllers\FavouriteController::class, 'index']);

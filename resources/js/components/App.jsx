@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import { initializeTimezone } from '../utils/timezone';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './Login';
 import Register from './Register';
@@ -173,6 +174,14 @@ function AppRoutes() {
 }
 
 function App() {
+  // Initialize timezone on app load
+  useEffect(() => {
+    initializeTimezone().then(timezone => {
+      // Optionally send to backend if user is logged in
+      // This will be handled by AuthContext when user loads
+    });
+  }, []);
+
   return (
     <AuthProvider>
       <BrowserRouter>

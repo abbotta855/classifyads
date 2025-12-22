@@ -22,9 +22,26 @@ class AuctionController extends Controller
     public function index(Request $request)
     {
         try {
+            // Show auctions that are currently active or scheduled (based on actual times, not just status)
+            // This ensures auctions show even if status hasn't been updated yet by scheduled commands
             $query = Auction::with(['category', 'location', 'user', 'currentBidder'])
-                ->active()
-                ->orderBy('end_time', 'asc'); // Show ending soon first
+                ->where('end_time', '>', now()) // Must not have ended yet
+                ->where(function($q) {
+                    // Active auctions: started but not ended (regardless of status field)
+                    $q->where(function($subQ) {
+                        $subQ->where('start_time', '<=', now())
+                            ->where('end_time', '>', now())
+                            ->whereIn('status', ['active', 'pending']); // Allow both statuses if times match
+                    })
+                    // Pending auctions: not started yet, not ended
+                    ->orWhere(function($subQ) {
+                        $subQ->where('start_time', '>', now())
+                            ->where('end_time', '>', now())
+                            ->where('status', 'pending');
+                    });
+                })
+                ->orderBy('start_time', 'asc') // Show starting soon first
+                ->orderBy('end_time', 'asc'); // Then ending soon
 
             // Search by title or description
             if ($request->has('search')) {
@@ -106,6 +123,17 @@ class AuctionController extends Controller
                     ? $auction->category->sub_category 
                     : null;
 
+                // Calculate actual status based on times (not just database status)
+                // This ensures users see correct status even if scheduled commands haven't run
+                $actualStatus = $auction->status;
+                if ($auction->end_time <= now()) {
+                    $actualStatus = 'ended';
+                } elseif ($auction->start_time <= now() && $auction->end_time > now()) {
+                    $actualStatus = 'active';
+                } elseif ($auction->start_time > now()) {
+                    $actualStatus = 'pending';
+                }
+
                 return [
                     'id' => $auction->id,
                     'slug' => $auction->slug,
@@ -123,7 +151,10 @@ class AuctionController extends Controller
                     'user_id' => $auction->user_id,
                     'bid_count' => $auction->getBidCount(),
                     'time_remaining' => $auction->getTimeRemaining(),
+                    'status' => $actualStatus, // Include calculated status
+                    'is_active' => $actualStatus === 'active', // Helper for frontend
                     'end_time' => $auction->end_time->toIso8601String(),
+                    'start_time' => $auction->start_time->toIso8601String(),
                     'created_at' => $auction->created_at ? $auction->created_at->toIso8601String() : null,
                 ];
             });
@@ -253,6 +284,28 @@ class AuctionController extends Controller
                     ];
                 });
 
+            // Calculate actual status based on times (not just database status)
+            // This ensures users see correct status even if scheduled commands haven't run
+            $actualStatus = $auction->status;
+            $now = now();
+            
+            // Don't override 'completed' status (payment already done)
+            if ($auction->status === 'completed') {
+                $actualStatus = 'completed';
+            } elseif ($auction->end_time <= $now) {
+                // Auction has already ended
+                $actualStatus = 'ended';
+            } elseif ($auction->start_time <= $now && $auction->end_time > $now) {
+                // Auction has started but not ended
+                $actualStatus = 'active';
+            } elseif ($auction->start_time > $now) {
+                // Auction hasn't started yet
+                $actualStatus = 'pending';
+            }
+            
+            // Calculate is_active based on actual status
+            $isActive = ($actualStatus === 'active');
+
             return response()->json([
                 'id' => $auction->id,
                 'slug' => $auction->slug,
@@ -274,8 +327,8 @@ class AuctionController extends Controller
                 'time_remaining' => $auction->getTimeRemaining(),
                 'start_time' => $auction->start_time->toIso8601String(),
                 'end_time' => $auction->end_time->toIso8601String(),
-                'status' => $auction->status,
-                'is_active' => $auction->isActive(),
+                'status' => $actualStatus, // Use calculated status
+                'is_active' => $isActive, // Use calculated is_active
                 'user_id' => $auction->user_id,
                 'seller' => $seller,
                 'current_bidder' => $auction->currentBidder ? [
@@ -336,6 +389,44 @@ class AuctionController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Failed to place bid',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Buy Now - Purchase auction immediately
+     */
+    public function buyNow(Request $request, $id)
+    {
+        try {
+            // Support both ID and slug
+            $auction = Auction::where(function ($query) use ($id) {
+                if (is_numeric($id)) {
+                    $query->where('id', $id);
+                } else {
+                    $query->where('slug', $id);
+                }
+            })->firstOrFail();
+
+            $result = $this->auctionService->buyNow(
+                $auction->id,
+                Auth::id()
+            );
+
+            if (!$result['success']) {
+                return response()->json([
+                    'error' => $result['message'],
+                ], 400);
+            }
+
+            return response()->json([
+                'message' => $result['message'],
+                'auction' => $result['auction'],
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to process Buy Now',
                 'message' => $e->getMessage(),
             ], 500);
         }

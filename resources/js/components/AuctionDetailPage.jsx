@@ -32,7 +32,17 @@ function AuctionDetailPage() {
       const interval = setInterval(() => {
         updateTimeRemaining();
       }, 1000);
-      return () => clearInterval(interval);
+      
+      // Auto-refresh auction data every 30 seconds to get updated status
+      // This ensures status updates automatically (pending → active → ended)
+      const refreshInterval = setInterval(() => {
+        loadAuction();
+      }, 30000);
+      
+      return () => {
+        clearInterval(interval);
+        clearInterval(refreshInterval);
+      };
     }
   }, [auction]);
 
@@ -41,6 +51,27 @@ function AuctionDetailPage() {
       loadBidHistory();
     }
   }, [auction]);
+
+  // Handle payment success/cancel from URL params
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentStatus = urlParams.get('payment');
+    
+    if (paymentStatus === 'success') {
+      alert('Payment completed successfully!');
+      // Remove payment param from URL
+      window.history.replaceState({}, '', window.location.pathname);
+      // Reload auction to show updated status
+      loadAuction();
+    } else if (paymentStatus === 'error') {
+      const message = urlParams.get('message') || 'Payment failed';
+      alert(`Payment error: ${message}`);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (paymentStatus === 'cancelled') {
+      alert('Payment was cancelled');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const loadAuction = async () => {
     setLoading(true);
@@ -76,6 +107,42 @@ function AuctionDetailPage() {
 
   const updateTimeRemaining = () => {
     if (!auction) return;
+    
+    // Don't show time remaining if auction has ended or is completed
+    if (auction.status === 'ended' || auction.status === 'completed') {
+      setTimeRemaining('Ended');
+      return;
+    }
+    
+    // For pending auctions, show time until start
+    if (auction.status === 'pending') {
+      const now = new Date();
+      const startTime = new Date(auction.start_time);
+      const diff = startTime - now;
+      
+      if (diff <= 0) {
+        setTimeRemaining('Starting soon...');
+        return;
+      }
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      if (days > 0) {
+        setTimeRemaining(`Starts in: ${days}d ${hours}h ${minutes}m`);
+      } else if (hours > 0) {
+        setTimeRemaining(`Starts in: ${hours}h ${minutes}m ${seconds}s`);
+      } else if (minutes > 0) {
+        setTimeRemaining(`Starts in: ${minutes}m ${seconds}s`);
+      } else {
+        setTimeRemaining(`Starts in: ${seconds}s`);
+      }
+      return;
+    }
+    
+    // For active auctions, show time until end
     const now = new Date();
     const endTime = new Date(auction.end_time);
     const diff = endTime - now;
@@ -139,13 +206,82 @@ function AuctionDetailPage() {
     }
   };
 
-  const handleBuyNow = () => {
+  const handlePayNow = async () => {
     if (!user) {
       navigate('/login');
       return;
     }
-    // TODO: Implement buy now functionality
-    alert('Buy Now functionality coming soon!');
+
+    if (auction.winner_id !== user.id) {
+      alert('You are not the winner of this auction');
+      return;
+    }
+
+    if (auction.payment_completed_at) {
+      alert('Payment already completed for this auction');
+      return;
+    }
+
+    setPlacingBid(true);
+    setBidError('');
+
+    try {
+      // Initiate payment for winning bid
+      const paymentResponse = await publicAuctionAPI.initiatePayment(id, 'winning_bid');
+      
+      if (paymentResponse.data && paymentResponse.data.approval_url) {
+        // Redirect to PayPal
+        window.location.href = paymentResponse.data.approval_url;
+      } else {
+        throw new Error('Failed to initiate payment');
+      }
+    } catch (err) {
+      setBidError(err.response?.data?.error || 'Failed to initiate payment');
+      console.error('Error initiating payment:', err);
+      setPlacingBid(false);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    if (!auction.buy_now_price) {
+      alert('Buy Now is not available for this auction');
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to buy this auction for Rs. ${auction.buy_now_price.toLocaleString()}? This will end the auction immediately and redirect you to payment.`)) {
+      return;
+    }
+
+    setPlacingBid(true);
+    setBidError('');
+
+    try {
+      // First, end the auction and set winner
+      const buyNowResponse = await publicAuctionAPI.buyNow(id);
+      
+      if (!buyNowResponse.data || !buyNowResponse.data.auction) {
+        throw new Error('Failed to process Buy Now');
+      }
+
+      // Then initiate payment
+      const paymentResponse = await publicAuctionAPI.initiatePayment(id, 'buy_now');
+      
+      if (paymentResponse.data && paymentResponse.data.approval_url) {
+        // Redirect to PayPal
+        window.location.href = paymentResponse.data.approval_url;
+      } else {
+        throw new Error('Failed to initiate payment');
+      }
+    } catch (err) {
+      setBidError(err.response?.data?.error || 'Failed to process Buy Now');
+      console.error('Error buying now:', err);
+      setPlacingBid(false);
+    }
   };
 
   if (loading) {
@@ -172,7 +308,10 @@ function AuctionDetailPage() {
   }
 
   const images = auction.images || [auction.image || 'https://via.placeholder.com/1200x1200?text=No+Image'];
-  const isActive = auction.is_active && auction.status === 'active';
+  // Use calculated status from API (which is based on actual times)
+  const isActive = auction.status === 'active';
+  const isEnded = auction.status === 'ended' || auction.status === 'completed';
+  const isPending = auction.status === 'pending';
   const canBid = isActive && user && user.id !== auction.user_id;
   const isWinning = auction.user_bid_status?.is_winning;
 
@@ -225,8 +364,10 @@ function AuctionDetailPage() {
                     className="w-full h-full object-cover"
                   />
                   {!isActive && (
-                    <div className="absolute top-6 right-6 bg-red-500/90 text-white px-6 py-3 rounded-full font-semibold text-sm">
-                      {auction.status === 'ended' ? 'ENDED' : auction.status.toUpperCase()}
+                    <div className={`absolute top-6 right-6 text-white px-6 py-3 rounded-full font-semibold text-sm ${
+                      isEnded ? 'bg-gray-500/90' : 'bg-yellow-500/90'
+                    }`}>
+                      {isEnded ? 'ENDED' : auction.status.toUpperCase()}
                     </div>
                   )}
                   {images.length > 1 && (
@@ -397,13 +538,16 @@ function AuctionDetailPage() {
                 )}
 
                 {/* Buy Now Button */}
-                {canBid && auction.buy_now_price && (
+                {canBid && 
+                 auction.buy_now_price && 
+                 isActive && 
+                 (!auction.current_bid || auction.current_bid < auction.buy_now_price) && (
                   <Button
                     onClick={handleBuyNow}
-                    variant="outline"
-                    className="w-full"
+                    disabled={placingBid}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white mt-3"
                   >
-                    Buy Now: Rs. {auction.buy_now_price.toLocaleString()}
+                    {placingBid ? 'Processing...' : `Buy Now: Rs. ${auction.buy_now_price.toLocaleString()}`}
                   </Button>
                 )}
 
@@ -424,10 +568,37 @@ function AuctionDetailPage() {
                   </div>
                 )}
 
-                {/* Auction Ended */}
-                {!isActive && (
-                  <div className="p-3 bg-gray-50 rounded-lg">
+                {/* Auction Status Messages */}
+                {isEnded && (
+                  <div className="p-3 bg-gray-50 rounded-lg space-y-3">
                     <p className="text-sm font-medium">This auction has ended</p>
+                    {auction.winner && (
+                      <p className="text-sm mt-1">Winner: {auction.winner.name}</p>
+                    )}
+                    {/* Pay Now Button for Winner */}
+                    {user && 
+                     auction.winner_id === user.id && 
+                     !auction.payment_completed_at && 
+                     auction.status === 'ended' && (
+                      <Button
+                        onClick={handlePayNow}
+                        disabled={placingBid}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white mt-3"
+                      >
+                        {placingBid ? 'Processing...' : `Pay Now: Rs. ${(auction.current_bid_price || auction.starting_price).toLocaleString()}`}
+                      </Button>
+                    )}
+                    {/* Payment Completed */}
+                    {auction.payment_completed_at && (
+                      <p className="text-sm text-green-600 font-medium">✓ Payment Completed</p>
+                    )}
+                  </div>
+                )}
+                
+                {/* Auction Completed */}
+                {auction.status === 'completed' && (
+                  <div className="p-3 bg-green-50 rounded-lg">
+                    <p className="text-sm font-medium text-green-700">✓ Auction completed and paid</p>
                     {auction.winner && (
                       <p className="text-sm mt-1">Winner: {auction.winner.name}</p>
                     )}

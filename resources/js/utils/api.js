@@ -437,6 +437,8 @@ export const publicAuctionAPI = {
   getAuction: (id) => axios.get(`/api/auctions/${id}`),
   getBidHistory: (id, page = 1) => axios.get(`/api/auctions/${id}/bids`, { params: { page } }),
   placeBid: (id, amount) => axios.post(`/api/auctions/${id}/bid`, { amount }),
+  buyNow: (id) => axios.post(`/api/auctions/${id}/buy-now`),
+  initiatePayment: (id, type = 'buy_now') => axios.post(`/api/auctions/${id}/payment/initiate`, { type }),
   trackClick: (id) => axios.post(`/api/auctions/${id}/click`),
 };
 
