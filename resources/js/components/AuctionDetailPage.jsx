@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from './Layout';
@@ -21,6 +21,8 @@ function AuctionDetailPage() {
   const [placingBid, setPlacingBid] = useState(false);
   const [bidHistory, setBidHistory] = useState([]);
   const [timeRemaining, setTimeRemaining] = useState('');
+  const [statusUpdateInterval, setStatusUpdateInterval] = useState(10); // Dynamic interval for status updates
+  const statusCheckInProgress = useRef(false); // Prevent multiple simultaneous status checks
 
   useEffect(() => {
     loadAuction();
@@ -33,18 +35,98 @@ function AuctionDetailPage() {
         updateTimeRemaining();
       }, 1000);
       
-      // Auto-refresh auction data every 30 seconds to get updated status
-      // This ensures status updates automatically (pending → active → ended)
-      const refreshInterval = setInterval(() => {
-        loadAuction();
-      }, 30000);
-      
       return () => {
         clearInterval(interval);
-        clearInterval(refreshInterval);
       };
     }
   }, [auction]);
+
+  // Real-time status updates - same logic as admin panel
+  // Updates immediately when start_time or end_time is reached
+  useEffect(() => {
+    if (!auction) return;
+    
+    // Only poll if auction is pending or active
+    const shouldPoll = auction.status === 'pending' || auction.status === 'active';
+    if (!shouldPoll) return;
+
+    // Calculate initial interval based on time until start/end
+    const calculateInitialInterval = () => {
+      const now = new Date();
+      const startTime = new Date(auction.start_time);
+      const endTime = new Date(auction.end_time);
+      
+      let secondsUntilChange = null;
+      if (auction.status === 'pending') {
+        // Check if start time has already passed (status might not be updated yet)
+        if (startTime <= now) {
+          return 1; // Start time passed, poll every second aggressively
+        }
+        secondsUntilChange = Math.max(1, Math.floor((startTime - now) / 1000));
+      } else if (auction.status === 'active') {
+        // Check if end time has already passed (status might not be updated yet)
+        if (endTime <= now) {
+          return 1; // End time passed, poll every second aggressively
+        }
+        secondsUntilChange = Math.max(1, Math.floor((endTime - now) / 1000));
+      }
+      
+      if (secondsUntilChange !== null) {
+        // Be more aggressive - poll every second if within 2 minutes
+        if (secondsUntilChange <= 120) return 1;  // 1 second if < 2 min
+        if (secondsUntilChange <= 300) return 5; // 5 seconds if < 5 min
+        return 10; // 10 seconds otherwise
+      }
+      return 1; // Default to 1 second for immediate updates
+    };
+
+    let statusUpdateTimer = null;
+    let currentInterval = calculateInitialInterval();
+    setStatusUpdateInterval(currentInterval);
+
+    const updateAuctionStatus = async () => {
+      try {
+        const response = await publicAuctionAPI.getAuctionStatuses([auction.id]);
+        const statuses = response.data.statuses || {};
+        const recommendedInterval = response.data.recommended_interval || 10;
+        
+        // Update recommended interval for dynamic polling
+        if (recommendedInterval !== currentInterval) {
+          currentInterval = recommendedInterval;
+          setStatusUpdateInterval(recommendedInterval);
+          
+          // Restart timer with new interval
+          if (statusUpdateTimer) {
+            clearInterval(statusUpdateTimer);
+          }
+          statusUpdateTimer = setInterval(updateAuctionStatus, recommendedInterval * 1000);
+        }
+        
+        // Update auction status if it changed
+        const newStatus = statuses[auction.id];
+        if (newStatus && newStatus !== auction.status) {
+          // Status changed! Reload full auction data immediately
+          console.log(`Auction status changed from ${auction.status} to ${newStatus} - reloading...`);
+          loadAuction();
+        }
+      } catch (error) {
+        // Silently fail - don't break the UI
+        console.warn('Failed to update auction status:', error);
+      }
+    };
+    
+    // Initial update immediately
+    updateAuctionStatus();
+    
+    // Set up polling with calculated initial interval
+    statusUpdateTimer = setInterval(updateAuctionStatus, currentInterval * 1000);
+    
+    return () => {
+      if (statusUpdateTimer) {
+        clearInterval(statusUpdateTimer);
+      }
+    };
+  }, [auction?.id, auction?.status, auction?.start_time, auction?.end_time]);
 
   useEffect(() => {
     if (auction) {
@@ -114,14 +196,44 @@ function AuctionDetailPage() {
       return;
     }
     
+    const now = new Date();
+    const startTime = new Date(auction.start_time);
+    const endTime = new Date(auction.end_time);
+    
     // For pending auctions, show time until start
     if (auction.status === 'pending') {
-      const now = new Date();
-      const startTime = new Date(auction.start_time);
       const diff = startTime - now;
       
+      // If start time has passed but status is still pending, trigger immediate reload
       if (diff <= 0) {
         setTimeRemaining('Starting soon...');
+        // Trigger immediate status check and reload (with debounce)
+        if (!statusCheckInProgress.current) {
+          statusCheckInProgress.current = true;
+          // Force reload immediately - don't wait for status check
+          // The backend statuses endpoint will update the database, but we should reload anyway
+          console.log('Start time passed! Forcing immediate reload...');
+          loadAuction().finally(() => {
+            // Also check status to ensure database is updated
+            publicAuctionAPI.getAuctionStatuses([auction.id])
+              .then(response => {
+                const statuses = response.data.statuses || {};
+                const newStatus = statuses[auction.id];
+                // If status changed after reload, reload again to get fresh data
+                if (newStatus && newStatus !== 'pending' && newStatus !== auction.status) {
+                  console.log(`Status updated to ${newStatus} - reloading again...`);
+                  loadAuction();
+                }
+              })
+              .catch(err => console.warn('Failed to check status:', err))
+              .finally(() => {
+                // Reset flag after 1 second to allow retry if needed
+                setTimeout(() => {
+                  statusCheckInProgress.current = false;
+                }, 1000);
+              });
+          });
+        }
         return;
       }
       
@@ -143,28 +255,56 @@ function AuctionDetailPage() {
     }
     
     // For active auctions, show time until end
-    const now = new Date();
-    const endTime = new Date(auction.end_time);
-    const diff = endTime - now;
+    if (auction.status === 'active') {
+      const diff = endTime - now;
 
-    if (diff <= 0) {
-      setTimeRemaining('Ended');
+      // If end time has passed but status is still active, trigger immediate reload
+      if (diff <= 0) {
+        setTimeRemaining('Ended');
+        // Trigger immediate status check and reload (with debounce)
+        if (!statusCheckInProgress.current) {
+          statusCheckInProgress.current = true;
+          // Force reload immediately - don't wait for status check
+          console.log('End time passed! Forcing immediate reload...');
+          loadAuction().finally(() => {
+            // Also check status to ensure database is updated
+            publicAuctionAPI.getAuctionStatuses([auction.id])
+              .then(response => {
+                const statuses = response.data.statuses || {};
+                const newStatus = statuses[auction.id];
+                // If status changed after reload, reload again to get fresh data
+                if (newStatus && newStatus !== 'active' && newStatus !== auction.status) {
+                  console.log(`Status updated to ${newStatus} - reloading again...`);
+                  loadAuction();
+                }
+              })
+              .catch(err => console.warn('Failed to check status:', err))
+              .finally(() => {
+                // Reset flag after 1 second to allow retry if needed
+                setTimeout(() => {
+                  statusCheckInProgress.current = false;
+                }, 1000);
+              });
+          });
+        }
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      if (days > 0) {
+        setTimeRemaining(`${days}d ${hours}h ${minutes}m`);
+      } else if (hours > 0) {
+        setTimeRemaining(`${hours}h ${minutes}m ${seconds}s`);
+      } else if (minutes > 0) {
+        setTimeRemaining(`${minutes}m ${seconds}s`);
+      } else {
+        setTimeRemaining(`${seconds}s`);
+      }
       return;
-    }
-
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-    if (days > 0) {
-      setTimeRemaining(`${days}d ${hours}h ${minutes}m`);
-    } else if (hours > 0) {
-      setTimeRemaining(`${hours}h ${minutes}m ${seconds}s`);
-    } else if (minutes > 0) {
-      setTimeRemaining(`${minutes}m ${seconds}s`);
-    } else {
-      setTimeRemaining(`${seconds}s`);
     }
   };
 
@@ -476,12 +616,16 @@ function AuctionDetailPage() {
                   <p className="text-lg font-semibold">{auction.bid_count || 0} bid{auction.bid_count !== 1 ? 's' : ''}</p>
                 </div>
 
-                {/* Reserve Price (if set) */}
+                {/* Reserve Price Status (if set) - Hide amount, show only met/not met */}
                 {auction.reserve_price && (
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Reserve Price</label>
-                    <p className="text-lg font-semibold">Rs. {auction.reserve_price.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">(Not met yet)</p>
+                    {auction.current_bid_price >= auction.reserve_price ? (
+                      <p className="text-lg font-semibold text-green-600">✓ Reserve Met</p>
+                    ) : (
+                      <p className="text-lg font-semibold text-orange-600">Reserve Not Met</p>
+                    )}
+                    <p className="text-xs text-gray-500">Reserve price is hidden until met</p>
                   </div>
                 )}
 

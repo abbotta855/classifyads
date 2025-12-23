@@ -392,6 +392,17 @@ class AuctionController extends Controller
     try {
       $auction = Auction::findOrFail($id);
       
+      // Restrict editing to pending auctions only
+      if ($auction->status !== 'pending') {
+        return response()->json([
+          'error' => 'Validation failed',
+          'message' => 'Auction can only be edited when status is pending. Current status: ' . $auction->status,
+          'errors' => [
+            'status' => ['Auction can only be edited when status is pending.'],
+          ],
+        ], 422);
+      }
+      
       Log::info('Updating auction', [
         'auction_id' => $id,
         'request_all_keys' => array_keys($request->all()),

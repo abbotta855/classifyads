@@ -446,6 +446,7 @@ export const publicAdAPI = {
 
 // Public Auction API
 export const publicAuctionAPI = {
+  getAuctionStatuses: (ids) => axios.get('/api/auctions/statuses', { params: { ids } }),
   getAuctions: (params) => axios.get('/api/auctions', { params }),
   getAuction: (id) => axios.get(`/api/auctions/${id}`),
   getBidHistory: (id, page = 1) => axios.get(`/api/auctions/${id}/bids`, { params: { page } }),

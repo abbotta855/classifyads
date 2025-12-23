@@ -11809,13 +11809,24 @@ function AdminPanel() {
                                   </td>
                                   <td className="p-3 text-sm">
                                     <div className="flex gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleEditAuction(auction)}
-                                      >
-                                        Edit
-                                      </Button>
+                                      {auction.status === 'pending' ? (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleEditAuction(auction)}
+                                        >
+                                          Edit
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          disabled
+                                          title={`Cannot edit auction with status: ${auction.status}. Only pending auctions can be edited.`}
+                                        >
+                                          Edit
+                                        </Button>
+                                      )}
                                       {auction.status === 'active' && (
                                         <Button
                                           variant="outline"

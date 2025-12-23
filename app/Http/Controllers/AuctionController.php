@@ -509,4 +509,90 @@ class AuctionController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get status updates for specific auctions (public endpoint)
+     * Used for real-time status polling on user pages
+     */
+    public function statuses(Request $request)
+    {
+        $query = Auction::select('id', 'start_time', 'end_time', 'status');
+        
+        if ($request->has('ids')) {
+            $ids = is_array($request->ids) ? $request->ids : explode(',', $request->ids);
+            $query->whereIn('id', $ids);
+        }
+        
+        $auctions = $query->get();
+        $now = now();
+        $statusesToUpdate = [];
+        
+        $result = $auctions->map(function ($auction) use ($now, &$statusesToUpdate) {
+            // Calculate actual status based on current time
+            $actualStatus = $auction->status;
+            $nextUpdateTime = null;
+            $secondsUntilNextChange = null;
+
+            if ($auction->status === 'completed') {
+                $actualStatus = 'completed';
+                // No need to update completed auctions
+            } elseif ($auction->end_time <= $now) {
+                $actualStatus = 'ended';
+                // Update database if status changed
+                if ($auction->status !== 'ended' && $auction->status !== 'completed') {
+                    $statusesToUpdate[$auction->id] = 'ended';
+                }
+            } elseif ($auction->start_time <= $now && $auction->end_time > $now) {
+                $actualStatus = 'active';
+                // Update database if status changed from pending to active
+                if ($auction->status === 'pending') {
+                    $statusesToUpdate[$auction->id] = 'active';
+                }
+                // Active: next change is when it ends
+                $nextUpdateTime = $auction->end_time;
+                $secondsUntilNextChange = max(1, $auction->end_time->diffInSeconds($now));
+            } elseif ($auction->start_time > $now) {
+                $actualStatus = 'pending';
+                // Pending: next change is when it starts
+                $nextUpdateTime = $auction->start_time;
+                $secondsUntilNextChange = max(1, $auction->start_time->diffInSeconds($now));
+            }
+            
+            return [
+                'id' => $auction->id,
+                'status' => $actualStatus,
+                'next_update_time' => $nextUpdateTime ? $nextUpdateTime->toIso8601String() : null,
+                'seconds_until_change' => $secondsUntilNextChange,
+            ];
+        });
+        
+        // Update database statuses in batch for auctions that changed
+        if (!empty($statusesToUpdate)) {
+            foreach ($statusesToUpdate as $auctionId => $newStatus) {
+                Auction::where('id', $auctionId)->update(['status' => $newStatus]);
+            }
+        }
+
+        $activeAuctions = $result->filter(fn($a) => in_array($a['status'], ['pending', 'active']));
+        $recommendedInterval = 10;
+        
+        if ($activeAuctions->isNotEmpty()) {
+            $closestChange = $activeAuctions->min('seconds_until_change');
+            if ($closestChange !== null) {
+                if ($closestChange <= 60) {
+                    $recommendedInterval = 1;
+                } elseif ($closestChange <= 300) {
+                    $recommendedInterval = 5;
+                } else {
+                    $recommendedInterval = 10;
+                }
+            }
+        }
+        
+        return response()->json([
+            'statuses' => $result->pluck('status', 'id'),
+            'recommended_interval' => $recommendedInterval,
+            'details' => $result->keyBy('id'),
+        ]);
+    }
 }

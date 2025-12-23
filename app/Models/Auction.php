@@ -129,9 +129,17 @@ class Auction extends Model
    */
   public function isActive(): bool
   {
-    return $this->status === 'active' 
-      && $this->end_time > now() 
-      && $this->start_time <= now();
+    // Check actual times, not just status field
+    // Status field might not be updated yet by scheduled commands
+    $now = now();
+    
+    // If status is ended or completed, it's definitely not active
+    if ($this->status === 'ended' || $this->status === 'completed') {
+      return false;
+    }
+    
+    // Auction is active if start_time has passed and end_time hasn't
+    return $this->start_time <= $now && $this->end_time > $now;
   }
 
   /**
