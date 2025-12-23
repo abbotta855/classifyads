@@ -19,9 +19,22 @@ export const adminAPI = {
 
   // Auctions
   getAuctions: () => axios.get(`${API_BASE}/auctions`),
+  getAuctionStatuses: (ids) => axios.get(`${API_BASE}/auctions/statuses`, { params: { ids } }),
   getAuction: (id) => axios.get(`${API_BASE}/auctions/${id}`),
   createAuction: (data) => axios.post(`${API_BASE}/auctions`, data),
-  updateAuction: (id, data) => axios.put(`${API_BASE}/auctions/${id}`, data),
+  updateAuction: (id, data) => {
+    // For FormData with PUT, we need to use POST with _method=PUT
+    // because some servers don't handle multipart/form-data with PUT correctly
+    if (data instanceof FormData) {
+      // Add _method=PUT for Laravel to recognize it as a PUT request
+      data.append('_method', 'PUT');
+      // Use POST instead of PUT for FormData
+      return axios.post(`${API_BASE}/auctions/${id}`, data, {
+        // Let axios set Content-Type automatically with boundary
+      });
+    }
+    return axios.put(`${API_BASE}/auctions/${id}`, data);
+  },
   deleteAuction: (id) => axios.delete(`${API_BASE}/auctions/${id}`),
 
   // Deliveries

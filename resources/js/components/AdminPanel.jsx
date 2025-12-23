@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { utcToLocalDateTime, localDateTimeToUTC, getUserTimezone, initializeTimezone } from '../utils/timezone';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
@@ -3026,6 +3026,9 @@ function AdminPanel() {
   // Handle Start Auction form submission
   const handleStartAuctionSubmit = async (e) => {
     e.preventDefault();
+    
+    console.log('Submitting auction form:', { editingAuction, auctionFormData });
+    
     try {
       const formData = new FormData();
       formData.append('user_id', auctionFormData.user_id);
@@ -3049,6 +3052,17 @@ function AdminPanel() {
       const startTimeUTC = localDateTimeToUTC(auctionFormData.start_time);
       const endTimeUTC = localDateTimeToUTC(auctionFormData.end_time);
       
+      console.log('Time conversions:', {
+        start_time_local: auctionFormData.start_time,
+        start_time_utc: startTimeUTC,
+        end_time_local: auctionFormData.end_time,
+        end_time_utc: endTimeUTC,
+      });
+      
+      if (!startTimeUTC || !endTimeUTC) {
+        throw new Error('Start time and end time are required');
+      }
+      
       formData.append('start_time', startTimeUTC);
       formData.append('end_time', endTimeUTC);
       
@@ -3060,9 +3074,43 @@ function AdminPanel() {
       });
 
       if (editingAuction) {
-        await adminAPI.updateAuction(editingAuction.id, formData);
+        console.log('Updating auction:', editingAuction.id);
+        
+        // Log what we're sending
+        console.log('FormData contents:');
+        for (let pair of formData.entries()) {
+          console.log(pair[0] + ': ' + pair[1]);
+        }
+        
+        const response = await adminAPI.updateAuction(editingAuction.id, formData);
+        console.log('Update response:', response.data);
+        
+        // Immediately update the auction in the list with the response data
+        if (response.data) {
+          setAuctions(prevAuctions => {
+            return prevAuctions.map(auction => {
+              if (auction.id === editingAuction.id || auction.id === parseInt(editingAuction.id)) {
+                // Transform the response to match our auction format
+                const updatedAuction = {
+                  ...auction,
+                  ...response.data,
+                  // Ensure status is calculated correctly
+                  status: response.data.status || auction.status,
+                  // Ensure times are formatted correctly
+                  start_time: response.data.start_time || auction.start_time,
+                  end_time: response.data.end_time || auction.end_time,
+                };
+                console.log('Updated auction in state:', updatedAuction);
+                return updatedAuction;
+              }
+              return auction;
+            });
+          });
+        }
+        
         setSuccessMessage('Auction updated successfully');
       } else {
+        console.log('Creating new auction');
         await adminAPI.createAuction(formData);
         setSuccessMessage('Auction created successfully');
       }
@@ -3084,9 +3132,18 @@ function AdminPanel() {
         end_time: '',
       });
       setAuctionImages([null, null, null, null]);
-      fetchAuctions();
+      
+      // Also do a full refresh to ensure all data is up to date
+      setTimeout(() => {
+        console.log('Refreshing auctions list...');
+        fetchAuctions();
+      }, 500);
+      
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
+      console.error('Error submitting auction:', err);
+      console.error('Error response:', err.response?.data);
+      
       // Handle validation errors - show all errors
       let errorMessage = 'Failed to ' + (editingAuction ? 'update' : 'create') + ' auction: ';
       
@@ -3095,11 +3152,13 @@ function AdminPanel() {
         const errors = err.response.data.errors;
         const errorList = [];
         Object.keys(errors).forEach(field => {
-          errors[field].forEach(msg => errorList.push(msg));
+          errors[field].forEach(msg => errorList.push(`${field}: ${msg}`));
         });
         errorMessage += errorList.join('. ');
       } else if (err.response?.data?.message) {
         errorMessage += err.response.data.message;
+      } else if (err.response?.data?.error) {
+        errorMessage += err.response.data.error;
       } else {
         errorMessage += err.message;
       }
@@ -3123,7 +3182,7 @@ function AdminPanel() {
       buy_now_price: auction.buy_now_price || '',
       bid_increment: auction.bid_increment || '1.00',
       start_time: auction.start_time ? utcToLocalDateTime(auction.start_time) : '',
-      end_time: auction.end_time ? new Date(auction.end_time).toISOString().slice(0, 16) : '',
+      end_time: auction.end_time ? utcToLocalDateTime(auction.end_time) : '', // Use utcToLocalDateTime like start_time
     });
     setAuctionImages([null, null, null, null]); // Reset images - could load existing if needed
     setShowEditAuctionModal(true);
@@ -3144,14 +3203,60 @@ function AdminPanel() {
 
   const handleEndAuction = async (id) => {
     if (!window.confirm('Are you sure you want to end this auction?')) return;
+    
+    const auctionId = parseInt(id);
+    console.log('Ending auction:', auctionId);
+    
     try {
-      await axios.post(`/api/admin/auctions/${id}/end`);
-      setSuccessMessage('Auction ended successfully');
-      fetchAuctions();
+      const response = await axios.post(`/api/admin/auctions/${auctionId}/end`);
+      
+      console.log('End auction response:', response.data);
+      
+      // Immediately update the auction status in the list
+      setAuctions(prevAuctions => {
+        const updated = prevAuctions.map(auction => {
+          // Compare both as numbers to ensure match
+          const currentAuctionId = typeof auction.id === 'string' ? parseInt(auction.id) : auction.id;
+          
+          if (currentAuctionId === auctionId) {
+            // Use the auction data from response if available, otherwise just update status
+            const updatedAuction = response.data?.auction 
+              ? { 
+                  ...auction, 
+                  ...response.data.auction, 
+                  status: 'ended', // Force status to 'ended'
+                  id: currentAuctionId // Preserve ID
+                }
+              : { 
+                  ...auction, 
+                  status: 'ended' // Force status to 'ended'
+                };
+            console.log('Updating auction in state:', updatedAuction);
+            return updatedAuction;
+          }
+          return auction;
+        });
+        console.log('Updated auctions list:', updated);
+        return updated;
+      });
+      
+      setSuccessMessage(response.data?.message || 'Auction ended successfully');
+      
+      // Also do a full refresh to ensure all data is up to date
+      setTimeout(() => {
+        console.log('Refreshing auctions list...');
+        fetchAuctions();
+      }, 500);
+      
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      setError('Failed to end auction: ' + (err.response?.data?.message || err.message));
+      console.error('Error ending auction:', err);
+      console.error('Error response:', err.response?.data);
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || err.message;
+      setError('Failed to end auction: ' + errorMessage);
       setTimeout(() => setError(null), 5000);
+      // Still refresh to see current state
+      fetchAuctions();
     }
   };
 
@@ -3170,6 +3275,60 @@ function AdminPanel() {
     }
   }, [activeSection]);
 
+  // Smart status update interval state (in seconds)
+  const [statusUpdateInterval, setStatusUpdateInterval] = React.useState(10); // Default 10 seconds
+
+  // Lightweight function to update only auction statuses (for real-time updates)
+  // Only updates pending/active auctions, uses dynamic intervals based on time until status change
+  const updateAuctionStatuses = React.useCallback(async () => {
+    // Use functional setState to get current auctions
+    setAuctions(prevAuctions => {
+      if (prevAuctions.length === 0) return prevAuctions;
+      
+      // Filter to only pending/active auctions (no need to check ended/completed)
+      const activeAuctionIds = prevAuctions
+        .filter(auction => auction.status === 'pending' || auction.status === 'active')
+        .map(auction => auction.id);
+      
+      if (activeAuctionIds.length === 0) {
+        // No active auctions, no need to update
+        return prevAuctions;
+      }
+      
+      // Fetch statuses asynchronously
+      adminAPI.getAuctionStatuses(activeAuctionIds)
+        .then(response => {
+          const statuses = response.data.statuses || {};
+          const recommendedInterval = response.data.recommended_interval || 10;
+          
+          // Update recommended interval for dynamic polling
+          if (recommendedInterval !== statusUpdateInterval) {
+            setStatusUpdateInterval(recommendedInterval);
+          }
+          
+          // Update only status field
+          setAuctions(currentAuctions => 
+            currentAuctions.map(auction => {
+              // Only update if auction is pending/active (or was pending/active)
+              if (auction.status === 'pending' || auction.status === 'active' || statuses[auction.id]) {
+                const newStatus = statuses[auction.id];
+                if (newStatus && newStatus !== auction.status) {
+                  return { ...auction, status: newStatus };
+                }
+              }
+              return auction;
+            })
+          );
+        })
+        .catch((error) => {
+          // Log error but don't break the UI
+          console.warn('Failed to update auction statuses:', error.response?.data?.message || error.message);
+        });
+      
+      return prevAuctions; // Return immediately
+    });
+  }, [statusUpdateInterval]);
+
   // Fetch auction-related data
   useEffect(() => {
     if (activeSection === 'auction-management') {
@@ -3179,15 +3338,36 @@ function AdminPanel() {
       fetchBlockedUsers();
       fetchBiddingTracking();
       
-      // Auto-refresh auction status every 30 seconds
-      // This ensures status updates automatically based on current time vs start_time/end_time
-      const refreshInterval = setInterval(() => {
+      // Full refresh every 5 minutes (for bid counts, prices, etc.)
+      const fullRefreshInterval = setInterval(() => {
         fetchAuctions();
-      }, 30000); // Refresh every 30 seconds
+      }, 300000); // Full refresh every 5 minutes
       
-      return () => clearInterval(refreshInterval);
+      return () => {
+        clearInterval(fullRefreshInterval);
+      };
     }
-  }, [activeSection]);
+  }, [activeSection]); // fetchAuctions and other functions are stable, no need in deps
+
+  // Separate effect for smart status updates with dynamic intervals
+  // This effect restarts when statusUpdateInterval changes
+  // PAUSES when form is open to avoid interfering with typing
+  useEffect(() => {
+    // Don't update status when form is open (prevents input lag)
+    if (activeSection === 'auction-management' && auctions.length > 0 && !showAuctionForm && !showEditAuctionModal) {
+      // Initial update
+      updateAuctionStatuses();
+      
+      // Set up dynamic interval that adjusts based on time until status change
+      const statusUpdateTimer = setInterval(() => {
+        updateAuctionStatuses();
+      }, statusUpdateInterval * 1000);
+      
+      return () => {
+        clearInterval(statusUpdateTimer);
+      };
+    }
+  }, [activeSection, auctions.length, statusUpdateInterval, updateAuctionStatuses, showAuctionForm, showEditAuctionModal]);
 
   // Clear errors when switching sections
   useEffect(() => {
@@ -3561,6 +3741,7 @@ function AdminPanel() {
       setAuctionsLoading(false);
     }
   };
+
 
   const fetchBiddingHistory = async () => {
     setBiddingHistoryLoading(true);
@@ -4553,9 +4734,9 @@ function AdminPanel() {
             // We need to use the actual record ID (item.id) which is always the correct ID to delete
             return {
               id: item.id, // Always use item.id - this is the actual database record ID from backend
-              categoryId: item.categoryId || item.id,
-              categoryName: item.categoryName || item.category || '',
-              subcategoryId: item.subcategoryId || null,
+            categoryId: item.categoryId || item.id,
+            categoryName: item.categoryName || item.category || '',
+            subcategoryId: item.subcategoryId || null,
               subcategoryName: item.subcategoryName || item.sub_category || '',
               isSubcategory: !!item.subcategoryId // Flag to identify subcategories
             };
@@ -5415,7 +5596,7 @@ function AdminPanel() {
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center space-x-2 flex-1">
                                         {hasSubcategories ? (
-                                          <button
+                              <button
                                             onClick={() => toggleCategory(category.id)}
                                             className="flex items-center space-x-2 flex-1 text-left"
                                           >
@@ -5432,7 +5613,7 @@ function AdminPanel() {
                                             <span className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer">
                                               {category.name}
                                             </span>
-                                          </button>
+                                </button>
                                         ) : (
                                           <label className="flex items-center space-x-2 flex-1 cursor-pointer">
                                             <input
@@ -5450,12 +5631,12 @@ function AdminPanel() {
                                             </span>
                                           </label>
                                         )}
-                                      </div>
+                            </div>
                                       <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
                                         ({adCount})
                                       </span>
-                                    </div>
-                                    
+                          </div>
+                          
                                     {/* Show subcategories when expanded */}
                                     {hasSubcategories && isExpanded && (
                                       <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
@@ -5479,11 +5660,11 @@ function AdminPanel() {
                                               <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
                                                 ({subAdCount})
                                               </span>
-                                            </div>
+                              </div>
                                           );
                                         })}
-                                      </div>
-                                    )}
+                            </div>
+                          )}
                                   </div>
                                 );
                               })}
@@ -5532,8 +5713,8 @@ function AdminPanel() {
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center space-x-2 flex-1">
                                         {hasDistricts ? (
-                                          <button
-                                            onClick={() => toggleProvince(province.id)}
+                                    <button
+                                      onClick={() => toggleProvince(province.id)}
                                             className="flex items-center space-x-2 flex-1 text-left"
                                           >
                                             <input
@@ -5592,59 +5773,59 @@ function AdminPanel() {
                                             <span className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer">
                                               {province.name}
                                             </span>
-                                          </button>
+                                    </button>
                                         ) : (
                                           <label className="flex items-center space-x-2 flex-1 cursor-pointer">
-                                            <input
-                                              type="checkbox"
-                                              checked={(() => {
-                                                const allLocationIds = [];
-                                                province.districts.forEach(d => {
-                                                  d.localLevels.forEach(ll => {
-                                                    if (ll.wards) {
-                                                      ll.wards.forEach(w => {
-                                                        allLocationIds.push(w.id);
-                                                        if (w.local_addresses) {
-                                                          w.local_addresses.forEach((_, idx) => {
-                                                            allLocationIds.push(`${w.id}-${idx}`);
-                                                          });
-                                                        }
-                                                      });
-                                                    }
+                                    <input
+                                      type="checkbox"
+                                      checked={(() => {
+                                        const allLocationIds = [];
+                                        province.districts.forEach(d => {
+                                          d.localLevels.forEach(ll => {
+                                            if (ll.wards) {
+                                              ll.wards.forEach(w => {
+                                                allLocationIds.push(w.id);
+                                                if (w.local_addresses) {
+                                                  w.local_addresses.forEach((_, idx) => {
+                                                    allLocationIds.push(`${w.id}-${idx}`);
                                                   });
-                                                });
-                                                return allLocationIds.length > 0 && allLocationIds.every(id => selectedLocations.has(id));
-                                              })()}
+                                                }
+                                              });
+                                            }
+                                          });
+                                        });
+                                        return allLocationIds.length > 0 && allLocationIds.every(id => selectedLocations.has(id));
+                                      })()}
                                               onChange={(e) => {
                                                 e.stopPropagation();
-                                                const allLocationIds = [];
-                                                province.districts.forEach(d => {
-                                                  d.localLevels.forEach(ll => {
-                                                    if (ll.wards) {
-                                                      ll.wards.forEach(w => {
-                                                        allLocationIds.push(w.id);
-                                                        if (w.local_addresses) {
-                                                          w.local_addresses.forEach((_, idx) => {
-                                                            allLocationIds.push(`${w.id}-${idx}`);
-                                                          });
-                                                        }
-                                                      });
-                                                    }
+                                        const allLocationIds = [];
+                                        province.districts.forEach(d => {
+                                          d.localLevels.forEach(ll => {
+                                            if (ll.wards) {
+                                              ll.wards.forEach(w => {
+                                                allLocationIds.push(w.id);
+                                                if (w.local_addresses) {
+                                                  w.local_addresses.forEach((_, idx) => {
+                                                    allLocationIds.push(`${w.id}-${idx}`);
                                                   });
-                                                });
-                                                setSelectedLocations(prev => {
-                                                  const newSet = new Set(prev);
-                                                  const allSelected = allLocationIds.every(id => newSet.has(id));
-                                                  allLocationIds.forEach(id => {
-                                                    if (allSelected) {
-                                                      newSet.delete(id);
-                                                    } else {
-                                                      newSet.add(id);
-                                                    }
-                                                  });
-                                                  return newSet;
-                                                });
-                                              }}
+                                                }
+                                              });
+                                            }
+                                          });
+                                        });
+                                        setSelectedLocations(prev => {
+                                          const newSet = new Set(prev);
+                                          const allSelected = allLocationIds.every(id => newSet.has(id));
+                                          allLocationIds.forEach(id => {
+                                            if (allSelected) {
+                                              newSet.delete(id);
+                                            } else {
+                                              newSet.add(id);
+                                            }
+                                          });
+                                          return newSet;
+                                        });
+                                      }}
                                               onClick={(e) => e.stopPropagation()}
                                               className="w-4 h-4"
                                             />
@@ -5657,8 +5838,8 @@ function AdminPanel() {
                                       <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
                                         ({provinceAdCount})
                                       </span>
-                                    </div>
-                                    
+                                  </div>
+                                  
                                     {/* Show districts when expanded */}
                                     {hasDistricts && isProvinceExpanded && (
                                       <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
@@ -5684,7 +5865,7 @@ function AdminPanel() {
                                               <div className="flex items-center justify-between">
                                                 <div className="flex items-center space-x-2 flex-1">
                                                   {hasLocalLevels ? (
-                                                    <button
+                                        <button
                                                       onClick={() => toggleDistrict(districtKey)}
                                                       className="flex items-center space-x-2 flex-1 text-left"
                                                     >
@@ -5740,55 +5921,55 @@ function AdminPanel() {
                                                       <span className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer">
                                                         {district.name}
                                                       </span>
-                                                    </button>
+                                        </button>
                                                   ) : (
                                                     <label className="flex items-center space-x-2 flex-1 cursor-pointer">
-                                                      <input
-                                                        type="checkbox"
-                                                        checked={(() => {
-                                                          const allLocationIds = [];
-                                                          district.localLevels.forEach(ll => {
-                                                            if (ll.wards) {
-                                                              ll.wards.forEach(w => {
-                                                                allLocationIds.push(w.id);
-                                                                if (w.local_addresses) {
-                                                                  w.local_addresses.forEach((_, idx) => {
-                                                                    allLocationIds.push(`${w.id}-${idx}`);
-                                                                  });
-                                                                }
-                                                              });
-                                                            }
-                                                          });
-                                                          return allLocationIds.length > 0 && allLocationIds.every(id => selectedLocations.has(id));
-                                                        })()}
+                                        <input
+                                          type="checkbox"
+                                          checked={(() => {
+                                            const allLocationIds = [];
+                                            district.localLevels.forEach(ll => {
+                                              if (ll.wards) {
+                                                ll.wards.forEach(w => {
+                                                  allLocationIds.push(w.id);
+                                                  if (w.local_addresses) {
+                                                    w.local_addresses.forEach((_, idx) => {
+                                                      allLocationIds.push(`${w.id}-${idx}`);
+                                                    });
+                                                  }
+                                                });
+                                              }
+                                            });
+                                            return allLocationIds.length > 0 && allLocationIds.every(id => selectedLocations.has(id));
+                                          })()}
                                                         onChange={(e) => {
                                                           e.stopPropagation();
-                                                          const allLocationIds = [];
-                                                          district.localLevels.forEach(ll => {
-                                                            if (ll.wards) {
-                                                              ll.wards.forEach(w => {
-                                                                allLocationIds.push(w.id);
-                                                                if (w.local_addresses) {
-                                                                  w.local_addresses.forEach((_, idx) => {
-                                                                    allLocationIds.push(`${w.id}-${idx}`);
-                                                                  });
-                                                                }
-                                                              });
-                                                            }
-                                                          });
-                                                          setSelectedLocations(prev => {
-                                                            const newSet = new Set(prev);
-                                                            const allSelected = allLocationIds.every(id => newSet.has(id));
-                                                            allLocationIds.forEach(id => {
-                                                              if (allSelected) {
-                                                                newSet.delete(id);
-                                                              } else {
-                                                                newSet.add(id);
-                                                              }
-                                                            });
-                                                            return newSet;
-                                                          });
-                                                        }}
+                                            const allLocationIds = [];
+                                            district.localLevels.forEach(ll => {
+                                              if (ll.wards) {
+                                                ll.wards.forEach(w => {
+                                                  allLocationIds.push(w.id);
+                                                  if (w.local_addresses) {
+                                                    w.local_addresses.forEach((_, idx) => {
+                                                      allLocationIds.push(`${w.id}-${idx}`);
+                                                    });
+                                                  }
+                                                });
+                                              }
+                                            });
+                                            setSelectedLocations(prev => {
+                                              const newSet = new Set(prev);
+                                              const allSelected = allLocationIds.every(id => newSet.has(id));
+                                              allLocationIds.forEach(id => {
+                                                if (allSelected) {
+                                                  newSet.delete(id);
+                                                } else {
+                                                  newSet.add(id);
+                                                }
+                                              });
+                                              return newSet;
+                                            });
+                                          }}
                                                         onClick={(e) => e.stopPropagation()}
                                                         className="w-4 h-4"
                                                       />
@@ -5801,8 +5982,8 @@ function AdminPanel() {
                                                 <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
                                                   ({districtAdCount})
                                                 </span>
-                                              </div>
-                                              
+                                      </div>
+                                      
                                               {/* Show local levels when expanded */}
                                               {hasLocalLevels && isDistrictExpanded && (
                                                 <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
@@ -5825,7 +6006,7 @@ function AdminPanel() {
                                                         <div className="flex items-center justify-between">
                                                           <div className="flex items-center space-x-2 flex-1">
                                                             {hasWards ? (
-                                                              <button
+                                            <button
                                                                 onClick={() => toggleLocalLevel(localLevelKey)}
                                                                 className="flex items-center space-x-2 flex-1 text-left"
                                                               >
@@ -5876,64 +6057,64 @@ function AdminPanel() {
                                                                 <span className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer">
                                                                   {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
                                                                 </span>
-                                                              </button>
+                                            </button>
                                                             ) : (
                                                               <label className="flex items-center space-x-2 flex-1 cursor-pointer">
-                                                                <input
-                                                                  type="checkbox"
-                                                                  checked={(() => {
-                                                                    if (!localLevel.wards) return false;
-                                                                    const allLocationIds = [];
-                                                                    localLevel.wards.forEach(w => {
-                                                                      allLocationIds.push(w.id);
-                                                                      if (w.local_addresses) {
-                                                                        w.local_addresses.forEach((_, idx) => {
-                                                                          allLocationIds.push(`${w.id}-${idx}`);
-                                                                        });
-                                                                      }
-                                                                    });
-                                                                    return allLocationIds.length > 0 && allLocationIds.every(id => selectedLocations.has(id));
-                                                                  })()}
+                                            <input
+                                              type="checkbox"
+                                              checked={(() => {
+                                                if (!localLevel.wards) return false;
+                                                const allLocationIds = [];
+                                                localLevel.wards.forEach(w => {
+                                                  allLocationIds.push(w.id);
+                                                  if (w.local_addresses) {
+                                                    w.local_addresses.forEach((_, idx) => {
+                                                      allLocationIds.push(`${w.id}-${idx}`);
+                                                    });
+                                                  }
+                                                });
+                                                return allLocationIds.length > 0 && allLocationIds.every(id => selectedLocations.has(id));
+                                              })()}
                                                                   onChange={(e) => {
                                                                     e.stopPropagation();
-                                                                    if (localLevel.wards) {
-                                                                      const allLocationIds = [];
-                                                                      localLevel.wards.forEach(w => {
-                                                                        allLocationIds.push(w.id);
-                                                                        if (w.local_addresses) {
-                                                                          w.local_addresses.forEach((_, idx) => {
-                                                                            allLocationIds.push(`${w.id}-${idx}`);
-                                                                          });
-                                                                        }
-                                                                      });
-                                                                      setSelectedLocations(prev => {
-                                                                        const newSet = new Set(prev);
-                                                                        const allSelected = allLocationIds.every(id => newSet.has(id));
-                                                                        allLocationIds.forEach(id => {
-                                                                          if (allSelected) {
-                                                                            newSet.delete(id);
-                                                                          } else {
-                                                                            newSet.add(id);
-                                                                          }
-                                                                        });
-                                                                        return newSet;
-                                                                      });
-                                                                    }
-                                                                  }}
+                                                if (localLevel.wards) {
+                                                  const allLocationIds = [];
+                                                  localLevel.wards.forEach(w => {
+                                                    allLocationIds.push(w.id);
+                                                    if (w.local_addresses) {
+                                                      w.local_addresses.forEach((_, idx) => {
+                                                        allLocationIds.push(`${w.id}-${idx}`);
+                                                      });
+                                                    }
+                                                  });
+                                                  setSelectedLocations(prev => {
+                                                    const newSet = new Set(prev);
+                                                    const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                    allLocationIds.forEach(id => {
+                                                      if (allSelected) {
+                                                        newSet.delete(id);
+                                                      } else {
+                                                        newSet.add(id);
+                                                      }
+                                                    });
+                                                    return newSet;
+                                                  });
+                                                }
+                                              }}
                                                                   onClick={(e) => e.stopPropagation()}
                                                                   className="w-4 h-4"
-                                                                />
-                                                                <span className="text-sm text-[hsl(var(--foreground))]">
-                                                                  {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
+                                            />
+                                            <span className="text-sm text-[hsl(var(--foreground))]">
+                                              {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
                                                                 </span>
                                                               </label>
                                                             )}
                                                           </div>
                                                           <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
                                                             ({localLevelAdCount})
-                                                          </span>
-                                                        </div>
-                                                        
+                                            </span>
+                                          </div>
+                                          
                                                         {/* Show wards when expanded */}
                                                         {hasWards && isLocalLevelExpanded && (
                                                           <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
@@ -5962,9 +6143,9 @@ function AdminPanel() {
                                                                           }}
                                                                           className="flex items-center space-x-2 flex-1 text-left"
                                                                         >
-                                                                          <input
-                                                                            type="checkbox"
-                                                                            checked={(() => {
+                                                <input
+                                                  type="checkbox"
+                                                  checked={(() => {
                                                                               // Check if ward.id is selected OR all addresses are selected
                                                                               const wardSelected = selectedLocations.has(ward.id);
                                                                               if (wardSelected) return true;
@@ -5976,28 +6157,28 @@ function AdminPanel() {
                                                                               }
                                                                               
                                                                               return false;
-                                                                            })()}
+                                                  })()}
                                                                             onChange={(e) => {
                                                                               e.stopPropagation();
-                                                                              const allIds = [ward.id];
-                                                                              if (ward.local_addresses) {
-                                                                                ward.local_addresses.forEach((_, idx) => {
-                                                                                  allIds.push(`${ward.id}-${idx}`);
-                                                                                });
-                                                                              }
-                                                                              const allSelected = allIds.every(id => selectedLocations.has(id));
-                                                                              setSelectedLocations(prev => {
-                                                                                const newSet = new Set(prev);
-                                                                                allIds.forEach(id => {
-                                                                                  if (allSelected) {
-                                                                                    newSet.delete(id);
-                                                                                  } else {
-                                                                                    newSet.add(id);
-                                                                                  }
-                                                                                });
-                                                                                return newSet;
-                                                                              });
-                                                                            }}
+                                                    const allIds = [ward.id];
+                                                    if (ward.local_addresses) {
+                                                      ward.local_addresses.forEach((_, idx) => {
+                                                        allIds.push(`${ward.id}-${idx}`);
+                                                      });
+                                                    }
+                                                    const allSelected = allIds.every(id => selectedLocations.has(id));
+                                                    setSelectedLocations(prev => {
+                                                      const newSet = new Set(prev);
+                                                      allIds.forEach(id => {
+                                                        if (allSelected) {
+                                                          newSet.delete(id);
+                                                        } else {
+                                                          newSet.add(id);
+                                                        }
+                                                      });
+                                                      return newSet;
+                                                    });
+                                                  }}
                                                                             onClick={(e) => e.stopPropagation()}
                                                                             className="w-4 h-4"
                                                                           />
@@ -6016,58 +6197,58 @@ function AdminPanel() {
                                                                             }}
                                                                             onClick={(e) => e.stopPropagation()}
                                                                             className="w-4 h-4"
-                                                                          />
-                                                                          <span className="text-sm text-[hsl(var(--foreground))]">
-                                                                            Ward {ward.ward_number}
+                                                />
+                                                <span className="text-sm text-[hsl(var(--foreground))]">
+                                                  Ward {ward.ward_number}
                                                                           </span>
                                                                         </label>
                                                                       )}
                                                                     </div>
                                                                     <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
                                                                       ({wardAdCount})
-                                                                    </span>
-                                                                  </div>
-                                                                  
+                                                </span>
+                                              </div>
+                                              
                                                                   {/* Local Addresses - Only show when ward is expanded */}
                                                                   {hasAddresses && isWardExpanded && (
                                                                     <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
-                                                                      {ward.local_addresses.map((address, idx) => {
-                                                                        const addressId = `${ward.id}-${idx}`;
+                                                  {ward.local_addresses.map((address, idx) => {
+                                                    const addressId = `${ward.id}-${idx}`;
                                                                         const addressAdCount = getLocationAdCount(addressId);
-                                                                        return (
+                                                    return (
                                                                           <div key={addressId} className="flex items-center justify-between">
                                                                             <label className="flex items-center space-x-2 cursor-pointer flex-1">
-                                                                              <input
-                                                                                type="checkbox"
-                                                                                checked={selectedLocations.has(addressId)}
+                                                        <input
+                                                          type="checkbox"
+                                                          checked={selectedLocations.has(addressId)}
                                                                                 onChange={(e) => {
                                                                                   e.stopPropagation();
                                                                                   handleLocationToggle(addressId);
                                                                                 }}
                                                                                 onClick={(e) => e.stopPropagation()}
                                                                                 className="w-4 h-4"
-                                                                              />
-                                                                              <span className="text-xs text-[hsl(var(--muted-foreground))]">{address}</span>
+                                                        />
+                                                        <span className="text-xs text-[hsl(var(--muted-foreground))]">{address}</span>
                                                                             </label>
                                                                             <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
                                                                               ({addressAdCount})
                                                                             </span>
-                                                                          </div>
-                                                                        );
-                                                                      })}
-                                                                    </div>
-                                                                  )}
-                                                                </div>
-                                                              );
-                                                            })}
-                                                          </div>
-                                                        )}
                                                       </div>
                                                     );
                                                   })}
                                                 </div>
                                               )}
                                             </div>
+                                                              );
+                                                            })}
+                                        </div>
+                                                        )}
+                                    </div>
+                                                    );
+                                                  })}
+                                </div>
+                                              )}
+                            </div>
                                           );
                                         })}
                                       </div>
@@ -7407,20 +7588,20 @@ function AdminPanel() {
                                 </span>
                               </td>
                               <td className="p-3 text-sm">
-                                <span className="text-[hsl(var(--foreground))]">{ad.category}</span>
+                                  <span className="text-[hsl(var(--foreground))]">{ad.category}</span>
                               </td>
                               <td className="p-3 text-sm max-w-[180px]">
                                 <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block" title={ad.location || '-'}>
                                   {ad.location && ad.location.length > 40 ? `${ad.location.substring(0, 40)}...` : (ad.location || '-')}
-                                </span>
+                                                          </span>
                               </td>
                               <td className="p-3 text-sm max-w-[200px]">
                                 <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block" title={ad.description}>
                                   {ad.description && ad.description.length > 50 ? `${ad.description.substring(0, 50)}...` : ad.description}
-                                </span>
+                                                              </span>
                               </td>
                               <td className="p-3 text-sm">
-                                <span className="font-semibold">Rs. {ad.price.toLocaleString()}</span>
+                                  <span className="font-semibold">Rs. {ad.price.toLocaleString()}</span>
                               </td>
                               <td className="p-3 text-sm">
                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -7437,22 +7618,22 @@ function AdminPanel() {
                               <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(ad.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
                               <td className="p-3 text-sm">
                                 <div className="flex gap-2">
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    className="h-7 px-2 text-xs"
-                                    onClick={() => handleEditAd(ad)}
-                                  >
-                                    Edit
-                                  </Button>
-                                  <Button 
-                                    variant="destructive" 
-                                    size="sm" 
-                                    className="h-7 px-2 text-xs"
-                                    onClick={() => handleDeleteAd(ad.id)}
-                                  >
-                                    Delete
-                                  </Button>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleEditAd(ad)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleDeleteAd(ad.id)}
+                                      >
+                                        Delete
+                                      </Button>
                                 </div>
                               </td>
                             </tr>
@@ -7507,14 +7688,14 @@ function AdminPanel() {
                               <tr key={ad.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]/30 transition-colors">
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                                 <td className="p-3 text-sm">
-                                  <span className="font-medium">{ad.title}</span>
+                                    <span className="font-medium">{ad.title}</span>
                                 </td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.category}</td>
                                 <td className="p-3 text-sm max-w-xs">
-                                  <span className="text-[hsl(var(--muted-foreground))] truncate block">{ad.description}</span>
+                                    <span className="text-[hsl(var(--muted-foreground))] truncate block">{ad.description}</span>
                                 </td>
                                 <td className="p-3 text-sm">
-                                  <span className="text-[hsl(var(--foreground))]">Rs. {ad.price.toLocaleString()}</span>
+                                    <span className="text-[hsl(var(--foreground))]">Rs. {ad.price.toLocaleString()}</span>
                                 </td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">
                                   {ad.date ? new Date(ad.date).toLocaleDateString() : 'N/A'}
@@ -7522,24 +7703,24 @@ function AdminPanel() {
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views || 0}</td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">No</td>
                                 <td className="p-3 text-sm">
-                                  <div className="flex gap-2">
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm" 
-                                      className="h-7 px-2 text-xs"
-                                      onClick={() => handleEditAd(ad)}
-                                    >
-                                      Edit
-                                    </Button>
-                                    <Button 
-                                      variant="destructive" 
-                                      size="sm" 
-                                      className="h-7 px-2 text-xs"
-                                      onClick={() => handleDeleteAd(ad.id)}
-                                    >
-                                      Delete
-                                    </Button>
-                                  </div>
+                                    <div className="flex gap-2">
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleEditAd(ad)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleDeleteAd(ad.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </div>
                                 </td>
                               </tr>
                             ))
@@ -7634,24 +7815,24 @@ function AdminPanel() {
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views || 0}</td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">No</td>
                                 <td className="p-3 text-sm">
-                                  <div className="flex gap-2">
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm" 
-                                      className="h-7 px-2 text-xs"
-                                      onClick={() => handleEditAd(ad)}
-                                    >
-                                      Edit
-                                    </Button>
-                                    <Button 
-                                      variant="destructive" 
-                                      size="sm" 
-                                      className="h-7 px-2 text-xs"
-                                      onClick={() => handleDeleteAd(ad.id)}
-                                    >
-                                      Delete
-                                    </Button>
-                                  </div>
+                                    <div className="flex gap-2">
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleEditAd(ad)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button 
+                                        variant="destructive" 
+                                        size="sm" 
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => handleDeleteAd(ad.id)}
+                                      >
+                                        Delete
+                                      </Button>
+                                    </div>
                                 </td>
                               </tr>
                             ))
@@ -7827,8 +8008,8 @@ function AdminPanel() {
                         rows={4}
                         className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] mt-1"
                       />
-                    </div>
-                    <div>
+                  </div>
+                          <div>
                       <Label htmlFor="edit-ad-price">Price *</Label>
                       <Input
                         id="edit-ad-price"
@@ -7859,79 +8040,79 @@ function AdminPanel() {
                     <div>
                       <Label>Category *</Label>
                       <div className="relative mt-1" ref={editingAdCategoryDropdownRef}>
-                        <button
-                          type="button"
+                              <button
+                                type="button"
                           onClick={() => setEditingAdShowCategoryDropdown(!editingAdShowCategoryDropdown)}
-                          className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
-                        >
+                                className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                              >
                           <span>{buildEditingAdCategoryString() || 'Select Category'}</span>
                           <span>{editingAdShowCategoryDropdown ? '▼' : '▶'}</span>
-                        </button>
+                              </button>
                         {editingAdShowCategoryDropdown && (
-                          <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
+                                <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
                             <div className="min-w-[150px] max-h-64 overflow-y-auto border-r border-[hsl(var(--border))]">
                               <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">Category</div>
-                              <div className="py-1">
-                                <button
-                                  type="button"
+                                    <div className="py-1">
+                                      <button
+                                        type="button"
                                   onClick={handleEditingAdClearCategorySelection}
                                   className="w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))]"
-                                >
-                                  All Categories
-                                </button>
+                                      >
+                                        All Categories
+                                      </button>
                                 {categories.map((category) => (
-                                  <button
+                                        <button
                                     key={category.id}
-                                    type="button"
+                                          type="button"
                                     onClick={() => handleEditingAdCategorySelect(category.name)}
                                     className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
                                       editingAdSelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
-                                    }`}
-                                  >
-                                    <span>{category.name}</span>
-                                    {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
+                                          }`}
+                                        >
+                                          <span>{category.name}</span>
+                                          {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
                             {editingAdSelectedCategoryName && getEditingAdSelectedCategory() && getEditingAdSelectedCategory().subcategories && getEditingAdSelectedCategory().subcategories.length > 0 && (
                               <div className="min-w-[150px] max-h-64 overflow-y-auto">
                                 <div className="p-2 font-semibold text-xs text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">Subcategory</div>
-                                <div className="py-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
+                                      <div className="py-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
                                       setEditingAdSelectedSubcategoryId('');
                                       const category = getEditingAdSelectedCategory();
-                                      if (category) {
+                                            if (category) {
                                         setEditingAdData({...editingAdData, category_id: category.id.toString()});
-                                      }
+                                            }
                                       setEditingAdShowCategoryDropdown(false);
-                                    }}
+                                          }}
                                     className="w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))]"
-                                  >
-                                    All Subcategories
-                                  </button>
+                                        >
+                                          All Subcategories
+                                        </button>
                                   {getEditingAdSelectedCategory().subcategories.map((subcategory) => (
-                                    <button
-                                      key={subcategory.id}
-                                      type="button"
+                                          <button
+                                            key={subcategory.id}
+                                            type="button"
                                       onClick={() => handleEditingAdSubcategorySelect(subcategory.id.toString())}
                                       className={`w-full text-left px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] ${
                                         editingAdSelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
-                                      }`}
-                                    >
-                                      {subcategory.name}
-                                    </button>
-                                  ))}
+                                            }`}
+                                          >
+                                            {subcategory.name}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                    <div>
+                          <div>
                       <Label>Location *</Label>
                       <div className="relative mt-1" ref={editingAdLocationDropdownRef}>
                         <button
@@ -8687,10 +8868,10 @@ function AdminPanel() {
                             <tr key={applicant.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm">
-                                <span className="font-medium">{applicant.job_title}</span>
+                                  <span className="font-medium">{applicant.job_title}</span>
                               </td>
                               <td className="p-3 text-sm">
-                                <span className="text-[hsl(var(--muted-foreground))]">{applicant.applicant_name}</span>
+                                  <span className="text-[hsl(var(--muted-foreground))]">{applicant.applicant_name}</span>
                               </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">
                                 {applicant.posted_date ? new Date(applicant.posted_date).toLocaleDateString() : 'N/A'}
@@ -8702,7 +8883,7 @@ function AdminPanel() {
                                 {applicant.interview_date ? new Date(applicant.interview_date).toLocaleDateString() : '-'}
                               </td>
                               <td className="p-3 text-sm">
-                                <span className="capitalize">{applicant.job_progress}</span>
+                                  <span className="capitalize">{applicant.job_progress}</span>
                               </td>
                               <td className="p-3 text-sm">
                                 <div className="flex flex-col gap-1">
@@ -8727,10 +8908,10 @@ function AdminPanel() {
                                 </div>
                               </td>
                               <td className="p-3 text-sm">
-                                <div className="flex gap-2">
-                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditJobApplicant(applicant)}>Edit</Button>
-                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteJobApplicant(applicant.id)}>Delete</Button>
-                                </div>
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditJobApplicant(applicant)}>Edit</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteJobApplicant(applicant.id)}>Delete</Button>
+                                  </div>
                               </td>
                             </tr>
                           ))
@@ -9118,22 +9299,22 @@ function AdminPanel() {
                               <td className="p-3 text-sm">{offer.created_date ? new Date(offer.created_date).toLocaleDateString() : 'N/A'}</td>
                               <td className="p-3 text-sm">{offer.valid_until ? new Date(offer.valid_until).toLocaleDateString() : 'N/A'}</td>
                               <td className="p-3 text-sm">
-                                <span className={`px-2 py-1 rounded text-xs ${
-                                  offer.status === 'approved' 
-                                    ? 'bg-green-100 text-green-800' 
-                                    : 'bg-yellow-100 text-yellow-800'
-                                }`}>
-                                  {offer.status === 'approved' ? 'Approved' : 'Pending'}
-                                </span>
+                                  <span className={`px-2 py-1 rounded text-xs ${
+                                    offer.status === 'approved' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : 'bg-yellow-100 text-yellow-800'
+                                  }`}>
+                                    {offer.status === 'approved' ? 'Approved' : 'Pending'}
+                                  </span>
                               </td>
                               <td className="p-3 text-sm">
-                                <div className="flex gap-2">
-                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditOffer(offer)}>Edit</Button>
-                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteOffer(offer.id)}>Delete</Button>
-                                  {offer.status === 'pending' && (
-                                    <Button variant="default" size="sm" className="h-7 px-2 text-xs bg-green-600 hover:bg-green-700" onClick={() => handleApproveOffer(offer.id)}>Approve</Button>
-                                  )}
-                                </div>
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditOffer(offer)}>Edit</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteOffer(offer.id)}>Delete</Button>
+                                    {offer.status === 'pending' && (
+                                      <Button variant="default" size="sm" className="h-7 px-2 text-xs bg-green-600 hover:bg-green-700" onClick={() => handleApproveOffer(offer.id)}>Approve</Button>
+                                    )}
+                                  </div>
                               </td>
                             </tr>
                           ))
@@ -9690,10 +9871,10 @@ function AdminPanel() {
                             >
                               <td className="p-3 text-sm">{index + 1}</td>
                               <td className="p-3 text-sm">
-                                <span className={stock.is_low_stock ? 'font-semibold text-orange-600 dark:text-orange-400' : ''}>
-                                  {stock.item_name}
-                                  {stock.is_low_stock && ' ⚠️'}
-                                </span>
+                                  <span className={stock.is_low_stock ? 'font-semibold text-orange-600 dark:text-orange-400' : ''}>
+                                    {stock.item_name}
+                                    {stock.is_low_stock && ' ⚠️'}
+                                  </span>
                               </td>
                               <td className="p-3 text-sm">
                                 {stock.vendor_seller_name || 'N/A'}
@@ -9702,18 +9883,18 @@ function AdminPanel() {
                                 {`${stock.category_name || 'N/A'}${stock.subcategory_name ? ` / ${stock.subcategory_name}` : ''}`}
                               </td>
                               <td className="p-3 text-sm">
-                                <span className={stock.is_low_stock ? 'font-semibold text-orange-600 dark:text-orange-400' : ''}>
-                                  {stock.quantity}
-                                </span>
+                                  <span className={stock.is_low_stock ? 'font-semibold text-orange-600 dark:text-orange-400' : ''}>
+                                    {stock.quantity}
+                                  </span>
                               </td>
                               <td className="p-3 text-sm">
                                 {stock.sold_item_qty || 0}
                               </td>
                               <td className="p-3 text-sm">
-                                <div className="flex gap-2">
-                                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditStock(stock)}>Edit</Button>
-                                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteStock(stock.id)}>Delete</Button>
-                                </div>
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditStock(stock)}>Edit</Button>
+                                    <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteStock(stock.id)}>Delete</Button>
+                                  </div>
                               </td>
                             </tr>
                           ))
@@ -10621,32 +10802,32 @@ function AdminPanel() {
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Vendor *</label>
-                            <select
-                              value={editingTransactionData.vendor_id}
-                              onChange={(e) => {
-                                const selectedUser = users.find(u => u.id.toString() === e.target.value);
-                                setEditingTransactionData({
-                                  ...editingTransactionData,
-                                  vendor_id: e.target.value,
-                                  email: selectedUser?.email || editingTransactionData.email,
-                                });
-                              }}
+                                  <select
+                                    value={editingTransactionData.vendor_id}
+                                    onChange={(e) => {
+                                      const selectedUser = users.find(u => u.id.toString() === e.target.value);
+                                      setEditingTransactionData({
+                                        ...editingTransactionData,
+                                        vendor_id: e.target.value,
+                                        email: selectedUser?.email || editingTransactionData.email,
+                                      });
+                                    }}
                               className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
                               required
-                            >
+                                  >
                               <option value="">Select Vendor</option>
-                              {users.map((user) => (
-                                <option key={user.id} value={user.id}>{user.name}</option>
-                              ))}
-                            </select>
+                                    {users.map((user) => (
+                                      <option key={user.id} value={user.id}>{user.name}</option>
+                                    ))}
+                                  </select>
                           </div>
                           <div>
                             <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Num. of Posted Ad *</label>
-                            <Input
-                              type="number"
-                              min="0"
-                              value={editingTransactionData.num_of_posted_ad}
-                              onChange={(e) => setEditingTransactionData({...editingTransactionData, num_of_posted_ad: e.target.value})}
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={editingTransactionData.num_of_posted_ad}
+                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, num_of_posted_ad: e.target.value})}
                               required
                             />
                           </div>
@@ -10654,105 +10835,105 @@ function AdminPanel() {
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Category/Subcategory (Optional)</label>
-                            <div className="relative" ref={transactionCategoryDropdownRef}>
-                              <button
-                                type="button"
-                                onClick={() => setTransactionShowCategoryDropdown(!transactionShowCategoryDropdown)}
+                                  <div className="relative" ref={transactionCategoryDropdownRef}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setTransactionShowCategoryDropdown(!transactionShowCategoryDropdown)}
                                 className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
-                              >
-                                <span>{buildTransactionCategoryString() || 'Select Category'}</span>
+                                    >
+                                      <span>{buildTransactionCategoryString() || 'Select Category'}</span>
                                 <span className="ml-1">{transactionShowCategoryDropdown ? '▼' : '▶'}</span>
-                              </button>
-                              
-                              {transactionShowCategoryDropdown && (
-                                <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
+                                    </button>
+                                    
+                                    {transactionShowCategoryDropdown && (
+                                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 flex">
                                   <div className="min-w-[200px] max-h-96 overflow-y-auto border-r border-[hsl(var(--border))]">
                                     <div className="p-2 font-semibold text-sm text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                                      Category
-                                    </div>
-                                    <div className="py-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleTransactionClearCategorySelection()}
+                                            Category
+                                          </div>
+                                          <div className="py-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => handleTransactionClearCategorySelection()}
                                         className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
-                                          !transactionSelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
-                                        }`}
-                                      >
-                                        All Categories
-                                      </button>
-                                      {categories.map((category, index) => (
-                                        <button
-                                          key={category.id || `category-${index}`}
-                                          type="button"
-                                          onClick={() => handleTransactionCategorySelect(category.name)}
-                                          onMouseEnter={() => {
-                                            if (transactionSelectedCategoryName !== category.name) {
-                                              handleTransactionCategorySelect(category.name);
-                                            }
-                                          }}
+                                                !transactionSelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
+                                              }`}
+                                            >
+                                              All Categories
+                                            </button>
+                                            {categories.map((category, index) => (
+                                              <button
+                                                key={category.id || `category-${index}`}
+                                                type="button"
+                                                onClick={() => handleTransactionCategorySelect(category.name)}
+                                                onMouseEnter={() => {
+                                                  if (transactionSelectedCategoryName !== category.name) {
+                                                    handleTransactionCategorySelect(category.name);
+                                                  }
+                                                }}
                                           className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] flex items-center justify-between ${
-                                            transactionSelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
-                                          }`}
-                                        >
-                                          <span>{category.name}</span>
-                                          {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                  
-                                  {transactionSelectedCategoryName && getTransactionSelectedCategory() && getTransactionSelectedCategory().subcategories && getTransactionSelectedCategory().subcategories.length > 0 && (
+                                                  transactionSelectedCategoryName === category.name ? 'bg-[hsl(var(--accent))]' : ''
+                                                }`}
+                                              >
+                                                <span>{category.name}</span>
+                                                {category.subcategories && category.subcategories.length > 0 && <span>▶</span>}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                        
+                                        {transactionSelectedCategoryName && getTransactionSelectedCategory() && getTransactionSelectedCategory().subcategories && getTransactionSelectedCategory().subcategories.length > 0 && (
                                     <div className="min-w-[200px] max-h-96 overflow-y-auto">
                                       <div className="p-2 font-semibold text-sm text-[hsl(var(--muted-foreground))] border-b border-[hsl(var(--border))]">
-                                        Subcategory
-                                      </div>
-                                      <div className="py-1">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setTransactionSelectedSubcategoryId('');
-                                            const category = getTransactionSelectedCategory();
-                                            if (category) {
-                                              setEditingTransactionData({...editingTransactionData, category_id: category.id.toString()});
-                                            }
-                                            setTransactionShowCategoryDropdown(false);
-                                          }}
+                                              Subcategory
+                                            </div>
+                                            <div className="py-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setTransactionSelectedSubcategoryId('');
+                                                  const category = getTransactionSelectedCategory();
+                                                  if (category) {
+                                                    setEditingTransactionData({...editingTransactionData, category_id: category.id.toString()});
+                                                  }
+                                                  setTransactionShowCategoryDropdown(false);
+                                                }}
                                           className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
-                                            !transactionSelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
-                                          }`}
-                                        >
-                                          All Subcategories
-                                        </button>
-                                        {getTransactionSelectedCategory().subcategories.map((subcategory) => (
-                                          <button
-                                            key={subcategory.id}
-                                            type="button"
-                                            onClick={() => {
-                                              handleTransactionSubcategorySelect(subcategory.id.toString());
-                                              setEditingTransactionData({...editingTransactionData, category_id: subcategory.id.toString()});
-                                            }}
+                                                  !transactionSelectedSubcategoryId ? 'bg-[hsl(var(--accent))]' : ''
+                                                }`}
+                                              >
+                                                All Subcategories
+                                              </button>
+                                              {getTransactionSelectedCategory().subcategories.map((subcategory) => (
+                                                <button
+                                                  key={subcategory.id}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    handleTransactionSubcategorySelect(subcategory.id.toString());
+                                                    setEditingTransactionData({...editingTransactionData, category_id: subcategory.id.toString()});
+                                                  }}
                                             className={`w-full text-left px-3 py-2 text-sm hover:bg-[hsl(var(--accent))] ${
-                                              transactionSelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
-                                            }`}
-                                          >
-                                            {subcategory.name}
-                                          </button>
-                                        ))}
+                                                    transactionSelectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--accent))]' : ''
+                                                  }`}
+                                                >
+                                                  {subcategory.name}
+                                                </button>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                                    )}
+                                  </div>
                           </div>
                           <div>
                             <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Amount *</label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={editingTransactionData.amount}
-                              onChange={(e) => setEditingTransactionData({...editingTransactionData, amount: e.target.value})}
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={editingTransactionData.amount}
+                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, amount: e.target.value})}
                               required
                             />
                           </div>
@@ -10760,18 +10941,18 @@ function AdminPanel() {
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Payment Method *</label>
-                            <select
-                              value={editingTransactionData.payment_method}
-                              onChange={(e) => setEditingTransactionData({...editingTransactionData, payment_method: e.target.value})}
+                                  <select
+                                    value={editingTransactionData.payment_method}
+                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, payment_method: e.target.value})}
                               className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
                               required
-                            >
-                              <option value="Credit Card">Credit Card</option>
-                              <option value="PayPal">PayPal</option>
-                              <option value="Bank Transfer">Bank Transfer</option>
-                              <option value="Wallet">Wallet</option>
-                              <option value="Stripe">Stripe</option>
-                            </select>
+                                  >
+                                    <option value="Credit Card">Credit Card</option>
+                                    <option value="PayPal">PayPal</option>
+                                    <option value="Bank Transfer">Bank Transfer</option>
+                                    <option value="Wallet">Wallet</option>
+                                    <option value="Stripe">Stripe</option>
+                                  </select>
                           </div>
                           <div>
                             <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Email</label>
@@ -10786,23 +10967,23 @@ function AdminPanel() {
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Start Date *</label>
-                            <Input
-                              type="date"
-                              value={editingTransactionData.start_date}
-                              onChange={(e) => setEditingTransactionData({...editingTransactionData, start_date: e.target.value})}
+                                  <Input
+                                    type="date"
+                                    value={editingTransactionData.start_date}
+                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, start_date: e.target.value})}
                               required
                             />
                           </div>
                           <div>
                             <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">End Date *</label>
-                            <Input
-                              type="date"
-                              value={editingTransactionData.end_date}
-                              onChange={(e) => setEditingTransactionData({...editingTransactionData, end_date: e.target.value})}
+                                  <Input
+                                    type="date"
+                                    value={editingTransactionData.end_date}
+                                    onChange={(e) => setEditingTransactionData({...editingTransactionData, end_date: e.target.value})}
                               required
                             />
-                          </div>
-                        </div>
+                                  </div>
+                                  </div>
                         <div className="flex justify-end gap-2 mt-6">
                           <Button
                             type="button"
@@ -10812,10 +10993,10 @@ function AdminPanel() {
                             Cancel
                           </Button>
                           <Button type="submit">Save Changes</Button>
-                        </div>
+                  </div>
                       </form>
-                    </CardContent>
-                  </Card>
+                </CardContent>
+              </Card>
                 </div>
               )}
             </section>
@@ -10881,21 +11062,21 @@ function AdminPanel() {
                             <tr key={user.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingUserId === user.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm">
-                                <span>{user.name}</span>
+                                  <span>{user.name}</span>
                               </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">
                                 {new Date(user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                               </td>
                               <td className="p-3 text-sm">
-                                <span>{user.email}</span>
+                                  <span>{user.email}</span>
                               </td>
                               <td className="p-3 text-sm max-w-xs">
-                                <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block">
-                                  {user.location || '-'}
-                                </span>
+                                  <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block">
+                                    {user.location || '-'}
+                                  </span>
                               </td>
                               <td className="p-3 text-sm">
-                                <span className="capitalize">{user.role === 'super_admin' ? 'Super Admin' : user.role}</span>
+                                  <span className="capitalize">{user.role === 'super_admin' ? 'Super Admin' : user.role}</span>
                               </td>
                               <td className="p-3 text-sm">
                                 <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
@@ -10936,14 +11117,14 @@ function AdminPanel() {
                                     <span className="text-[hsl(var(--foreground))]">{user.comment || '-'}</span>
                                     {/* Only super_admin can add comments to admin accounts */}
                                     {((user.role !== 'admin' && user.role !== 'super_admin') || isSuperAdmin) && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 px-2 text-xs"
-                                        onClick={() => handleAddComment(user.id)}
-                                      >
-                                        {user.comment ? 'Edit Comment' : 'Add Comment'}
-                                      </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-6 px-2 text-xs"
+                                      onClick={() => handleAddComment(user.id)}
+                                    >
+                                      {user.comment ? 'Edit Comment' : 'Add Comment'}
+                                    </Button>
                                     )}
                                   </div>
                                 )}
@@ -10952,29 +11133,29 @@ function AdminPanel() {
                                 <div className="flex gap-2">
                                   {/* Only super_admin can edit/delete admin accounts. Regular admins can only manage users, vendors */}
                                   {user.role !== 'super_admin' && (user.role !== 'admin' || isSuperAdmin) && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-7 px-2 text-xs"
-                                      onClick={() => handleEditUser(user)}
-                                    >
-                                      Edit
-                                    </Button>
-                                  )}
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 px-2 text-xs"
+                                          onClick={() => handleEditUser(user)}
+                                        >
+                                          Edit
+                                        </Button>
+                                      )}
                                   {user.role !== 'super_admin' && (user.role !== 'admin' || isSuperAdmin) && (
-                                    <Button
-                                      variant="destructive"
-                                      size="sm"
-                                      className="h-7 px-2 text-xs"
-                                      onClick={() => handleDeleteUser(user.id)}
-                                    >
-                                      Delete
-                                    </Button>
-                                  )}
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          className="h-7 px-2 text-xs"
+                                          onClick={() => handleDeleteUser(user.id)}
+                                        >
+                                          Delete
+                                        </Button>
+                                      )}
                                   {(user.role === 'super_admin' || (user.role === 'admin' && !isSuperAdmin)) && (
-                                    <span className="text-xs text-[hsl(var(--muted-foreground))] italic">
-                                      Protected
-                                    </span>
+                                        <span className="text-xs text-[hsl(var(--muted-foreground))] italic">
+                                          Protected
+                                        </span>
                                   )}
                                 </div>
                               </td>
@@ -11300,7 +11481,7 @@ function AdminPanel() {
                         <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">
                           Create New Auction
                         </h3>
-                        <form 
+                      <form 
                         className="grid grid-cols-2 gap-4"
                         onSubmit={handleStartAuctionSubmit}
                       >
@@ -11310,7 +11491,7 @@ function AdminPanel() {
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">User *</label>
                             <select
                               value={auctionFormData.user_id}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, user_id: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, user_id: e.target.value}))}
                               className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                               required
                             >
@@ -11326,7 +11507,7 @@ function AdminPanel() {
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction Item Name (Title) *</label>
                             <Input
                               value={auctionFormData.title}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, title: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, title: e.target.value}))}
                               className="w-full"
                               required
                             />
@@ -11335,7 +11516,7 @@ function AdminPanel() {
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description *</label>
                             <textarea
                               value={auctionFormData.description}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, description: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, description: e.target.value}))}
                               className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                               required
                             />
@@ -11345,7 +11526,7 @@ function AdminPanel() {
                             <Input
                               type="number"
                               value={auctionFormData.starting_price}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, starting_price: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, starting_price: e.target.value}))}
                               className="w-full"
                               min="0"
                               step="0.01"
@@ -11360,7 +11541,7 @@ function AdminPanel() {
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category/Subcategory *</label>
                             <select
                               value={auctionFormData.category_id}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, category_id: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, category_id: e.target.value}))}
                               className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                               required
                             >
@@ -11376,7 +11557,7 @@ function AdminPanel() {
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Location (Optional)</label>
                             <select
                               value={auctionFormData.location_id}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, location_id: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, location_id: e.target.value}))}
                               className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                             >
                               <option value="">Select Location</option>
@@ -11398,7 +11579,7 @@ function AdminPanel() {
                             <Input
                               type="number"
                               value={auctionFormData.reserve_price}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, reserve_price: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, reserve_price: e.target.value}))}
                               className="w-full"
                               min="0"
                               step="0.01"
@@ -11409,7 +11590,7 @@ function AdminPanel() {
                             <Input
                               type="number"
                               value={auctionFormData.buy_now_price}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, buy_now_price: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, buy_now_price: e.target.value}))}
                               className="w-full"
                               min="0"
                               step="0.01"
@@ -11420,7 +11601,7 @@ function AdminPanel() {
                             <Input
                               type="number"
                               value={auctionFormData.bid_increment}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, bid_increment: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, bid_increment: e.target.value}))}
                               className="w-full"
                               min="0.01"
                               step="0.01"
@@ -11432,7 +11613,7 @@ function AdminPanel() {
                             <Input
                               type="datetime-local"
                               value={auctionFormData.start_time}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, start_time: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, start_time: e.target.value}))}
                               className="w-full"
                               required
                             />
@@ -11442,7 +11623,7 @@ function AdminPanel() {
                             <Input
                               type="datetime-local"
                               value={auctionFormData.end_time}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, end_time: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, end_time: e.target.value}))}
                               className="w-full"
                               required
                             />
@@ -11561,9 +11742,9 @@ function AdminPanel() {
                       </form>
                       </div>
                     )}
-                  </CardContent>
-                </Card>
-              </section>
+                    </CardContent>
+                  </Card>
+                  </section>
 
               {/* Auctions List Table */}
               <section className="mb-6">
@@ -11651,7 +11832,7 @@ function AdminPanel() {
                                       >
                                         Delete
                                       </Button>
-                                    </div>
+              </div>
                                   </td>
                                 </tr>
                               ))
@@ -11706,7 +11887,7 @@ function AdminPanel() {
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">User *</label>
                             <select
                               value={auctionFormData.user_id}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, user_id: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, user_id: e.target.value}))}
                               className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                               required
                             >
@@ -11722,7 +11903,7 @@ function AdminPanel() {
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction Item Name (Title) *</label>
                             <Input
                               value={auctionFormData.title}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, title: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, title: e.target.value}))}
                               className="w-full"
                               required
                             />
@@ -11731,7 +11912,7 @@ function AdminPanel() {
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description *</label>
                             <textarea
                               value={auctionFormData.description}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, description: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, description: e.target.value}))}
                               className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                               required
                             />
@@ -11741,7 +11922,7 @@ function AdminPanel() {
                             <Input
                               type="number"
                               value={auctionFormData.starting_price}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, starting_price: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, starting_price: e.target.value}))}
                               className="w-full"
                               min="0"
                               step="0.01"
@@ -11756,7 +11937,7 @@ function AdminPanel() {
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category/Subcategory *</label>
                             <select
                               value={auctionFormData.category_id}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, category_id: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, category_id: e.target.value}))}
                               className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                               required
                             >
@@ -11772,7 +11953,7 @@ function AdminPanel() {
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Location (Optional)</label>
                             <select
                               value={auctionFormData.location_id}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, location_id: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, location_id: e.target.value}))}
                               className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                             >
                               <option value="">Select Location</option>
@@ -11794,7 +11975,7 @@ function AdminPanel() {
                             <Input
                               type="number"
                               value={auctionFormData.reserve_price}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, reserve_price: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, reserve_price: e.target.value}))}
                               className="w-full"
                               min="0"
                               step="0.01"
@@ -11805,7 +11986,7 @@ function AdminPanel() {
                             <Input
                               type="number"
                               value={auctionFormData.buy_now_price}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, buy_now_price: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, buy_now_price: e.target.value}))}
                               className="w-full"
                               min="0"
                               step="0.01"
@@ -11816,7 +11997,7 @@ function AdminPanel() {
                             <Input
                               type="number"
                               value={auctionFormData.bid_increment}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, bid_increment: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, bid_increment: e.target.value}))}
                               className="w-full"
                               min="0.01"
                               step="0.01"
@@ -11828,7 +12009,7 @@ function AdminPanel() {
                             <Input
                               type="datetime-local"
                               value={auctionFormData.start_time}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, start_time: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, start_time: e.target.value}))}
                               className="w-full"
                               required
                             />
@@ -11838,7 +12019,7 @@ function AdminPanel() {
                             <Input
                               type="datetime-local"
                               value={auctionFormData.end_time}
-                              onChange={(e) => setAuctionFormData({...auctionFormData, end_time: e.target.value})}
+                              onChange={(e) => setAuctionFormData(prev => ({...prev, end_time: e.target.value}))}
                               className="w-full"
                               required
                             />

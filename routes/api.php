@@ -219,6 +219,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('ads', AdController::class);
     
     // Auctions management
+    // IMPORTANT: statuses route must come BEFORE apiResource to avoid route conflicts
+    Route::get('auctions/statuses', [AuctionController::class, 'statuses']); // Lightweight status-only endpoint
     Route::apiResource('auctions', AuctionController::class);
     Route::post('auctions/{id}/end', [AuctionController::class, 'endAuction']);
     Route::post('auctions/{id}/determine-winner', [AuctionController::class, 'determineWinner']);

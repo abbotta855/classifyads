@@ -159,13 +159,14 @@ class AuctionService
                 // Notify seller that auction ended with no bids
                 $this->sendSellerNotification($auction->user_id, $auction);
                 
-                DB::commit();
-                
-                return [
-                    'success' => true,
-                    'message' => 'Auction ended with no bids',
-                    'winner' => null,
-                ];
+            DB::commit();
+            
+            return [
+                'success' => true,
+                'message' => 'Auction ended with no bids',
+                'winner' => null,
+                'auction' => $auction->fresh(),
+            ];
             }
             
             // Check reserve price
@@ -187,6 +188,7 @@ class AuctionService
                     'winner' => null,
                     'reserve_price' => $auction->reserve_price,
                     'highest_bid' => $highestBid->bid_amount,
+                    'auction' => $auction->fresh(),
                 ];
             }
             
@@ -224,7 +226,7 @@ class AuctionService
                 'message' => 'Winner determined successfully',
                 'winner' => $highestBid->user,
                 'winning_bid' => $highestBid,
-                'auction' => $auction->fresh(['winner']),
+                'auction' => $auction->fresh(['user', 'currentBidder', 'category', 'location', 'winner']),
             ];
             
         } catch (\Exception $e) {
@@ -246,21 +248,108 @@ class AuctionService
      */
     public function endAuction(int $auctionId): array
     {
-        $auction = Auction::findOrFail($auctionId);
+        DB::beginTransaction();
         
-        // Check if auction is already ended (status = 'ended' or 'completed')
-        if (in_array($auction->status, ['ended', 'completed'])) {
+        try {
+            // Lock the auction row to prevent race conditions
+            $auction = Auction::lockForUpdate()->findOrFail($auctionId);
+            
+            // Check if auction is already ended (status = 'ended' or 'completed')
+            if (in_array($auction->status, ['ended', 'completed'])) {
+                DB::rollBack();
+                Log::info('Attempted to end already ended auction', ['auction_id' => $auctionId, 'current_status' => $auction->status]);
+                return [
+                    'success' => false,
+                    'message' => 'Auction has already ended',
+                ];
+            }
+            
+            Log::info('Ending auction', [
+                'auction_id' => $auctionId,
+                'current_status' => $auction->status,
+                'current_bid_price' => $auction->current_bid_price,
+                'end_time' => $auction->end_time,
+            ]);
+            
+            // Update status to ended and set end_time to now to ensure it stays ended
+            // This prevents the statuses endpoint from recalculating it back to active
+            $auction->status = 'ended';
+            $auction->end_time = now(); // Set end_time to now so status calculation will show it as ended
+            $auction->save();
+            
+            Log::info('Auction status updated to ended', [
+                'auction_id' => $auctionId,
+                'new_status' => $auction->status,
+            ]);
+            
+            // Commit the status update first
+            DB::commit();
+            
+            // Now determine winner (this will handle its own transaction)
+            // We do this after committing to ensure status is saved even if winner determination fails
+            try {
+                $result = $this->determineWinner($auctionId);
+                
+                // Reload auction with all relationships
+                $auction = Auction::with(['user', 'currentBidder', 'category', 'location', 'winner'])->findOrFail($auctionId);
+                
+                if ($result['success']) {
+                    Log::info('Auction ended successfully with winner determined', [
+                        'auction_id' => $auctionId,
+                        'winner_id' => $result['winner']->id ?? null,
+                    ]);
+                    
+                    return [
+                        'success' => true,
+                        'message' => $result['message'],
+                        'auction' => $auction,
+                        'winner' => $result['winner'] ?? null,
+                    ];
+                } else {
+                    // Winner determination failed, but auction is ended - that's okay
+                    Log::warning('Auction ended but winner determination failed', [
+                        'auction_id' => $auctionId,
+                        'error' => $result['message'],
+                    ]);
+                    
+                    return [
+                        'success' => true,
+                        'message' => 'Auction ended successfully. ' . $result['message'],
+                        'auction' => $auction,
+                        'winner' => null,
+                    ];
+                }
+            } catch (\Exception $e) {
+                // Winner determination failed, but auction status is already updated
+                Log::warning('Auction ended but winner determination threw exception', [
+                    'auction_id' => $auctionId,
+                    'error' => $e->getMessage(),
+                ]);
+                
+                // Reload auction with relationships
+                $auction = Auction::with(['user', 'currentBidder', 'category', 'location', 'winner'])->findOrFail($auctionId);
+                
+                return [
+                    'success' => true,
+                    'message' => 'Auction ended successfully. Winner determination will be processed separately.',
+                    'auction' => $auction,
+                    'winner' => null,
+                ];
+            }
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to end auction', [
+                'auction_id' => $auctionId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
             return [
                 'success' => false,
-                'message' => 'Auction has already ended',
+                'message' => 'Failed to end auction: ' . $e->getMessage(),
             ];
         }
-        
-        // Update status to ended (even if it was pending)
-        $auction->update(['status' => 'ended']);
-        
-        // Determine winner
-        return $this->determineWinner($auctionId);
     }
     
     /**
