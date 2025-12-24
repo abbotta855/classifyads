@@ -17,6 +17,18 @@ class RatingController extends Controller
      */
     public function getSellerRatings($sellerId)
     {
+        $user = \App\Models\User::find($sellerId);
+        
+        // Super admins get perfect 5-star ratings by default
+        if ($user && $user->role === 'super_admin') {
+            return response()->json([
+                'ratings' => [],
+                'average_rating' => 5.0,
+                'total_ratings' => 1,
+                'criteria' => [], // Can be populated with perfect scores if needed
+            ]);
+        }
+        
         $ratings = Rating::with(['user', 'ad', 'criteriaScores.criteria'])
             ->where('seller_id', $sellerId)
             ->orderBy('created_at', 'desc')

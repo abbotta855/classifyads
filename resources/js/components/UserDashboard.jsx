@@ -4756,15 +4756,24 @@ function InboxSection({ user }) {
   useEffect(() => {
     fetchChats();
     fetchBuyerSellerConversations();
+    
+    // Check URL parameters for auction_id
+    const urlParams = new URLSearchParams(window.location.search);
+    const auctionId = urlParams.get('auction_id');
+    if (auctionId) {
+      setActiveTab('buyer-seller');
+      // Will select conversation after fetching
+    }
   }, []);
 
   useEffect(() => {
     if (activeTab === 'buyer-seller' && selectedConversation) {
-      // Load messages without scrolling to bottom initially
-      loadConversationMessages(selectedConversation.ad_id, false);
+      // Load messages - support both ad_id and auction_id
+      const conversationId = selectedConversation.auction_id || selectedConversation.ad_id;
+      loadConversationMessages(conversationId, selectedConversation.auction_id ? 'auction' : 'ad', false);
       const interval = setInterval(() => {
         // When polling, don't scroll to bottom unless there are new messages
-        loadConversationMessages(selectedConversation.ad_id, false);
+        loadConversationMessages(conversationId, selectedConversation.auction_id ? 'auction' : 'ad', false);
         // Also refresh unread counts periodically
         if (window.fetchUnreadCounts) {
           window.fetchUnreadCounts();
@@ -4773,6 +4782,66 @@ function InboxSection({ user }) {
       return () => clearInterval(interval);
     }
   }, [activeTab, selectedConversation]);
+  
+  // Handle URL parameter for auction_id
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const auctionId = urlParams.get('auction_id');
+    if (auctionId) {
+      setActiveTab('buyer-seller');
+      
+      if (buyerSellerConversations.length > 0) {
+        // Find auction conversation
+        const auctionConv = buyerSellerConversations.find(c => c.auction_id === parseInt(auctionId));
+        if (auctionConv) {
+          setSelectedConversation(auctionConv);
+        } else if (!loadingConversations) {
+          // If auction not found in conversations, try to load it directly
+          // This handles the case where user clicks Contact Seller but hasn't sent a message yet
+          loadConversationMessages(parseInt(auctionId), 'auction', false);
+          // Fetch auction details to get title and seller info
+          fetch(`/api/auctions/${auctionId}`)
+            .then(res => res.json())
+            .then(data => {
+              setSelectedConversation({
+                auction_id: parseInt(auctionId),
+                auction_title: data.title || 'Auction',
+                ad_title: data.title || 'Auction', // For compatibility
+                seller_id: data.user_id,
+                other_party_name: data.seller?.name || 'Seller',
+              });
+            })
+            .catch(err => {
+              console.error('Failed to fetch auction details:', err);
+              setSelectedConversation({
+                auction_id: parseInt(auctionId),
+                auction_title: 'Auction',
+                ad_title: 'Auction',
+                seller_id: null,
+              });
+            });
+        }
+      } else if (!loadingConversations) {
+        // Conversations not loaded yet, but we have auction_id - load conversation
+        loadConversationMessages(parseInt(auctionId), 'auction', false);
+        // Fetch auction details
+        fetch(`/api/auctions/${auctionId}`)
+          .then(res => res.json())
+          .then(data => {
+            setSelectedConversation({
+              auction_id: parseInt(auctionId),
+              auction_title: data.title || 'Auction',
+              ad_title: data.title || 'Auction',
+              seller_id: data.user_id,
+              other_party_name: data.seller?.name || 'Seller',
+            });
+          })
+          .catch(err => {
+            console.error('Failed to fetch auction details:', err);
+          });
+      }
+    }
+  }, [buyerSellerConversations, loadingConversations]);
 
   useEffect(() => {
     if (selectedChat) {
@@ -4909,9 +4978,13 @@ function InboxSection({ user }) {
         console.error('Error fetching buyer conversations:', err);
       }
       
-      // Remove duplicates based on ad_id (in case user is both buyer and seller for same ad)
+      // Remove duplicates based on ad_id or auction_id (in case user is both buyer and seller for same ad/auction)
       const uniqueConversations = allConversations.reduce((acc, conv) => {
-        if (!acc.find(c => c.ad_id === conv.ad_id)) {
+        const existing = acc.find(c => 
+          (c.ad_id && conv.ad_id && c.ad_id === conv.ad_id) ||
+          (c.auction_id && conv.auction_id && c.auction_id === conv.auction_id)
+        );
+        if (!existing) {
           acc.push(conv);
         }
         return acc;
@@ -4939,9 +5012,14 @@ function InboxSection({ user }) {
     }
   };
 
-  const loadConversationMessages = async (adId, shouldScrollToBottom = false) => {
+  const loadConversationMessages = async (id, type = 'ad', shouldScrollToBottom = false) => {
     try {
-      const response = await buyerSellerMessageAPI.getConversation(adId);
+      let response;
+      if (type === 'auction') {
+        response = await buyerSellerMessageAPI.getAuctionConversation(id);
+      } else {
+        response = await buyerSellerMessageAPI.getConversation(id);
+      }
       setConversationMessages(response.data || []);
       // Only auto-scroll to bottom if explicitly requested (e.g., when sending a new message)
       if (shouldScrollToBottom) {
@@ -4951,7 +5029,7 @@ function InboxSection({ user }) {
       }
       
       // Mark related notifications as read when viewing the conversation
-      markMessageNotificationsAsRead(adId);
+      markMessageNotificationsAsRead(id, type);
       // Refresh inbox unread count after viewing messages
       if (window.fetchUnreadCounts) {
         window.fetchUnreadCounts();
@@ -4962,7 +5040,7 @@ function InboxSection({ user }) {
   };
 
   // Mark "new_message" notifications as read when user views the conversation
-  const markMessageNotificationsAsRead = async (adId) => {
+  const markMessageNotificationsAsRead = async (id, type = 'ad') => {
     try {
       // Get all notifications
       const response = await notificationAPI.getNotifications();
@@ -5000,16 +5078,27 @@ function InboxSection({ user }) {
 
     setSending(true);
     try {
-      await buyerSellerMessageAPI.sendMessage(selectedConversation.ad_id, {
-        message: newMessage.trim(),
-        sender_type: user.id === selectedConversation.seller_id ? 'seller' : 'buyer',
-      });
+      const conversationId = selectedConversation.auction_id || selectedConversation.ad_id;
+      const isAuction = !!selectedConversation.auction_id;
+      
+      if (isAuction) {
+        await buyerSellerMessageAPI.sendAuctionMessage(conversationId, {
+          message: newMessage.trim(),
+          sender_type: user.id === selectedConversation.seller_id ? 'seller' : 'buyer',
+        });
+      } else {
+        await buyerSellerMessageAPI.sendMessage(conversationId, {
+          message: newMessage.trim(),
+          sender_type: user.id === selectedConversation.seller_id ? 'seller' : 'buyer',
+        });
+      }
+      
       setNewMessage('');
       // Scroll to bottom after sending a new message
-      await loadConversationMessages(selectedConversation.ad_id, true);
+      await loadConversationMessages(conversationId, isAuction ? 'auction' : 'ad', true);
       fetchBuyerSellerConversations();
       // Mark notifications as read when user sends a message (they've clearly seen the conversation)
-      markMessageNotificationsAsRead(selectedConversation.ad_id);
+      markMessageNotificationsAsRead(conversationId, isAuction ? 'auction' : 'ad');
     } catch (err) {
       console.error('Failed to send message:', err);
       alert(err.response?.data?.error || 'Failed to send message');
@@ -5181,17 +5270,25 @@ function InboxSection({ user }) {
                   <p className="text-sm">Start a conversation from an ad detail page</p>
                 </div>
               ) : (
-                buyerSellerConversations.map((conv) => (
+                buyerSellerConversations.map((conv) => {
+                  const convId = conv.auction_id || conv.ad_id;
+                  const isSelected = selectedConversation && (
+                    (selectedConversation.auction_id && conv.auction_id && selectedConversation.auction_id === conv.auction_id) ||
+                    (selectedConversation.ad_id && conv.ad_id && selectedConversation.ad_id === conv.ad_id)
+                  );
+                  
+                  return (
                   <div
-                    key={conv.ad_id}
+                    key={conv.auction_id ? `auction-${conv.auction_id}` : `ad-${conv.ad_id}`}
                     onClick={() => setSelectedConversation(conv)}
                     className={`p-4 border-b cursor-pointer hover:bg-[hsl(var(--accent))] transition-colors ${
-                      selectedConversation?.ad_id === conv.ad_id ? 'bg-[hsl(var(--accent))]' : ''
+                      isSelected ? 'bg-[hsl(var(--accent))]' : ''
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <p className="font-medium text-[hsl(var(--foreground))] line-clamp-1">
-                        {conv.ad_title || `Ad #${conv.ad_id}`}
+                        {conv.auction_title || conv.ad_title || 
+                         (conv.auction_id ? `Auction #${conv.auction_id}` : `Ad #${conv.ad_id}`)}
                       </p>
                       {conv.unread_count > 0 && (
                         <span className="bg-[hsl(var(--primary))] text-white text-xs rounded-full px-2 py-1 ml-2">
@@ -5200,7 +5297,8 @@ function InboxSection({ user }) {
                       )}
                     </div>
                     <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                      {conv.seller_id === user.id ? 'Buyer' : 'Seller'}: {conv.other_party_name}
+                      {conv.seller_id === user.id ? 'Buyer' : 'Seller'}: {conv.other_party_name || 'Unknown'}
+                      {conv.auction_id && <span className="ml-2 text-blue-600">(Auction)</span>}
                     </p>
                     {conv.last_message_at && (
                       <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
@@ -5208,7 +5306,8 @@ function InboxSection({ user }) {
                       </p>
                     )}
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -5219,10 +5318,12 @@ function InboxSection({ user }) {
               <>
                 <div className="p-4 border-b">
                   <h3 className="font-semibold text-[hsl(var(--foreground))]">
-                    {selectedConversation.ad_title || `Ad #${selectedConversation.ad_id}`}
+                    {selectedConversation.auction_title || selectedConversation.ad_title || 
+                     (selectedConversation.auction_id ? `Auction #${selectedConversation.auction_id}` : `Ad #${selectedConversation.ad_id}`)}
                   </h3>
                   <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                    {selectedConversation.seller_id === user.id ? 'Buyer' : 'Seller'}: {selectedConversation.other_party_name}
+                    {selectedConversation.seller_id === user.id ? 'Buyer' : 'Seller'}: {selectedConversation.other_party_name || 'Unknown'}
+                    {selectedConversation.auction_id && <span className="ml-2 text-blue-600 text-xs">(Auction)</span>}
                   </p>
                 </div>
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">

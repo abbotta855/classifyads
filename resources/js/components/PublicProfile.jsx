@@ -37,7 +37,10 @@ function PublicProfile() {
         setRatings(res.data.recent_reviews);
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to load profile');
+      const errorMessage = err.response?.data?.message || 
+                          err.response?.data?.error || 
+                          'Failed to load profile. The user may not exist or has been removed.';
+      setError(errorMessage);
       console.error('Error loading profile:', err);
     } finally {
       setLoading(false);

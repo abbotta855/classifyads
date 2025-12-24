@@ -35,6 +35,11 @@ class Auction extends Model
     'image3_url',
     'image4_url',
     'views',
+    'self_pickup',
+    'seller_delivery',
+    'payment_methods',
+    'financing_available',
+    'financing_terms',
   ];
 
   protected $casts = [
@@ -50,6 +55,11 @@ class Auction extends Model
     'winner_notified_at' => 'datetime',
     'payment_completed_at' => 'datetime',
     'views' => 'integer',
+    'self_pickup' => 'boolean',
+    'seller_delivery' => 'boolean',
+    'payment_methods' => 'array',
+    'financing_available' => 'boolean',
+    'financing_terms' => 'array',
   ];
 
   /**
@@ -122,6 +132,11 @@ class Auction extends Model
   public function transactions(): HasMany
   {
     return $this->hasMany(Transaction::class);
+  }
+
+  public function messages(): HasMany
+  {
+    return $this->hasMany(BuyerSellerMessage::class);
   }
 
   /**

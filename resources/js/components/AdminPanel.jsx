@@ -3066,6 +3066,17 @@ function AdminPanel() {
       formData.append('start_time', startTimeUTC);
       formData.append('end_time', endTimeUTC);
       
+      // Transaction options
+      formData.append('self_pickup', auctionFormData.self_pickup ? '1' : '0');
+      formData.append('seller_delivery', auctionFormData.seller_delivery ? '1' : '0');
+      if (auctionFormData.payment_methods && auctionFormData.payment_methods.length > 0) {
+        formData.append('payment_methods', JSON.stringify(auctionFormData.payment_methods));
+      }
+      formData.append('financing_available', auctionFormData.financing_available ? '1' : '0');
+      if (auctionFormData.financing_available && auctionFormData.financing_terms) {
+        formData.append('financing_terms', JSON.stringify(auctionFormData.financing_terms));
+      }
+      
       // Add images
       auctionImages.forEach((image, index) => {
         if (image) {

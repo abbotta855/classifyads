@@ -175,6 +175,10 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::post('/messages/{adId}', [App\Http\Controllers\BuyerSellerMessageController::class, 'sendMessage']);
   Route::get('/messages/seller/conversations', [App\Http\Controllers\BuyerSellerMessageController::class, 'getSellerConversations']);
   Route::get('/messages/buyer/conversations', [App\Http\Controllers\BuyerSellerMessageController::class, 'getBuyerConversations']);
+  
+  // Auction messaging routes
+  Route::get('/messages/auction/{auctionId}/conversation', [App\Http\Controllers\BuyerSellerMessageController::class, 'getAuctionConversation']);
+  Route::post('/messages/auction/{auctionId}', [App\Http\Controllers\BuyerSellerMessageController::class, 'sendAuctionMessage']);
 
   // Seller Offer Management routes
   Route::get('/seller/offers', [App\Http\Controllers\SellerOfferController::class, 'index']);

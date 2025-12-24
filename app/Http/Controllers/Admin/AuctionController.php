@@ -242,6 +242,11 @@ class AuctionController extends Controller
       'images' => 'nullable|array|max:4',
       'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240', // Max 10MB per image
       'ad_id' => 'nullable|exists:ads,id', // Optional: link to existing ad
+      'self_pickup' => 'nullable|boolean',
+      'seller_delivery' => 'nullable|boolean',
+      'payment_methods' => 'nullable|json',
+      'financing_available' => 'nullable|boolean',
+      'financing_terms' => 'nullable|json',
     ]);
 
     // Validate price relationships
@@ -316,6 +321,21 @@ class AuctionController extends Controller
         $status = 'pending';
       }
 
+      // Parse JSON fields
+      $paymentMethods = null;
+      if (isset($validated['payment_methods'])) {
+        $paymentMethods = is_string($validated['payment_methods']) 
+          ? json_decode($validated['payment_methods'], true) 
+          : $validated['payment_methods'];
+      }
+      
+      $financingTerms = null;
+      if (isset($validated['financing_terms'])) {
+        $financingTerms = is_string($validated['financing_terms']) 
+          ? json_decode($validated['financing_terms'], true) 
+          : $validated['financing_terms'];
+      }
+
       // Create auction
       $auction = Auction::create([
         'user_id' => $validated['user_id'],
@@ -328,6 +348,11 @@ class AuctionController extends Controller
         'starting_price' => $validated['starting_price'],
         'reserve_price' => $validated['reserve_price'] ?? null,
         'buy_now_price' => $validated['buy_now_price'] ?? null,
+        'self_pickup' => $validated['self_pickup'] ?? false,
+        'seller_delivery' => $validated['seller_delivery'] ?? false,
+        'payment_methods' => $paymentMethods,
+        'financing_available' => $validated['financing_available'] ?? false,
+        'financing_terms' => $financingTerms,
         'bid_increment' => $validated['bid_increment'] ?? 1.00,
         'start_time' => $validated['start_time'],
         'end_time' => $validated['end_time'],

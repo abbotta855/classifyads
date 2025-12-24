@@ -498,6 +498,9 @@ export const buyerSellerMessageAPI = {
   sendMessage: (adId, data) => axios.post(`/api/messages/${adId}`, data),
   getSellerConversations: () => axios.get('/api/messages/seller/conversations'),
   getBuyerConversations: () => axios.get('/api/messages/buyer/conversations'),
+  // Auction messaging
+  getAuctionConversation: (auctionId) => axios.get(`/api/messages/auction/${auctionId}/conversation`),
+  sendAuctionMessage: (auctionId, data) => axios.post(`/api/messages/auction/${auctionId}`, data),
 };
 
 // Seller Offer Management API

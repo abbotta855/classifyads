@@ -9,6 +9,7 @@ class BuyerSellerMessage extends Model
 {
     protected $fillable = [
         'ad_id',
+        'auction_id',
         'buyer_id',
         'seller_id',
         'sender_type',
@@ -28,6 +29,14 @@ class BuyerSellerMessage extends Model
     public function ad(): BelongsTo
     {
         return $this->belongsTo(Ad::class);
+    }
+
+    /**
+     * Get the auction this message is about
+     */
+    public function auction(): BelongsTo
+    {
+        return $this->belongsTo(Auction::class);
     }
 
     /**

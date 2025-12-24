@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BuyerSellerMessage;
 use App\Models\Ad;
+use App\Models\Auction;
 use App\Models\UserNotification;
 use Illuminate\Http\Request;
 
@@ -160,6 +161,7 @@ class BuyerSellerMessageController extends Controller
     public function getSellerConversations(Request $request)
     {
         $user = $request->user();
+        $conversations = [];
 
         // Get all ads by this seller that have messages
         $ads = Ad::where('user_id', $user->id)
@@ -199,7 +201,57 @@ class BuyerSellerMessageController extends Controller
                 ];
             });
 
-        return response()->json($ads);
+        $conversations = $ads->toArray();
+
+        // Get all auctions by this seller that have messages
+        $auctions = Auction::where('user_id', $user->id)
+            ->whereHas('messages')
+            ->with(['messages' => function ($query) {
+                $query->orderBy('created_at', 'desc')->limit(1);
+            }])
+            ->get()
+            ->map(function ($auction) use ($user) {
+                $unreadCount = BuyerSellerMessage::where('auction_id', $auction->id)
+                    ->where('seller_id', $auction->user_id)
+                    ->where('sender_type', 'buyer')
+                    ->where('is_read', false)
+                    ->count();
+
+                // Get unique buyers for this auction
+                $buyers = BuyerSellerMessage::where('auction_id', $auction->id)
+                    ->where('sender_type', 'buyer')
+                    ->distinct('buyer_id')
+                    ->with('buyer')
+                    ->get()
+                    ->pluck('buyer')
+                    ->unique('id')
+                    ->values();
+
+                $lastMessage = $auction->messages->first();
+
+                $firstBuyer = $buyers->first();
+                return [
+                    'auction_id' => $auction->id,
+                    'auction_title' => $auction->title,
+                    'ad_title' => $auction->title, // For compatibility
+                    'seller_id' => $user->id,
+                    'last_message' => $lastMessage,
+                    'last_message_at' => $lastMessage ? $lastMessage->created_at : null,
+                    'unread_count' => $unreadCount,
+                    'other_party_name' => $firstBuyer ? $firstBuyer->name : 'Buyer',
+                ];
+            });
+
+        $conversations = array_merge($conversations, $auctions->toArray());
+
+        // Sort by last_message_at
+        usort($conversations, function($a, $b) {
+            $timeA = $a['last_message_at'] ? strtotime($a['last_message_at']) : 0;
+            $timeB = $b['last_message_at'] ? strtotime($b['last_message_at']) : 0;
+            return $timeB - $timeA;
+        });
+
+        return response()->json($conversations);
     }
 
     /**
@@ -208,9 +260,11 @@ class BuyerSellerMessageController extends Controller
     public function getBuyerConversations(Request $request)
     {
         $user = $request->user();
+        $conversations = [];
 
         // Get all ads this buyer has messaged about
         $adIds = BuyerSellerMessage::where('buyer_id', $user->id)
+            ->whereNotNull('ad_id')
             ->distinct()
             ->pluck('ad_id');
 
@@ -242,6 +296,164 @@ class BuyerSellerMessageController extends Controller
                 ];
             });
 
-        return response()->json($ads);
+        $conversations = $ads->toArray();
+
+        // Get all auctions this buyer has messaged about
+        $auctionIds = BuyerSellerMessage::where('buyer_id', $user->id)
+            ->whereNotNull('auction_id')
+            ->distinct()
+            ->pluck('auction_id');
+
+        $auctions = Auction::whereIn('id', $auctionIds)
+            ->with(['messages' => function ($query) use ($user) {
+                $query->where('buyer_id', $user->id)
+                    ->orderBy('created_at', 'desc')
+                    ->limit(1);
+            }, 'user'])
+            ->get()
+            ->map(function ($auction) use ($user) {
+                $unreadCount = BuyerSellerMessage::where('auction_id', $auction->id)
+                    ->where('buyer_id', $user->id)
+                    ->where('sender_type', 'seller')
+                    ->where('is_read', false)
+                    ->count();
+
+                $lastMessage = $auction->messages->first();
+
+                return [
+                    'auction_id' => $auction->id,
+                    'auction_title' => $auction->title,
+                    'ad_title' => $auction->title, // For compatibility
+                    'seller_id' => $auction->user_id,
+                    'seller_name' => $auction->user->name ?? 'Unknown',
+                    'other_party_name' => $auction->user->name ?? 'Seller',
+                    'last_message' => $lastMessage,
+                    'last_message_at' => $lastMessage ? $lastMessage->created_at : null,
+                    'unread_count' => $unreadCount,
+                ];
+            });
+
+        $conversations = array_merge($conversations, $auctions->toArray());
+
+        // Sort by last_message_at
+        usort($conversations, function($a, $b) {
+            $timeA = $a['last_message_at'] ? strtotime($a['last_message_at']) : 0;
+            $timeB = $b['last_message_at'] ? strtotime($b['last_message_at']) : 0;
+            return $timeB - $timeA;
+        });
+
+        return response()->json($conversations);
+    }
+
+    /**
+     * Get messages for a specific auction conversation
+     */
+    public function getAuctionConversation(Request $request, $auctionId)
+    {
+        $user = $request->user();
+        $auction = Auction::findOrFail($auctionId);
+
+        // Buyer can see messages if they're the buyer
+        // Seller can see all messages for their auction
+        $messages = BuyerSellerMessage::where('auction_id', $auctionId)
+            ->where(function ($query) use ($user, $auction) {
+                if ($user->id === $auction->user_id) {
+                    // Seller viewing all conversations for their auction
+                    $query->where('seller_id', $user->id);
+                } else {
+                    // Buyer viewing their conversation with the seller
+                    $query->where('buyer_id', $user->id)
+                          ->where('seller_id', $auction->user_id);
+                }
+            })
+            ->orderBy('created_at', 'asc')
+            ->with(['buyer', 'seller'])
+            ->get();
+
+        return response()->json($messages);
+    }
+
+    /**
+     * Send a message for an auction (buyer or seller)
+     */
+    public function sendAuctionMessage(Request $request, $auctionId)
+    {
+        $user = $request->user();
+        $auction = Auction::findOrFail($auctionId);
+
+        $validated = $request->validate([
+            'message' => 'required|string|max:5000',
+            'sender_type' => 'required|in:buyer,seller',
+        ]);
+
+        // Verify sender type matches user role
+        if ($validated['sender_type'] === 'buyer' && $user->id === $auction->user_id) {
+            return response()->json(['error' => 'Sellers cannot send messages as buyers'], 400);
+        }
+        if ($validated['sender_type'] === 'seller' && $user->id !== $auction->user_id) {
+            return response()->json(['error' => 'Only the seller can send messages as seller'], 400);
+        }
+
+        $buyerId = $validated['sender_type'] === 'buyer' ? $user->id : null;
+        $sellerId = $auction->user_id;
+
+        // For seller messages, we need to determine which buyer they're responding to
+        // Get the most recent buyer message for this auction to determine the conversation
+        if ($validated['sender_type'] === 'seller') {
+            $lastBuyerMessage = BuyerSellerMessage::where('auction_id', $auction->id)
+                ->where('sender_type', 'buyer')
+                ->orderBy('created_at', 'desc')
+                ->first();
+            
+            if ($lastBuyerMessage) {
+                $buyerId = $lastBuyerMessage->buyer_id;
+            } else {
+                // If no buyer message exists, we can't create a seller response
+                return response()->json(['error' => 'No buyer message found to respond to'], 400);
+            }
+        }
+
+        $message = BuyerSellerMessage::create([
+            'auction_id' => $auction->id,
+            'buyer_id' => $buyerId,
+            'seller_id' => $sellerId,
+            'sender_type' => $validated['sender_type'],
+            'message' => $validated['message'],
+            'is_read' => $validated['sender_type'] === 'seller', // Seller messages are auto-read
+        ]);
+
+        // Create notification for the recipient
+        if ($validated['sender_type'] === 'buyer') {
+            // Buyer sent message - notify seller
+            $senderName = $user->name ?? 'A buyer';
+            UserNotification::create([
+                'user_id' => $sellerId,
+                'type' => 'new_message',
+                'title' => 'New Message',
+                'message' => $senderName . ' sent you a message about auction "' . $auction->title . '"',
+                'is_read' => false,
+                'metadata' => ['auction_id' => $auction->id],
+                'link' => '/user_dashboard/inbox',
+            ]);
+        } else {
+            // Seller sent message - notify buyer
+            $senderName = $user->name ?? 'The seller';
+            UserNotification::create([
+                'user_id' => $buyerId,
+                'type' => 'new_message',
+                'title' => 'New Message',
+                'message' => $senderName . ' replied to your message about auction "' . $auction->title . '"',
+                'is_read' => false,
+                'metadata' => ['auction_id' => $auction->id],
+                'link' => '/user_dashboard/inbox',
+            ]);
+        }
+
+        $message->load(['buyer', 'seller']);
+
+        return response()->json([
+            'message' => 'Message sent successfully',
+            'data' => $message,
+        ], 201);
     }
 }

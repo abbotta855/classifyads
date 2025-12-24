@@ -5,7 +5,8 @@ import Layout from './Layout';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { publicAuctionAPI } from '../utils/api';
+import { publicAuctionAPI, ratingAPI, publicProfileAPI } from '../utils/api';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 
 function AuctionDetailPage() {
@@ -26,6 +27,15 @@ function AuctionDetailPage() {
   const [timeRemaining, setTimeRemaining] = useState('');
   const [statusUpdateInterval, setStatusUpdateInterval] = useState(10); // Dynamic interval for status updates
   const statusCheckInProgress = useRef(false); // Prevent multiple simultaneous status checks
+  
+  // Finance calculator state
+  const [showFinanceCalculator, setShowFinanceCalculator] = useState(false);
+  const [financeAmount, setFinanceAmount] = useState('');
+  const [financeMonths, setFinanceMonths] = useState(12);
+  
+  // Seller information state
+  const [sellerRating, setSellerRating] = useState(null);
+  const [sellerProfile, setSellerProfile] = useState(null);
 
   useEffect(() => {
     loadAuction();
@@ -511,6 +521,81 @@ function AuctionDetailPage() {
     }
   };
 
+  const loadSellerRating = async () => {
+    if (!auction?.user_id) return;
+    
+    try {
+      const response = await ratingAPI.getSellerRatings(auction.user_id);
+      if (response.data && response.data.total_ratings > 0) {
+        // Calculate criteria averages from ratings if available
+        const criteria = {};
+        if (response.data.ratings && Array.isArray(response.data.ratings) && response.data.ratings.length > 0) {
+          const allCriteria = {};
+          response.data.ratings.forEach(rating => {
+            if (rating.criteria_scores && Array.isArray(rating.criteria_scores)) {
+              rating.criteria_scores.forEach(cs => {
+                const criterionName = cs.criteria_name || cs.criteria?.name;
+                if (criterionName) {
+                  if (!allCriteria[criterionName]) {
+                    allCriteria[criterionName] = [];
+                  }
+                  allCriteria[criterionName].push(cs.score);
+                }
+              });
+            }
+          });
+          
+          // Calculate averages
+          Object.keys(allCriteria).forEach(criterionName => {
+            const scores = allCriteria[criterionName];
+            if (scores.length > 0) {
+              criteria[criterionName] = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+            }
+          });
+        }
+        
+        setSellerRating({
+          average: response.data.average_rating,
+          total: response.data.total_ratings,
+          criteria: criteria,
+        });
+      }
+    } catch (err) {
+      console.error('Error loading seller rating:', err);
+    }
+  };
+
+  const loadSellerProfile = async () => {
+    if (!auction?.user_id) return;
+    
+    try {
+      const response = await publicProfileAPI.getProfile(auction.user_id);
+      setSellerProfile(response.data);
+    } catch (err) {
+      console.error('Error loading seller profile:', err);
+    }
+  };
+
+  const calculateMonthlyPayment = () => {
+    if (!auction.financing_terms || !financeAmount) return null;
+    
+    const principal = parseFloat(financeAmount);
+    const annualRate = auction.financing_terms.interest_rate || 0;
+    const months = parseInt(financeMonths);
+    
+    if (principal <= 0 || months <= 0) return null;
+    
+    const monthlyRate = annualRate / 100 / 12;
+    if (monthlyRate === 0) {
+      return principal / months;
+    }
+    
+    const monthlyPayment = (principal * monthlyRate * Math.pow(1 + monthlyRate, months)) / 
+                          (Math.pow(1 + monthlyRate, months) - 1);
+    
+    return monthlyPayment;
+  };
+
   const handleBuyNow = async () => {
     if (!user) {
       navigate('/login');
@@ -969,31 +1054,304 @@ function AuctionDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Seller Info */}
+            {/* Seller Information - Detailed */}
             {auction.seller && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Seller</CardTitle>
+                  <CardTitle>Seller Information</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
+                <CardContent className="space-y-4">
+                  {/* Seller Name & Rating */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center flex-shrink-0">
                       {auction.seller.profile_picture ? (
-                        <img src={auction.seller.profile_picture} alt={auction.seller.name} className="w-full h-full rounded-full object-cover" />
+                        <img
+                          src={auction.seller.profile_picture}
+                          alt={auction.seller.name}
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
-                        <span className="text-lg">{auction.seller.name?.charAt(0).toUpperCase()}</span>
+                        <span className="text-2xl text-gray-500 font-semibold">
+                          {auction.seller.name?.charAt(0).toUpperCase() || 'U'}
+                        </span>
                       )}
                     </div>
-                    <div>
-                      <p className="font-semibold">{auction.seller.name}</p>
+                    <div className="flex-1 min-w-0">
+                      {auction.seller && auction.seller.id ? (
+                        <Link
+                          to={`/profile/${auction.seller.id}`}
+                          className="block hover:underline"
+                        >
+                          <h3 className="font-semibold text-lg text-[hsl(var(--foreground))] truncate">
+                            {auction.seller.name}
+                          </h3>
+                        </Link>
+                      ) : (
+                        <h3 className="font-semibold text-lg text-[hsl(var(--foreground))] truncate">
+                          {auction.seller?.name || 'Unknown Seller'}
+                        </h3>
+                      )}
+                      {sellerRating && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-yellow-400">★</span>
+                          <span className="text-sm font-semibold text-[hsl(var(--foreground))]">
+                            {sellerRating.average?.toFixed(1) || '0.0'} ({sellerRating.total || 0} reviews)
+                          </span>
+                        </div>
+                      )}
                     </div>
+                  </div>
+
+                  {/* Contact Information */}
+                  <div className="space-y-3 pt-4 border-t border-[hsl(var(--border))]">
+                    {/* Mobile - Only show if seller wants to share (if phone exists) */}
+                    {(sellerProfile?.user?.phone || sellerProfile?.user?.mobile) && (
+                      <div>
+                        <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-1">
+                          Mobile
+                        </label>
+                        <p className="text-sm text-[hsl(var(--foreground))]">
+                          {sellerProfile.user.phone || sellerProfile.user.mobile}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Email */}
+                    {sellerProfile?.user?.email && (
+                      <div>
+                        <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-1">
+                          Email
+                        </label>
+                        <p className="text-sm text-[hsl(var(--foreground))]">{sellerProfile.user.email}</p>
+                      </div>
+                    )}
+
+                    {/* Overall Rating */}
+                    {sellerRating && sellerRating.criteria && Object.keys(sellerRating.criteria).length > 0 && (
+                      <div>
+                        <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-2">
+                          Overall Rating
+                        </label>
+                        <div className="space-y-1">
+                          {Object.entries(sellerRating.criteria).map(([criterion, rating]) => (
+                            <div key={criterion} className="flex items-center justify-between text-sm">
+                              <span className="text-[hsl(var(--foreground))] capitalize">
+                                {criterion.replace('_', ' ')}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-yellow-400">★</span>
+                                <span className="font-semibold">{rating?.toFixed(1) || '0.0'}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="space-y-2 pt-4 border-t border-[hsl(var(--border))]">
+                    {auction.seller && auction.seller.id ? (
+                      <Link
+                        to={`/profile/${auction.seller.id}`}
+                        className="block"
+                      >
+                        <Button variant="outline" className="w-full">
+                          View Seller Profile →
+                        </Button>
+                      </Link>
+                    ) : (
+                      <p className="text-sm text-[hsl(var(--muted-foreground))] text-center">
+                        Seller profile is no longer available
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             )}
+
+            {/* Transaction Options Section */}
+            <Card className="border-2 border-red-500">
+              <CardHeader>
+                <CardTitle>Transaction Options</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Contact to Seller */}
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <h3 className="font-semibold mb-2">Contact to Seller</h3>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Buyer can send private text to seller and seller can receive it in email and user login dashboard (Notification & Inbox)
+                  </p>
+                  {user && user.id !== auction.user_id ? (
+                    <Button
+                      onClick={() => {
+                        if (!user) {
+                          navigate('/login');
+                          return;
+                        }
+                        // Navigate to inbox with auction context
+                        navigate(`/user_dashboard/inbox?auction_id=${auction.id}`);
+                      }}
+                      className="w-full"
+                    >
+                      Contact Seller
+                    </Button>
+                  ) : user && user.id === auction.user_id ? (
+                    <p className="text-sm text-gray-500">You are the seller</p>
+                  ) : (
+                    <Button onClick={() => navigate('/login')} className="w-full">
+                      Login to Contact Seller
+                    </Button>
+                  )}
+                </div>
+
+                {/* Pickup Options */}
+                <div>
+                  <h3 className="font-semibold mb-2">Pick Up Option</h3>
+                  <div className="space-y-2">
+                    {auction.self_pickup && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-600">✓</span>
+                        <span>Self pick up</span>
+                      </div>
+                    )}
+                    {auction.seller_delivery && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-600">✓</span>
+                        <span>Seller can delivery</span>
+                      </div>
+                    )}
+                    {!auction.self_pickup && !auction.seller_delivery && (
+                      <p className="text-sm text-gray-500">No pickup options specified</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Payment Options */}
+                <div>
+                  <h3 className="font-semibold mb-2">Payment Option</h3>
+                  <div className="space-y-2">
+                    {auction.payment_methods && auction.payment_methods.length > 0 ? (
+                      auction.payment_methods.map((method, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <span className="text-green-600">✓</span>
+                          <span className="capitalize">{method.replace('_', ' ')}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">No payment methods specified</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Finance Option */}
+                {auction.financing_available && (
+                  <div>
+                    <h3 className="font-semibold mb-2">Finance Option</h3>
+                    <p className="text-sm text-gray-600 mb-3">
+                      Financial institution with finance calculator to pay back each month.
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowFinanceCalculator(true)}
+                      className="w-full"
+                    >
+                      Calculate Monthly Payment
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
+
+      {/* Finance Calculator Modal */}
+      {showFinanceCalculator && auction.financing_available && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold">Finance Calculator</h2>
+              <button
+                onClick={() => {
+                  setShowFinanceCalculator(false);
+                  setFinanceAmount('');
+                  setFinanceMonths(12);
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Loan Amount (Rs.)</label>
+                <Input
+                  type="number"
+                  value={financeAmount}
+                  onChange={(e) => setFinanceAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Loan Term (Months): {financeMonths}
+                </label>
+                <input
+                  type="range"
+                  min={auction.financing_terms?.min_months || 6}
+                  max={auction.financing_terms?.max_months || 36}
+                  value={financeMonths}
+                  onChange={(e) => setFinanceMonths(parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>{auction.financing_terms?.min_months || 6} months</span>
+                  <span>{auction.financing_terms?.max_months || 36} months</span>
+                </div>
+              </div>
+              
+              {auction.financing_terms?.institution && (
+                <div className="p-3 bg-gray-50 rounded">
+                  <p className="text-sm">
+                    <span className="font-semibold">Financial Institution:</span> {auction.financing_terms.institution}
+                  </p>
+                  <p className="text-sm">
+                    <span className="font-semibold">Interest Rate:</span> {auction.financing_terms.interest_rate}% APR
+                  </p>
+                </div>
+              )}
+              
+              {financeAmount && calculateMonthlyPayment() && (
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-1">Monthly Payment</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    Rs. {calculateMonthlyPayment().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Total amount: Rs. {(calculateMonthlyPayment() * financeMonths).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+              )}
+              
+              <Button
+                onClick={() => {
+                  setShowFinanceCalculator(false);
+                  setFinanceAmount('');
+                  setFinanceMonths(12);
+                }}
+                className="w-full"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

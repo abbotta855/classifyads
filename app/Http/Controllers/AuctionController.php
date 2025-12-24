@@ -342,6 +342,11 @@ class AuctionController extends Controller
                 'user_bid_status' => $userBidStatus,
                 'bid_history' => $bidHistory,
                 'views' => $auction->views ?? 0,
+                'self_pickup' => $auction->self_pickup ?? false,
+                'seller_delivery' => $auction->seller_delivery ?? false,
+                'payment_methods' => $auction->payment_methods ?? [],
+                'financing_available' => $auction->financing_available ?? false,
+                'financing_terms' => $auction->financing_terms ?? null,
                 'created_at' => $auction->created_at ? $auction->created_at->toIso8601String() : null,
                 'updated_at' => $auction->updated_at->toIso8601String(),
             ]);
