@@ -322,6 +322,7 @@ class AuctionController extends Controller
                 'location_id' => $auction->location_id,
                 'starting_price' => (float) $auction->starting_price,
                 'current_bid' => (float) ($auction->current_bid_price ?? $auction->starting_price),
+                'current_bid_price' => (float) ($auction->current_bid_price ?? $auction->starting_price), // Also include for frontend compatibility
                 'reserve_price' => $auction->reserve_price ? (float) $auction->reserve_price : null,
                 'buy_now_price' => $auction->buy_now_price ? (float) $auction->buy_now_price : null,
                 'bid_increment' => (float) $auction->bid_increment,
@@ -359,6 +360,7 @@ class AuctionController extends Controller
     {
         $request->validate([
             'amount' => 'required|numeric|min:0.01',
+            'max_bid_amount' => 'nullable|numeric|min:0.01|gte:amount', // max_bid must be >= amount if provided
         ]);
 
         try {
@@ -374,7 +376,8 @@ class AuctionController extends Controller
             $result = $this->auctionService->placeBid(
                 $auction->id,
                 Auth::id(),
-                $request->amount
+                $request->amount,
+                $request->max_bid_amount ? (float) $request->max_bid_amount : null
             );
 
             if (!$result['valid']) {
@@ -431,6 +434,50 @@ class AuctionController extends Controller
             return response()->json([
                 'error' => 'Failed to place bid',
                 'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Cancel a bid
+     */
+    public function cancelBid(Request $request, $id)
+    {
+        try {
+            $bid = Bid::findOrFail($id);
+            
+            // Verify user owns this bid
+            if ($bid->user_id !== Auth::id()) {
+                return response()->json([
+                    'error' => 'You can only cancel your own bids',
+                ], 403);
+            }
+            
+            $result = $this->auctionService->cancelBid($bid->id, Auth::id());
+            
+            if ($result['success']) {
+                return response()->json([
+                    'message' => $result['message'],
+                    'auction' => $result['auction'],
+                ], 200);
+            } else {
+                return response()->json([
+                    'error' => $result['message'],
+                ], 400);
+            }
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'error' => 'Bid not found',
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('Failed to cancel bid', [
+                'bid_id' => $id,
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+            ]);
+            
+            return response()->json([
+                'error' => 'Failed to cancel bid: ' . $e->getMessage(),
             ], 500);
         }
     }

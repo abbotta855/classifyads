@@ -11,12 +11,16 @@ class Bid extends Model
         'auction_id',
         'user_id',
         'bid_amount',
+        'max_bid_amount',
+        'is_proxy_bid',
         'is_winning_bid',
         'outbid_at',
     ];
 
     protected $casts = [
         'bid_amount' => 'decimal:2',
+        'max_bid_amount' => 'decimal:2',
+        'is_proxy_bid' => 'boolean',
         'is_winning_bid' => 'boolean',
         'outbid_at' => 'datetime',
     ];

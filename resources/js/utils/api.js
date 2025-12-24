@@ -450,7 +450,14 @@ export const publicAuctionAPI = {
   getAuctions: (params) => axios.get('/api/auctions', { params }),
   getAuction: (id) => axios.get(`/api/auctions/${id}`),
   getBidHistory: (id, page = 1) => axios.get(`/api/auctions/${id}/bids`, { params: { page } }),
-  placeBid: (id, amount) => axios.post(`/api/auctions/${id}/bid`, { amount }),
+  placeBid: (id, amount, maxBidAmount = null) => {
+    const data = { amount };
+    if (maxBidAmount) {
+      data.max_bid_amount = maxBidAmount;
+    }
+    return axios.post(`/api/auctions/${id}/bid`, data);
+  },
+  cancelBid: (bidId) => axios.delete(`/api/bids/${bidId}`),
   buyNow: (id) => axios.post(`/api/auctions/${id}/buy-now`),
   initiatePayment: (id, type = 'buy_now') => axios.post(`/api/auctions/${id}/payment/initiate`, { type }),
   trackClick: (id) => axios.post(`/api/auctions/${id}/click`),

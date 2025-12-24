@@ -24,8 +24,13 @@ class AuctionService
 
     /**
      * Place a bid on an auction
+     * @param int $auctionId
+     * @param int $userId
+     * @param float $amount The bid amount (or minimum bid if proxy bidding)
+     * @param float|null $maxBidAmount Optional maximum bid amount for proxy bidding
+     * @return array
      */
-    public function placeBid(int $auctionId, int $userId, float $amount): array
+    public function placeBid(int $auctionId, int $userId, float $amount, ?float $maxBidAmount = null): array
     {
         DB::beginTransaction();
         
@@ -80,11 +85,24 @@ class AuctionService
                 ]);
             }
             
+            // Determine if this is a proxy bid
+            $isProxyBid = $maxBidAmount !== null && $maxBidAmount > $amount;
+            
+            // If proxy bid, calculate the actual bid amount (minimum needed to be winning)
+            $actualBidAmount = $amount;
+            if ($isProxyBid) {
+                // For proxy bids, start with the minimum bid amount
+                $actualBidAmount = $amount;
+                // But we'll store the max_bid_amount for future auto-bidding
+            }
+            
             // Create new bid
             $bid = Bid::create([
                 'auction_id' => $auctionId,
                 'user_id' => $userId,
-                'bid_amount' => $amount,
+                'bid_amount' => $actualBidAmount,
+                'max_bid_amount' => $maxBidAmount,
+                'is_proxy_bid' => $isProxyBid,
                 'is_winning_bid' => true,
             ]);
             
@@ -92,12 +110,14 @@ class AuctionService
                 'bid_id' => $bid->id,
                 'auction_id' => $auctionId,
                 'user_id' => $userId,
-                'bid_amount' => $amount,
+                'bid_amount' => $actualBidAmount,
+                'max_bid_amount' => $maxBidAmount,
+                'is_proxy_bid' => $isProxyBid,
             ]);
             
             // Update auction (including end_time if extended)
             $updateData = [
-                'current_bid_price' => $amount,
+                'current_bid_price' => $actualBidAmount,
                 'current_bidder_id' => $userId,
             ];
             
@@ -108,6 +128,11 @@ class AuctionService
             $auction->update($updateData);
             
             DB::commit();
+            
+            // After committing, check if we need to process proxy bids
+            // This happens when someone else bids and there are active proxy bids
+            // For now, we'll process proxy bids in a separate method that gets called
+            // when a new bid is placed (to auto-bid on behalf of proxy bidders)
             
             // Send notifications AFTER commit to avoid transaction rollback
             // This ensures the bid is saved even if notifications fail
@@ -150,18 +175,32 @@ class AuctionService
             Log::info('Bid placed successfully', [
                 'auction_id' => $auctionId,
                 'bid_id' => $bid->id,
-                'bid_amount' => $amount,
+                'bid_amount' => $actualBidAmount,
+                'max_bid_amount' => $maxBidAmount,
+                'is_proxy_bid' => $isProxyBid,
                 'bid_count_from_relationship' => $auction->bids()->count(),
                 'bid_count_from_direct_query' => $directBidCount,
                 'bid_count_from_db_table' => $directBidCount,
                 'bids_collection_count' => $auction->bids->count(),
             ]);
             
+            // Process proxy bids after this bid is placed
+            // This will auto-bid on behalf of users who have proxy bids set
+            $proxyBidResult = $this->processProxyBids($auctionId, $userId, $actualBidAmount);
+            
+            // Reload auction after proxy bids are processed
+            $finalAuction = $proxyBidResult['auction'] ?? $auction;
+            
             return [
                 'valid' => true,
-                'message' => 'Bid placed successfully',
+                'message' => $isProxyBid 
+                    ? "Proxy bid placed successfully. Maximum bid: Rs. " . number_format($maxBidAmount, 2)
+                    : 'Bid placed successfully',
                 'bid' => $bid,
-                'auction' => $auction,
+                'auction' => $finalAuction,
+                'is_proxy_bid' => $isProxyBid,
+                'max_bid_amount' => $maxBidAmount,
+                'proxy_bids_processed' => $proxyBidResult['processed'] ?? 0,
             ];
             
         } catch (\Exception $e) {
@@ -243,6 +282,186 @@ class AuctionService
         // It will only be checked when determining the winner at auction end
         
         return ['valid' => true];
+    }
+    
+    /**
+     * Cancel a bid
+     * Allowed if:
+     * 1. Bid was placed within the last 5 minutes (time window), OR
+     * 2. Bid has not been outbid yet (is_winning_bid = true)
+     * 
+     * @param int $bidId The bid ID to cancel
+     * @param int $userId The user ID requesting cancellation (must be the bidder)
+     * @return array
+     */
+    public function cancelBid(int $bidId, int $userId): array
+    {
+        DB::beginTransaction();
+        
+        try {
+            // Check if bid exists first (without lock to avoid unnecessary locking)
+            $bid = Bid::find($bidId);
+            if (!$bid) {
+                DB::rollBack();
+                return [
+                    'success' => false,
+                    'message' => 'Bid not found or has already been cancelled',
+                ];
+            }
+            
+            // Now lock for update
+            $bid = Bid::lockForUpdate()->findOrFail($bidId);
+            $auction = Auction::lockForUpdate()->findOrFail($bid->auction_id);
+            
+            // Validate user owns this bid
+            if ($bid->user_id !== $userId) {
+                DB::rollBack();
+                return [
+                    'success' => false,
+                    'message' => 'You can only cancel your own bids',
+                ];
+            }
+            
+            // Check if bid can be cancelled
+            $canCancel = false;
+            $reason = '';
+            
+            // Check 1: Bid was placed within last 5 minutes
+            $timeWindowMinutes = 5;
+            $timeSinceBid = $bid->created_at->diffInMinutes(now());
+            
+            if ($timeSinceBid <= $timeWindowMinutes) {
+                $canCancel = true;
+                $reason = "Bid placed within last {$timeWindowMinutes} minutes";
+            }
+            
+            // Check 2: Bid has not been outbid (still winning)
+            if (!$canCancel && $bid->is_winning_bid) {
+                $canCancel = true;
+                $reason = 'Bid has not been outbid yet';
+            }
+            
+            if (!$canCancel) {
+                DB::rollBack();
+                return [
+                    'success' => false,
+                    'message' => 'Bid cannot be cancelled. Bids can only be cancelled within 5 minutes of placement or before being outbid.',
+                ];
+            }
+            
+            // Check if auction is still active
+            if (!$auction->isActive()) {
+                DB::rollBack();
+                return [
+                    'success' => false,
+                    'message' => 'Cannot cancel bid on an inactive auction',
+                ];
+            }
+            
+            Log::info('Cancelling bid', [
+                'bid_id' => $bidId,
+                'user_id' => $userId,
+                'auction_id' => $auction->id,
+                'bid_amount' => $bid->bid_amount,
+                'is_winning_bid' => $bid->is_winning_bid,
+                'reason' => $reason,
+            ]);
+            
+            $wasWinningBid = $bid->is_winning_bid;
+            $bidAmount = $bid->bid_amount; // Store before deletion
+            $auctionTitle = $auction->title; // Store before potential changes
+            
+            // Delete the bid
+            $bid->delete();
+            
+            Log::info('Bid deleted successfully', [
+                'bid_id' => $bidId,
+                'auction_id' => $auction->id,
+            ]);
+            
+            // If this was the winning bid, we need to update the auction
+            if ($wasWinningBid) {
+                // Find the previous highest bid (if any)
+                $previousBid = Bid::where('auction_id', $auction->id)
+                    ->where('id', '!=', $bidId)
+                    ->orderBy('bid_amount', 'desc')
+                    ->first();
+                
+                if ($previousBid) {
+                    // Mark previous bid as winning
+                    $previousBid->update([
+                        'is_winning_bid' => true,
+                        'outbid_at' => null,
+                    ]);
+                    
+                    // Update auction with previous bidder
+                    $auction->update([
+                        'current_bid_price' => $previousBid->bid_amount,
+                        'current_bidder_id' => $previousBid->user_id,
+                    ]);
+                    
+                    // Notify previous bidder they're now winning
+                    try {
+                        $this->sendBidPlacedNotification($previousBid->user_id, $auction, $previousBid->bid_amount);
+                    } catch (\Exception $e) {
+                        Log::error('Failed to send notification to previous bidder', [
+                            'user_id' => $previousBid->user_id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                } else {
+                    // No other bids - reset auction to starting price
+                    $auction->update([
+                        'current_bid_price' => $auction->starting_price,
+                        'current_bidder_id' => null,
+                    ]);
+                }
+            }
+            
+            DB::commit();
+            
+            // Send cancellation notification to the user (after commit to avoid transaction issues)
+            try {
+                UserNotification::create([
+                    'user_id' => $userId,
+                    'type' => 'bid_cancelled',
+                    'title' => 'Bid Cancelled',
+                    'message' => "Your bid of Rs. " . number_format($bidAmount, 2) . " on '{$auctionTitle}' has been cancelled successfully.",
+                    'metadata' => [
+                        'auction_id' => $auction->id,
+                        'bid_id' => $bidId,
+                        'bid_amount' => $bidAmount,
+                    ],
+                    'link' => "/auctions/{$auction->id}",
+                    'is_read' => false,
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to send bid cancellation notification', [
+                    'user_id' => $userId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+            
+            return [
+                'success' => true,
+                'message' => 'Bid cancelled successfully',
+                'auction' => $auction->fresh(['currentBidder', 'bids']),
+            ];
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to cancel bid', [
+                'bid_id' => $bidId,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return [
+                'success' => false,
+                'message' => 'Failed to cancel bid: ' . $e->getMessage(),
+            ];
+        }
     }
     
     /**
@@ -701,6 +920,225 @@ class AuctionService
                 'error' => $e->getMessage()
             ]);
         }
+    }
+    
+    /**
+     * Process proxy bids - auto-bid on behalf of users who have set maximum bids
+     * This is called after a regular bid is placed to check if proxy bids should auto-bid
+     * Continues processing until no more proxy bids can be placed
+     */
+    private function processProxyBids(int $auctionId, int $excludeUserId, float $currentBidAmount): array
+    {
+        $processed = 0;
+        $auction = null;
+        $maxIterations = 100; // Safety limit to prevent infinite loops
+        $iteration = 0;
+        
+        try {
+            $bidIncrement = Auction::findOrFail($auctionId)->bid_increment ?? 1.00;
+            $nextMinimumBid = $currentBidAmount + $bidIncrement;
+            
+            // Keep processing proxy bids until no more can be placed
+            while ($iteration < $maxIterations) {
+                $iteration++;
+                
+                // Get the auction with fresh data
+                $auction = Auction::lockForUpdate()->findOrFail($auctionId);
+                $currentBidPrice = (float) $auction->current_bid_price;
+                $currentBidderId = $auction->current_bidder_id;
+                
+                // Calculate next minimum bid based on current bid price
+                $nextMinimumBid = $currentBidPrice + $bidIncrement;
+                
+                // Find active proxy bids that can bid at the next minimum
+                // Exclude the current bidder (they just bid, so their proxy shouldn't auto-bid against themselves)
+                $activeProxyBids = Bid::where('auction_id', $auctionId)
+                    ->where('user_id', '!=', $currentBidderId) // Not the current bidder
+                    ->whereNotNull('max_bid_amount')
+                    ->where('max_bid_amount', '>=', $nextMinimumBid) // Max allows bidding at next minimum
+                    ->where(function($query) use ($auctionId) {
+                        // Get the latest bid for each user (their most recent proxy bid setting)
+                        $query->whereIn('id', function($subquery) use ($auctionId) {
+                            $subquery->select(DB::raw('MAX(id)'))
+                                ->from('bids')
+                                ->where('auction_id', $auctionId)
+                                ->whereNotNull('max_bid_amount')
+                                ->groupBy('user_id');
+                        });
+                    })
+                    ->orderBy('max_bid_amount', 'desc') // Process highest max bids first
+                    ->orderBy('created_at', 'asc') // Earlier bids get priority if same max
+                    ->get();
+                
+                if ($activeProxyBids->isEmpty()) {
+                    // No more proxy bids can be placed
+                    break;
+                }
+                
+                // Process the first (highest max) proxy bid
+                $proxyBid = $activeProxyBids->first();
+                
+                // Calculate the bid amount with optimal proxy bidding strategy
+                // 
+                // Strategy zones:
+                // 1. Zone 1 (current_bid >= max - 2 * increment): Decision point - bid maximum directly
+                // 2. Zone 2 (current_bid >= max - 3 * increment): Manual bid zone - stop auto-bidding
+                // 3. Zone 3 (current_bid < max - 3 * increment): Normal auto-bidding
+                //
+                // Example: Person A max = 200,000, increment = 1,000
+                // - Zone 1 (>= 198,000): Bid 200,000 directly (decision point)
+                // - Zone 2 (>= 197,000): Stop auto-bidding, require manual bid
+                // - Zone 3 (< 197,000): Continue auto-bidding incrementally
+                //
+                // Why manual bid zone?
+                // - Gives users control when approaching their maximum
+                // - Allows users to decide if they want to bid their full maximum
+                // - More user-friendly: Users can reconsider before committing to max bid
+                $twoIncrementsBeforeMax = $proxyBid->max_bid_amount - (2 * $bidIncrement);
+                $threeIncrementsBeforeMax = $proxyBid->max_bid_amount - (3 * $bidIncrement);
+                
+                if ($currentBidPrice >= $twoIncrementsBeforeMax) {
+                    // Zone 1: Decision point - bid the maximum directly
+                    $proxyBidAmount = $proxyBid->max_bid_amount;
+                    
+                    Log::info('Proxy bidder bidding maximum directly (decision point reached)', [
+                        'user_id' => $proxyBid->user_id,
+                        'max_bid_amount' => $proxyBid->max_bid_amount,
+                        'current_bid_price' => $currentBidPrice,
+                        'two_increments_before_max' => $twoIncrementsBeforeMax,
+                        'reason' => 'At decision point (two increments before maximum) - optimal strategy when opponent max is unknown',
+                    ]);
+                } elseif ($currentBidPrice >= $threeIncrementsBeforeMax) {
+                    // Zone 2: Manual bid zone - stop auto-bidding, skip this proxy bid
+                    // User should bid manually when they're this close to their maximum
+                    Log::info('Proxy bidder in manual bid zone - skipping auto-bid', [
+                        'user_id' => $proxyBid->user_id,
+                        'max_bid_amount' => $proxyBid->max_bid_amount,
+                        'current_bid_price' => $currentBidPrice,
+                        'three_increments_before_max' => $threeIncrementsBeforeMax,
+                        'reason' => 'At manual bid zone (three increments before maximum) - user should bid manually',
+                    ]);
+                    
+                    // Send notification to user that they're in manual bid zone
+                    try {
+                        $auction = Auction::find($auctionId);
+                        if ($auction) {
+                            UserNotification::create([
+                                'user_id' => $proxyBid->user_id,
+                                'type' => 'proxy_bid_manual_zone',
+                                'title' => 'Proxy Bid - Manual Bid Required',
+                                'message' => "Your proxy bid for '{$auction->title}' is approaching your maximum (Rs. " . number_format($proxyBid->max_bid_amount, 2) . "). Current bid: Rs. " . number_format($currentBidPrice, 2) . ". Please bid manually if you want to continue.",
+                                'metadata' => [
+                                    'auction_id' => $auctionId,
+                                    'max_bid_amount' => $proxyBid->max_bid_amount,
+                                    'current_bid_price' => $currentBidPrice,
+                                ],
+                                'link' => "/auctions/{$auctionId}",
+                                'is_read' => false,
+                            ]);
+                        }
+                    } catch (\Exception $e) {
+                        Log::error('Failed to send manual bid zone notification', [
+                            'user_id' => $proxyBid->user_id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                    
+                    // Skip this proxy bid - user needs to bid manually
+                    // Continue to check other proxy bidders who might not be in manual bid zone
+                    continue; // Skip this proxy bid, continue to next one
+                } else {
+                    // Zone 3: Normal case - bid the minimum needed to outbid
+                    $proxyBidAmount = min($proxyBid->max_bid_amount, $nextMinimumBid);
+                }
+                
+                // Only proceed if we have a valid bid amount and it's higher than current bid
+                if (isset($proxyBidAmount) && $proxyBidAmount > $currentBidPrice && $proxyBidAmount <= $proxyBid->max_bid_amount) {
+                    DB::beginTransaction();
+                    
+                    try {
+                        // Mark previous winning bid as outbid
+                        if ($currentBidderId) {
+                            Bid::where('auction_id', $auctionId)
+                                ->where('is_winning_bid', true)
+                                ->update([
+                                    'is_winning_bid' => false,
+                                    'outbid_at' => now(),
+                                ]);
+                        }
+                        
+                        // Create auto-bid on behalf of proxy bidder
+                        $autoBid = Bid::create([
+                            'auction_id' => $auctionId,
+                            'user_id' => $proxyBid->user_id,
+                            'bid_amount' => $proxyBidAmount,
+                            'max_bid_amount' => $proxyBid->max_bid_amount,
+                            'is_proxy_bid' => true,
+                            'is_winning_bid' => true,
+                        ]);
+                        
+                        // Update auction
+                        $auction->update([
+                            'current_bid_price' => $proxyBidAmount,
+                            'current_bidder_id' => $proxyBid->user_id,
+                        ]);
+                        
+                        DB::commit();
+                        
+                        $processed++;
+                        
+                        Log::info('Proxy bid auto-placed', [
+                            'auction_id' => $auctionId,
+                            'proxy_bid_id' => $proxyBid->id,
+                            'auto_bid_id' => $autoBid->id,
+                            'user_id' => $proxyBid->user_id,
+                            'bid_amount' => $proxyBidAmount,
+                            'max_bid_amount' => $proxyBid->max_bid_amount,
+                            'iteration' => $iteration,
+                        ]);
+                        
+                        // Send notification to proxy bidder
+                        try {
+                            $this->sendBidPlacedNotification($proxyBid->user_id, $auction, $proxyBidAmount);
+                        } catch (\Exception $e) {
+                            Log::error('Failed to send proxy bid notification', [
+                                'user_id' => $proxyBid->user_id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+                        
+                        // Continue loop to check if other proxy bids should now auto-bid
+                        // (e.g., Person B's proxy bid after Person A auto-bids)
+                        
+                    } catch (\Exception $e) {
+                        DB::rollBack();
+                        Log::error('Failed to process proxy bid', [
+                            'proxy_bid_id' => $proxyBid->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                        // Break on error to prevent infinite loop
+                        break;
+                    }
+                } else {
+                    // No valid proxy bid can be placed
+                    break;
+                }
+            }
+            
+            // Reload auction one final time
+            $auction = Auction::with(['currentBidder', 'bids'])->findOrFail($auctionId);
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to process proxy bids', [
+                'auction_id' => $auctionId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+        
+        return [
+            'processed' => $processed,
+            'auction' => $auction ?? Auction::with(['currentBidder', 'bids'])->findOrFail($auctionId),
+        ];
     }
     
     private function sendLoserNotifications(int $auctionId, int $winnerId): void

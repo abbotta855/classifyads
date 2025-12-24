@@ -116,6 +116,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
   // Place bid on auction (authenticated)
   Route::post('/auctions/{id}/bid', [App\Http\Controllers\AuctionController::class, 'placeBid']);
+  Route::delete('/bids/{id}', [App\Http\Controllers\AuctionController::class, 'cancelBid']);
   Route::post('/auctions/{id}/buy-now', [App\Http\Controllers\AuctionController::class, 'buyNow']);
   Route::post('/auctions/{id}/payment/initiate', [App\Http\Controllers\AuctionPaymentController::class, 'initiatePayment']);
   Route::get('/auctions/{id}/payment/success', [App\Http\Controllers\AuctionPaymentController::class, 'paymentSuccess']);

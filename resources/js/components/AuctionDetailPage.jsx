@@ -17,9 +17,12 @@ function AuctionDetailPage() {
   const [error, setError] = useState(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [bidAmount, setBidAmount] = useState('');
+  const [maxBidAmount, setMaxBidAmount] = useState('');
+  const [useProxyBidding, setUseProxyBidding] = useState(false);
   const [bidError, setBidError] = useState('');
   const [placingBid, setPlacingBid] = useState(false);
   const [bidHistory, setBidHistory] = useState([]);
+  const [showAllBids, setShowAllBids] = useState(false); // Toggle to show all bids or just last 5
   const [timeRemaining, setTimeRemaining] = useState('');
   const [statusUpdateInterval, setStatusUpdateInterval] = useState(10); // Dynamic interval for status updates
   const statusCheckInProgress = useRef(false); // Prevent multiple simultaneous status checks
@@ -343,7 +346,21 @@ function AuctionDetailPage() {
         }
       }
 
-      const response = await publicAuctionAPI.placeBid(auction.id, amount);
+      // Prepare max_bid_amount if proxy bidding is enabled
+      const maxBid = useProxyBidding && maxBidAmount 
+        ? parseFloat(maxBidAmount) 
+        : null;
+      
+      // Validate max bid if provided
+      if (maxBid !== null) {
+        if (isNaN(maxBid) || maxBid <= amount) {
+          setBidError('Maximum bid must be greater than your bid amount');
+          setPlacingBid(false);
+          return;
+        }
+      }
+      
+      const response = await publicAuctionAPI.placeBid(auction.id, amount, maxBid);
       
       // Check if backend also requires confirmation
       if (response.data?.requires_confirmation) {
@@ -389,7 +406,20 @@ function AuctionDetailPage() {
       // Reset bid amount to next minimum
       setBidAmount((response.data.auction?.next_minimum_bid || amount + auction.bid_increment).toFixed(2));
       
-      alert('Bid placed successfully!');
+      // Reset proxy bidding fields
+      setUseProxyBidding(false);
+      setMaxBidAmount('');
+      
+      // Show success message with proxy bid info if applicable
+      const successMessage = response.data?.is_proxy_bid
+        ? `Proxy bid placed! Maximum bid: Rs. ${response.data.max_bid_amount.toLocaleString()}. System will auto-bid on your behalf.`
+        : 'Bid placed successfully!';
+      
+      if (response.data?.proxy_bids_processed > 0) {
+        alert(`${successMessage}\n\nNote: ${response.data.proxy_bids_processed} proxy bid(s) were automatically processed.`);
+      } else {
+        alert(successMessage);
+      }
     } catch (err) {
       setBidError(err.response?.data?.error || 'Failed to place bid');
       if (err.response?.data?.minimum_bid) {
@@ -433,6 +463,51 @@ function AuctionDetailPage() {
       setBidError(err.response?.data?.error || 'Failed to initiate payment');
       console.error('Error initiating payment:', err);
       setPlacingBid(false);
+    }
+  };
+
+  const cancelingBidRef = useRef(false); // Prevent duplicate cancellation requests
+
+  const handleCancelBid = async (bidId) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+
+    // Prevent duplicate requests
+    if (cancelingBidRef.current) {
+      console.log('Bid cancellation already in progress');
+      return;
+    }
+
+    if (!window.confirm('Are you sure you want to cancel this bid? This action cannot be undone.')) {
+      return;
+    }
+
+    cancelingBidRef.current = true;
+
+    try {
+      const response = await publicAuctionAPI.cancelBid(bidId);
+      
+      if (response.data?.message) {
+        alert(response.data.message);
+      }
+      
+      // Reload auction and bid history to reflect changes
+      // Use a small delay to ensure backend transaction is committed
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await loadAuction();
+      await loadBidHistory();
+    } catch (err) {
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to cancel bid';
+      alert(errorMessage);
+      console.error('Error cancelling bid:', err);
+      
+      // Still reload to get current state
+      await loadAuction();
+      await loadBidHistory();
+    } finally {
+      cancelingBidRef.current = false;
     }
   };
 
@@ -618,20 +693,66 @@ function AuctionDetailPage() {
                   <CardTitle>Bid History</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {bidHistory.map((bid) => (
-                      <div key={bid.id} className="flex justify-between items-center p-2 border-b">
-                        <div>
-                          <p className="font-medium">{bid.user?.name || 'Anonymous'}</p>
-                          <p className="text-sm text-gray-500">{new Date(bid.created_at).toLocaleString()}</p>
+                  <div className="space-y-2">
+                    {/* Show last 5 bids by default, or all if showAllBids is true */}
+                    {(showAllBids ? bidHistory : bidHistory.slice(0, 5)).map((bid) => {
+                      // Check if this bid can be cancelled
+                      // Can cancel if: bid is user's own AND (within 5 minutes OR not outbid)
+                      const bidTime = new Date(bid.created_at);
+                      const timeSinceBid = (Date.now() - bidTime.getTime()) / (1000 * 60); // minutes
+                      const canCancel = user && 
+                        bid.user?.id === user.id && 
+                        (timeSinceBid <= 5 || bid.is_winning) &&
+                        !cancelingBidRef.current; // Disable if cancellation in progress
+                      
+                      return (
+                        <div key={bid.id} className="flex justify-between items-center p-2 border-b">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{bid.user?.name || 'Anonymous'}</p>
+                              {bid.user?.id === user?.id && (
+                                <span className="text-xs text-gray-500">(You)</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-500">{new Date(bid.created_at).toLocaleString()}</p>
+                          </div>
+                          <div className="text-right flex items-center gap-3">
+                            <div>
+                              <p className="font-bold text-blue-600">Rs. {bid.bid_amount.toLocaleString()}</p>
+                              {bid.is_winning && <p className="text-xs text-green-600">Winning</p>}
+                            </div>
+                            {canCancel && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleCancelBid(bid.id)}
+                                disabled={cancelingBidRef.current}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                {cancelingBidRef.current ? 'Cancelling...' : 'Cancel'}
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-blue-600">Rs. {bid.bid_amount.toLocaleString()}</p>
-                          {bid.is_winning && <p className="text-xs text-green-600">Winning</p>}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
+                  {/* Show More / Show Less button */}
+                  {bidHistory.length > 5 && (
+                    <div className="mt-4 text-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAllBids(!showAllBids)}
+                        className="w-full"
+                      >
+                        {showAllBids 
+                          ? `Show Less (Showing ${bidHistory.length} bids)` 
+                          : `Show More (${bidHistory.length - 5} more bids)`
+                        }
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -674,11 +795,17 @@ function AuctionDetailPage() {
                 {auction.reserve_price && (
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Reserve Price</label>
-                    {auction.current_bid_price >= auction.reserve_price ? (
-                      <p className="text-lg font-semibold text-green-600">✓ Reserve Met</p>
-                    ) : (
-                      <p className="text-lg font-semibold text-orange-600">Reserve Not Met</p>
-                    )}
+                    {(() => {
+                      // Use current_bid_price if available, otherwise fall back to current_bid
+                      const currentBid = auction.current_bid_price ?? auction.current_bid ?? auction.starting_price ?? 0;
+                      const reservePrice = auction.reserve_price ?? 0;
+                      const isMet = currentBid >= reservePrice;
+                      return isMet ? (
+                        <p className="text-lg font-semibold text-green-600">✓ Reserve Met</p>
+                      ) : (
+                        <p className="text-lg font-semibold text-orange-600">Reserve Not Met</p>
+                      );
+                    })()}
                     <p className="text-xs text-gray-500">Reserve price is hidden until met</p>
                   </div>
                 )}
@@ -722,15 +849,52 @@ function AuctionDetailPage() {
                         Minimum bid: Rs. {(auction.next_minimum_bid || auction.starting_price).toLocaleString()}
                       </p>
                     </div>
+                    
+                    {/* Proxy Bidding Option */}
+                    <div className="space-y-2">
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={useProxyBidding}
+                          onChange={(e) => {
+                            setUseProxyBidding(e.target.checked);
+                            if (!e.target.checked) {
+                              setMaxBidAmount('');
+                            }
+                          }}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm font-medium">Use Proxy Bidding (Auto-bid up to maximum)</span>
+                      </label>
+                      
+                      {useProxyBidding && (
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Maximum Bid Amount</label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min={bidAmount ? parseFloat(bidAmount) + 0.01 : auction.next_minimum_bid || auction.starting_price}
+                            value={maxBidAmount}
+                            onChange={(e) => setMaxBidAmount(e.target.value)}
+                            placeholder={`Max: Rs. ${((parseFloat(bidAmount) || auction.next_minimum_bid || auction.starting_price) * 2).toLocaleString()}`}
+                            className="text-lg"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            System will automatically bid on your behalf up to this amount
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
                     {bidError && (
                       <p className="text-sm text-red-600">{bidError}</p>
                     )}
                     <Button
                       type="submit"
-                      disabled={placingBid || !bidAmount}
+                      disabled={placingBid || !bidAmount || (useProxyBidding && !maxBidAmount)}
                       className="w-full"
                     >
-                      {placingBid ? 'Placing Bid...' : 'Place Bid'}
+                      {placingBid ? 'Placing Bid...' : useProxyBidding ? 'Place Proxy Bid' : 'Place Bid'}
                     </Button>
                   </form>
                 )}
