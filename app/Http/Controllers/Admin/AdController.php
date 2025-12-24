@@ -44,8 +44,13 @@ class AdController extends Controller
   public function store(Request $request)
   {
     $validated = $request->validate([
-      'title' => 'required|string|max:255',
-      'description' => 'required|string',
+      'title' => 'required|string|max:90',
+      'description' => ['required', 'string', function ($attribute, $value, $fail) {
+        $wordCount = str_word_count(strip_tags($value));
+        if ($wordCount > 300) {
+          $fail('The description must not exceed 300 words. Current: ' . $wordCount . ' words.');
+        }
+      }],
       'price' => 'required|numeric|min:0',
       'category_id' => 'required|exists:categories,id',
       'user_id' => 'required|exists:users,id',
@@ -135,8 +140,15 @@ class AdController extends Controller
     $ad = Ad::findOrFail($id);
 
     $validated = $request->validate([
-      'title' => 'sometimes|string|max:255',
-      'description' => 'sometimes|string',
+      'title' => 'sometimes|string|max:90',
+      'description' => ['sometimes', 'string', function ($attribute, $value, $fail) {
+        if ($value) {
+          $wordCount = str_word_count(strip_tags($value));
+          if ($wordCount > 300) {
+            $fail('The description must not exceed 300 words. Current: ' . $wordCount . ' words.');
+          }
+        }
+      }],
       'price' => 'sometimes|numeric|min:0',
       'category_id' => 'sometimes|exists:categories,id',
       'user_id' => 'sometimes|exists:users,id',

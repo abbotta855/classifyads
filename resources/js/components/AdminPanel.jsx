@@ -8,6 +8,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { adminAPI, getAdUrl } from '../utils/api';
+import PhotoCropModal from './PhotoCropModal';
 import axios from 'axios';
 
 // Job category options
@@ -114,6 +115,10 @@ function AdminPanel() {
     end_time: '',
   });
   const [auctionImages, setAuctionImages] = useState([null, null, null, null]);
+  // Crop modal state for ads
+  const [cropImageIndex, setCropImageIndex] = useState(null);
+  const [cropImageFile, setCropImageFile] = useState(null);
+  const [cropImageType, setCropImageType] = useState(null); // 'ad' or 'auction'
   const [postAdFormData, setPostAdFormData] = useState({
     title: '',
     description: '',
@@ -2933,32 +2938,78 @@ function AdminPanel() {
     });
   };
 
-  // Handle image file selection with compression
-  const handleImageChange = async (index, file) => {
+  // Handle image file selection - open crop modal (replaces old compression-based handler)
+  const handleImageChange = async (index, file, type = 'ad') => {
     if (file && file.type.startsWith('image/')) {
-      // Check file size (if already small, skip compression)
-      if (file.size > 500 * 1024) { // Only compress if > 500KB
-        try {
-          const compressedFile = await compressImage(file);
-          const newImages = [...postAdImages];
-          newImages[index] = compressedFile;
-          setPostAdImages(newImages);
-        } catch (err) {
-          console.error('Error compressing image:', err);
-          // Fallback to original file
-          const newImages = [...postAdImages];
-          newImages[index] = file;
-          setPostAdImages(newImages);
-        }
-      } else {
-        const newImages = [...postAdImages];
-        newImages[index] = file;
-        setPostAdImages(newImages);
+      // Validate file size (max 10MB before crop)
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Image size must be less than 10MB');
+        setTimeout(() => setError(null), 3000);
+        return;
       }
+      // Open crop modal
+      setCropImageIndex(index);
+      setCropImageFile(file);
+      setCropImageType(type);
     } else {
       setError('Please select a valid image file');
       setTimeout(() => setError(null), 3000);
     }
+  };
+
+  // Handle crop completion
+  const handleCropComplete = async (croppedFile) => {
+    if (cropImageIndex === null) return;
+    
+    // Verify the cropped image is 400x400
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(croppedFile);
+    img.onload = async () => {
+      URL.revokeObjectURL(objectUrl);
+      if (img.width !== 400 || img.height !== 400) {
+        alert('Image must be exactly 400x400 pixels. Please crop again.');
+        return;
+      }
+      
+      // Compress if needed
+      let processedFile = croppedFile;
+      if (croppedFile.size > 1024 * 1024) { // 1MB
+        try {
+          processedFile = await compressImage(croppedFile);
+        } catch (err) {
+          console.error('Error compressing image:', err);
+        }
+      }
+      
+      // Update the appropriate image array
+      if (cropImageType === 'ad') {
+        const newImages = [...postAdImages];
+        newImages[cropImageIndex] = processedFile;
+        setPostAdImages(newImages);
+      } else if (cropImageType === 'auction') {
+        const newImages = [...auctionImages];
+        newImages[cropImageIndex] = processedFile;
+        setAuctionImages(newImages);
+      } else if (cropImageType === 'ebook-cover') {
+        setEbookCoverImage(processedFile);
+      }
+      
+      // Close crop modal
+      setCropImageIndex(null);
+      setCropImageFile(null);
+      setCropImageType(null);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      alert('Error processing image. Please try again.');
+    };
+    img.src = objectUrl;
+  };
+
+  const handleCropCancel = () => {
+    setCropImageIndex(null);
+    setCropImageFile(null);
+    setCropImageType(null);
   };
 
   // Handle image removal
@@ -6356,13 +6407,22 @@ function AdminPanel() {
                       <form onSubmit={handlePostAdSubmit} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Title *</label>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Title * (Max 90 characters)</label>
                             <Input
                               value={postAdFormData.title}
-                              onChange={(e) => setPostAdFormData({...postAdFormData, title: e.target.value})}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value.length <= 90) {
+                                  setPostAdFormData({...postAdFormData, title: value});
+                                }
+                              }}
                               className="w-full"
+                              maxLength={90}
                               required
                             />
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                              {postAdFormData.title.length}/90 characters
+                            </p>
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Price *</label>
@@ -6378,10 +6438,16 @@ function AdminPanel() {
                           </div>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description *</label>
+                          <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description * (Max 300 words)</label>
                           <textarea
                             value={postAdFormData.description}
-                            onChange={(e) => setPostAdFormData({...postAdFormData, description: e.target.value})}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
+                              if (wordCount <= 300) {
+                                setPostAdFormData({...postAdFormData, description: value});
+                              }
+                            }}
                             className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                             required
                           />
@@ -7562,7 +7628,7 @@ function AdminPanel() {
                                         className="hidden"
                                         onChange={(e) => {
                                           const file = e.target.files[0];
-                                          if (file) handleImageChange(index, file);
+                                          if (file) handleImageChange(index, file, 'ad');
                                         }}
                                       />
                                     </label>
@@ -11567,22 +11633,40 @@ function AdminPanel() {
                             </select>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction Item Name (Title) *</label>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction Item Name (Title) * (Max 90 characters)</label>
                             <Input
                               value={auctionFormData.title}
-                              onChange={(e) => setAuctionFormData(prev => ({...prev, title: e.target.value}))}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value.length <= 90) {
+                                  setAuctionFormData(prev => ({...prev, title: value}));
+                                }
+                              }}
                               className="w-full"
+                              maxLength={90}
                               required
                             />
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                              {auctionFormData.title.length}/90 characters
+                            </p>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description *</label>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description * (Max 300 words)</label>
                             <textarea
                               value={auctionFormData.description}
-                              onChange={(e) => setAuctionFormData(prev => ({...prev, description: e.target.value}))}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
+                                if (wordCount <= 300) {
+                                  setAuctionFormData(prev => ({...prev, description: value}));
+                                }
+                              }}
                               className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                               required
                             />
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                              {auctionFormData.description.trim() ? auctionFormData.description.trim().split(/\s+/).length : 0}/300 words
+                            </p>
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Starting Price *</label>
@@ -11699,68 +11783,12 @@ function AdminPanel() {
                                   <Input
                                     type="file"
                                     accept="image/*"
-                                    onChange={async (e) => {
+                                    onChange={(e) => {
                                       const file = e.target.files[0];
                                       if (file) {
-                                        // Show processing message for large files
-                                        const isLarge = file.size > 2 * 1024 * 1024; // > 2MB
-                                        if (isLarge) {
-                                          // Show a friendly message that compression is happening
-                                          const originalSize = (file.size / 1024 / 1024).toFixed(2);
-                                          console.log(`Compressing large image (${originalSize}MB)...`);
-                                        }
-                                        
-                                        // Always compress if > 500KB, or if > 2MB compress more aggressively
-                                        try {
-                                          let processedFile = file;
-                                          
-                                          if (file.size > 2 * 1024 * 1024) {
-                                            // Large files: more aggressive compression
-                                            processedFile = await compressImage(file, 1600, 1600, 0.7);
-                                          } else if (file.size > 500 * 1024) {
-                                            // Medium files: normal compression
-                                            processedFile = await compressImage(file, 1920, 1920, 0.8);
-                                          }
-                                          
-                                          // Final check: if still too large after compression, reject
-                                          if (processedFile.size > 5 * 1024 * 1024) {
-                                            alert(
-                                              `Image is still too large after compression (${(processedFile.size / 1024 / 1024).toFixed(2)}MB). ` +
-                                              `Please use a smaller image or compress it manually before uploading.`
-                                            );
-                                            e.target.value = ''; // Clear the input
-                                            return;
-                                          }
-                                          
-                                          const newImages = [...auctionImages];
-                                          newImages[index] = processedFile;
-                                          setAuctionImages(newImages);
-                                          
-                                          if (isLarge) {
-                                            const newSize = (processedFile.size / 1024 / 1024).toFixed(2);
-                                            console.log(`✓ Image compressed from ${(file.size / 1024 / 1024).toFixed(2)}MB to ${newSize}MB`);
-                                          }
-                                        } catch (err) {
-                                          console.error('Error processing image:', err);
-                                          // If compression fails and file is too large, reject it
-                                          if (file.size > 5 * 1024 * 1024) {
-                                            alert(
-                                              `Image is too large (${(file.size / 1024 / 1024).toFixed(2)}MB) and compression failed. ` +
-                                              `Please use a smaller image (max 5MB).`
-                                            );
-                                            e.target.value = '';
-                                            return;
-                                          }
-                                          // If compression fails but file is small enough, use original
-                                          const newImages = [...auctionImages];
-                                          newImages[index] = file;
-                                          setAuctionImages(newImages);
-                                        }
-                                      } else {
-                                        const newImages = [...auctionImages];
-                                        newImages[index] = null;
-                                        setAuctionImages(newImages);
+                                        handleImageChange(index, file, 'auction');
                                       }
+                                      e.target.value = ''; // Clear input to allow re-selecting same file
                                     }}
                                     className="w-full text-sm"
                                   />
@@ -12035,22 +12063,40 @@ function AdminPanel() {
                             </select>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction Item Name (Title) *</label>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction Item Name (Title) * (Max 90 characters)</label>
                             <Input
                               value={auctionFormData.title}
-                              onChange={(e) => setAuctionFormData(prev => ({...prev, title: e.target.value}))}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value.length <= 90) {
+                                  setAuctionFormData(prev => ({...prev, title: value}));
+                                }
+                              }}
                               className="w-full"
+                              maxLength={90}
                               required
                             />
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                              {auctionFormData.title.length}/90 characters
+                            </p>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description *</label>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description * (Max 300 words)</label>
                             <textarea
                               value={auctionFormData.description}
-                              onChange={(e) => setAuctionFormData(prev => ({...prev, description: e.target.value}))}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
+                                if (wordCount <= 300) {
+                                  setAuctionFormData(prev => ({...prev, description: value}));
+                                }
+                              }}
                               className="w-full min-h-[100px] px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                               required
                             />
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                              {auctionFormData.description.trim() ? auctionFormData.description.trim().split(/\s+/).length : 0}/300 words
+                            </p>
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Starting Price *</label>
@@ -12167,68 +12213,12 @@ function AdminPanel() {
                                   <Input
                                     type="file"
                                     accept="image/*"
-                                    onChange={async (e) => {
+                                    onChange={(e) => {
                                       const file = e.target.files[0];
                                       if (file) {
-                                        // Show processing message for large files
-                                        const isLarge = file.size > 2 * 1024 * 1024; // > 2MB
-                                        if (isLarge) {
-                                          // Show a friendly message that compression is happening
-                                          const originalSize = (file.size / 1024 / 1024).toFixed(2);
-                                          console.log(`Compressing large image (${originalSize}MB)...`);
-                                        }
-                                        
-                                        // Always compress if > 500KB, or if > 2MB compress more aggressively
-                                        try {
-                                          let processedFile = file;
-                                          
-                                          if (file.size > 2 * 1024 * 1024) {
-                                            // Large files: more aggressive compression
-                                            processedFile = await compressImage(file, 1600, 1600, 0.7);
-                                          } else if (file.size > 500 * 1024) {
-                                            // Medium files: normal compression
-                                            processedFile = await compressImage(file, 1920, 1920, 0.8);
-                                          }
-                                          
-                                          // Final check: if still too large after compression, reject
-                                          if (processedFile.size > 5 * 1024 * 1024) {
-                                            alert(
-                                              `Image is still too large after compression (${(processedFile.size / 1024 / 1024).toFixed(2)}MB). ` +
-                                              `Please use a smaller image or compress it manually before uploading.`
-                                            );
-                                            e.target.value = ''; // Clear the input
-                                            return;
-                                          }
-                                          
-                                          const newImages = [...auctionImages];
-                                          newImages[index] = processedFile;
-                                          setAuctionImages(newImages);
-                                          
-                                          if (isLarge) {
-                                            const newSize = (processedFile.size / 1024 / 1024).toFixed(2);
-                                            console.log(`✓ Image compressed from ${(file.size / 1024 / 1024).toFixed(2)}MB to ${newSize}MB`);
-                                          }
-                                        } catch (err) {
-                                          console.error('Error processing image:', err);
-                                          // If compression fails and file is too large, reject it
-                                          if (file.size > 5 * 1024 * 1024) {
-                                            alert(
-                                              `Image is too large (${(file.size / 1024 / 1024).toFixed(2)}MB) and compression failed. ` +
-                                              `Please use a smaller image (max 5MB).`
-                                            );
-                                            e.target.value = '';
-                                            return;
-                                          }
-                                          // If compression fails but file is small enough, use original
-                                          const newImages = [...auctionImages];
-                                          newImages[index] = file;
-                                          setAuctionImages(newImages);
-                                        }
-                                      } else {
-                                        const newImages = [...auctionImages];
-                                        newImages[index] = null;
-                                        setAuctionImages(newImages);
+                                        handleImageChange(index, file, 'auction');
                                       }
+                                      e.target.value = ''; // Clear input to allow re-selecting same file
                                     }}
                                     className="w-full text-sm"
                                   />
@@ -13069,11 +13059,38 @@ function AdminPanel() {
                           </div>
                           <div>
                             <Label>Title *</Label>
-                            <Input value={ebookFormData.title} onChange={(e) => setEbookFormData({...ebookFormData, title: e.target.value})} required />
+                            <Input 
+                              value={ebookFormData.title} 
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value.length <= 90) {
+                                  setEbookFormData({...ebookFormData, title: value});
+                                }
+                              }}
+                              maxLength={90}
+                              required 
+                            />
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                              {ebookFormData.title.length}/90 characters
+                            </p>
                           </div>
                           <div>
-                            <Label>Description</Label>
-                            <textarea value={ebookFormData.description} onChange={(e) => setEbookFormData({...ebookFormData, description: e.target.value})} className="w-full px-3 py-2 border rounded-md" rows="3" />
+                            <Label>Description (Max 300 words)</Label>
+                            <textarea 
+                              value={ebookFormData.description} 
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
+                                if (wordCount <= 300) {
+                                  setEbookFormData({...ebookFormData, description: value});
+                                }
+                              }}
+                              className="w-full px-3 py-2 border rounded-md" 
+                              rows="3" 
+                            />
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                              {ebookFormData.description.trim() ? ebookFormData.description.trim().split(/\s+/).length : 0}/300 words
+                            </p>
                           </div>
                           <div className="grid grid-cols-3 gap-4">
                             <div>
@@ -13154,7 +13171,26 @@ function AdminPanel() {
                           </div>
                           <div>
                             <Label>Cover Image</Label>
-                            <Input type="file" accept="image/*" onChange={(e) => setEbookCoverImage(e.target.files[0])} />
+                            <Input 
+                              type="file" 
+                              accept="image/*" 
+                              onChange={(e) => {
+                                const file = e.target.files[0];
+                                if (file) {
+                                  // Validate file size (max 10MB before crop)
+                                  if (file.size > 10 * 1024 * 1024) {
+                                    setError('Image size must be less than 10MB');
+                                    setTimeout(() => setError(null), 3000);
+                                    return;
+                                  }
+                                  // Open crop modal for eBook cover
+                                  setCropImageIndex('ebook-cover');
+                                  setCropImageFile(file);
+                                  setCropImageType('ebook-cover');
+                                }
+                                e.target.value = ''; // Clear input
+                              }} 
+                            />
                           </div>
                           <div>
                             <Label>
@@ -13219,15 +13255,30 @@ function AdminPanel() {
                             <Label>Title *</Label>
                             <Input
                               value={editingEbookData.title || ''}
-                              onChange={(e) => setEditingEbookData({ ...editingEbookData, title: e.target.value })}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value.length <= 90) {
+                                  setEditingEbookData({ ...editingEbookData, title: value });
+                                }
+                              }}
+                              maxLength={90}
                               required
                             />
+                            <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                              {(editingEbookData.title || '').length}/90 characters
+                            </p>
                           </div>
                           <div>
-                            <Label>Description</Label>
+                            <Label>Description (Max 300 words)</Label>
                             <textarea
                               value={editingEbookData.description || ''}
-                              onChange={(e) => setEditingEbookData({ ...editingEbookData, description: e.target.value })}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
+                                if (wordCount <= 300) {
+                                  setEditingEbookData({ ...editingEbookData, description: value });
+                                }
+                              }}
                               className="w-full px-3 py-2 border rounded-md"
                               rows="3"
                             />
@@ -13337,11 +13388,26 @@ function AdminPanel() {
                               />
                             </div>
                             <div>
-                              <Label>Replace Cover Image (optional)</Label>
+                              <Label>Replace Cover Image (optional) - 400x400px</Label>
                               <Input
                                 type="file"
                                 accept="image/*"
-                                onChange={(e) => setEbookCoverImage(e.target.files[0])}
+                                onChange={(e) => {
+                                  const file = e.target.files[0];
+                                  if (file) {
+                                    // Validate file size (max 10MB before crop)
+                                    if (file.size > 10 * 1024 * 1024) {
+                                      setError('Image size must be less than 10MB');
+                                      setTimeout(() => setError(null), 3000);
+                                      return;
+                                    }
+                                    // Open crop modal for eBook cover
+                                    setCropImageIndex('ebook-cover');
+                                    setCropImageFile(file);
+                                    setCropImageType('ebook-cover');
+                                  }
+                                  e.target.value = ''; // Clear input
+                                }}
                               />
                             </div>
                           </div>
@@ -14587,11 +14653,26 @@ function AdminPanel() {
                         />
                       </div>
                       <div>
-                        <Label>Replace Cover Image (optional)</Label>
+                        <Label>Replace Cover Image (optional) - 400x400px</Label>
                         <Input
                           type="file"
                           accept="image/*"
-                          onChange={(e) => setEbookCoverImage(e.target.files[0])}
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              // Validate file size (max 10MB before crop)
+                              if (file.size > 10 * 1024 * 1024) {
+                                setError('Image size must be less than 10MB');
+                                setTimeout(() => setError(null), 3000);
+                                return;
+                              }
+                              // Open crop modal for eBook cover
+                              setCropImageIndex('ebook-cover');
+                              setCropImageFile(file);
+                              setCropImageType('ebook-cover');
+                            }
+                            e.target.value = ''; // Clear input
+                          }}
                         />
                       </div>
                     </div>
@@ -14617,6 +14698,19 @@ function AdminPanel() {
                 </CardContent>
               </Card>
             </div>
+          )}
+
+          {/* Photo Crop Modal */}
+          {cropImageFile && (
+            <PhotoCropModal
+              imageFile={cropImageFile}
+              onCropComplete={handleCropComplete}
+              onCancel={handleCropCancel}
+              aspectRatio={1}
+              minWidth={400}
+              minHeight={400}
+              fixedSize={{ width: 400, height: 400 }}
+            />
           )}
         </main>
       </div>

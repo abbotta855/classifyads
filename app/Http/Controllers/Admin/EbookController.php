@@ -33,8 +33,15 @@ class EbookController extends Controller
         $validator = Validator::make($request->all(), [
             'user_id' => 'required|exists:users,id',
             'category_id' => 'nullable|exists:categories,id',
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'title' => 'required|string|max:90',
+            'description' => ['nullable', 'string', function ($attribute, $value, $fail) {
+                if ($value) {
+                    $wordCount = str_word_count(strip_tags($value));
+                    if ($wordCount > 300) {
+                        $fail('The description must not exceed 300 words. Current: ' . $wordCount . ' words.');
+                    }
+                }
+            }],
             'writer' => 'nullable|string|max:255',
             'language' => 'nullable|string|max:50',
             'pages' => 'nullable|integer|min:1',

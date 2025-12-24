@@ -3050,24 +3050,40 @@ function AdPostSection({ user }) {
   const handleCropComplete = async (croppedFile) => {
     if (cropImageIndex === null) return;
     
-    // Compress image if it's larger than 1MB
-    let processedFile = croppedFile;
-    if (croppedFile.size > 1024 * 1024) { // 1MB
-      try {
-        processedFile = await compressImage(croppedFile);
-      } catch (err) {
-        console.error('Error compressing image:', err);
-        // Use original file if compression fails
+    // Verify the cropped image is 400x400
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(croppedFile);
+    img.onload = async () => {
+      URL.revokeObjectURL(objectUrl);
+      if (img.width !== 400 || img.height !== 400) {
+        alert('Image must be exactly 400x400 pixels. Please crop again.');
+        return;
       }
-    }
-    
-    const newImages = [...images];
-    newImages[cropImageIndex] = processedFile;
-    setImages(newImages);
-    
-    // Close crop modal
-    setCropImageIndex(null);
-    setCropImageFile(null);
+      
+      // Compress image if it's larger than 1MB
+      let processedFile = croppedFile;
+      if (croppedFile.size > 1024 * 1024) { // 1MB
+        try {
+          processedFile = await compressImage(croppedFile);
+        } catch (err) {
+          console.error('Error compressing image:', err);
+          // Use original file if compression fails
+        }
+      }
+      
+      const newImages = [...images];
+      newImages[cropImageIndex] = processedFile;
+      setImages(newImages);
+      
+      // Close crop modal
+      setCropImageIndex(null);
+      setCropImageFile(null);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      alert('Error processing image. Please try again.');
+    };
+    img.src = objectUrl;
   };
 
   const handleCropCancel = () => {
@@ -3310,27 +3326,45 @@ function AdPostSection({ user }) {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Title */}
             <div>
-              <Label htmlFor="title">Title *</Label>
+              <Label htmlFor="title">Title * (Max 90 characters)</Label>
               <Input
                 id="title"
                 value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value.length <= 90) {
+                    setFormData({ ...formData, title: value });
+                  }
+                }}
                 placeholder="Enter ad title"
+                maxLength={90}
                 required
               />
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                {formData.title.length}/90 characters
+              </p>
             </div>
 
             {/* Description */}
             <div>
-              <Label htmlFor="description">Description *</Label>
+              <Label htmlFor="description">Description * (Max 300 words)</Label>
               <textarea
                 id="description"
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const wordCount = value.trim() ? value.trim().split(/\s+/).length : 0;
+                  if (wordCount <= 300) {
+                    setFormData({ ...formData, description: value });
+                  }
+                }}
                 placeholder="Describe your item in detail"
                 className="w-full min-h-[120px] px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
                 required
               />
+              <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                {formData.description.trim() ? formData.description.trim().split(/\s+/).length : 0}/300 words
+              </p>
             </div>
 
             {/* Price */}
@@ -3555,9 +3589,10 @@ function AdPostSection({ user }) {
           imageFile={cropImageFile}
           onCropComplete={handleCropComplete}
           onCancel={handleCropCancel}
-          aspectRatio={null} // Free crop, can be changed to specific ratios like 1, 4/3, 16/9
-          minWidth={200}
-          minHeight={200}
+          aspectRatio={1}
+          minWidth={400}
+          minHeight={400}
+          fixedSize={{ width: 400, height: 400 }}
         />
       )}
     </div>
