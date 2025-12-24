@@ -180,5 +180,55 @@ class PayPalService
             return null;
         }
     }
+
+    /**
+     * Refund a PayPal payment
+     * @param string $captureId The PayPal capture ID from the original payment
+     * @param float|null $amount Optional partial refund amount. If null, full refund
+     * @param string $currency Currency code (default: USD)
+     * @return array|null Refund details or null on failure
+     */
+    public function refundPayment(string $captureId, ?float $amount = null, string $currency = 'USD'): ?array
+    {
+        $accessToken = $this->getAccessToken();
+        if (!$accessToken) {
+            Log::error('PayPal refund: No access token');
+            return null;
+        }
+
+        try {
+            $refundData = [];
+            
+            // If amount is specified, do partial refund
+            if ($amount !== null) {
+                $refundData['amount'] = [
+                    'value' => number_format($amount, 2, '.', ''),
+                    'currency_code' => $currency,
+                ];
+            }
+            // If amount is null, full refund is performed
+
+            $response = Http::withToken($accessToken)
+                ->post("{$this->baseUrl}/v2/payments/captures/{$captureId}/refund", $refundData);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::error('PayPal refund error', [
+                'capture_id' => $captureId,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('PayPal refund exception', [
+                'capture_id' => $captureId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
 }
 

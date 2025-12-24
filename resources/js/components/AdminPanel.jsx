@@ -3201,6 +3201,58 @@ function AdminPanel() {
     }
   };
 
+  const handleCancelAuction = async (id) => {
+    const reason = window.prompt('Enter cancellation reason (optional):');
+    if (reason === null) {
+      // User cancelled the prompt
+      return;
+    }
+    
+    if (!window.confirm('Are you sure you want to cancel this auction? All bidders will be notified and refunds will be processed if payment was made.')) {
+      return;
+    }
+    
+    const auctionId = parseInt(id);
+    console.log('Cancelling auction:', auctionId, 'Reason:', reason || 'No reason provided');
+    
+    try {
+      const response = await axios.post(`/api/admin/auctions/${auctionId}/cancel`, {
+        reason: reason || null,
+      });
+      
+      console.log('Cancel auction response:', response.data);
+      
+      // Immediately update the auction status in the list
+      setAuctions(prevAuctions => {
+        const updated = prevAuctions.map(auction => {
+          const currentAuctionId = typeof auction.id === 'string' ? parseInt(auction.id) : auction.id;
+          
+          if (currentAuctionId === auctionId) {
+            const updatedAuction = response.data?.auction
+              ? { ...auction, ...response.data.auction, status: 'cancelled' }
+              : { ...auction, status: 'cancelled' };
+            
+            return updatedAuction;
+          }
+          return auction;
+        });
+        return updated;
+      });
+      
+      setSuccessMessage(`Auction cancelled successfully. ${response.data?.refunds?.length ? `${response.data.refunds.length} refund(s) processed.` : ''}`);
+      setTimeout(() => setSuccessMessage(null), 5000);
+      
+      // Refresh auctions list after a short delay
+      setTimeout(() => {
+        fetchAuctions();
+      }, 1000);
+    } catch (err) {
+      console.error('Error cancelling auction:', err);
+      setError(err.response?.data?.error || 'Failed to cancel auction');
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
   const handleEndAuction = async (id) => {
     if (!window.confirm('Are you sure you want to end this auction?')) return;
     
@@ -11809,11 +11861,12 @@ function AdminPanel() {
                                   </td>
                                   <td className="p-3 text-sm">
                                     <div className="flex gap-2">
-                                      {auction.status === 'pending' ? (
+                                      {auction.status === 'pending' || auction.status === 'active' ? (
                                         <Button
                                           variant="outline"
                                           size="sm"
                                           onClick={() => handleEditAuction(auction)}
+                                          title={auction.status === 'active' ? 'Edit end time only' : 'Edit auction'}
                                         >
                                           Edit
                                         </Button>
@@ -11822,9 +11875,19 @@ function AdminPanel() {
                                           variant="outline"
                                           size="sm"
                                           disabled
-                                          title={`Cannot edit auction with status: ${auction.status}. Only pending auctions can be edited.`}
+                                          title={`Cannot edit auction with status: ${auction.status}. Only pending or active auctions can be edited.`}
                                         >
                                           Edit
+                                        </Button>
+                                      )}
+                                      {(auction.status === 'pending' || auction.status === 'active') && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleCancelAuction(auction.id)}
+                                          className="bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-300"
+                                        >
+                                          Cancel
                                         </Button>
                                       )}
                                       {auction.status === 'active' && (
@@ -11888,14 +11951,64 @@ function AdminPanel() {
                       }}>✕</Button>
                     </CardHeader>
                     <CardContent className="p-6">
-                      <form 
-                        className="grid grid-cols-2 gap-4"
-                        onSubmit={handleStartAuctionSubmit}
-                      >
-                        {/* Left Column */}
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">User *</label>
+                      {editingAuction?.status === 'active' ? (
+                        // For active auctions, only show end_time field
+                        <form onSubmit={handleStartAuctionSubmit}>
+                          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                            <p className="text-sm text-yellow-800">
+                              <strong>Note:</strong> For active auctions, only the end time can be modified. You can extend or shorten the auction duration.
+                            </p>
+                          </div>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Auction End Date and Time *</label>
+                              <Input
+                                type="datetime-local"
+                                value={auctionFormData.end_time}
+                                onChange={(e) => setAuctionFormData(prev => ({...prev, end_time: e.target.value}))}
+                                className="w-full"
+                                required
+                              />
+                            </div>
+                            <div className="flex justify-end gap-2 mt-6">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => {
+                                  setShowEditAuctionModal(false);
+                                  setEditingAuction(null);
+                                  setAuctionFormData({
+                                    user_id: '',
+                                    category_id: '',
+                                    location_id: '',
+                                    title: '',
+                                    description: '',
+                                    starting_price: '',
+                                    reserve_price: '',
+                                    buy_now_price: '',
+                                    bid_increment: '1.00',
+                                    start_time: '',
+                                    end_time: '',
+                                  });
+                                  setAuctionImages([null, null, null, null]);
+                                }}
+                              >
+                                Cancel
+                              </Button>
+                              <Button type="submit">Update End Time</Button>
+                            </div>
+                          </div>
+                        </form>
+                      ) : (
+                        // For pending auctions, show full form
+                        <form 
+                          className="grid grid-cols-2 gap-4"
+                          onSubmit={handleStartAuctionSubmit}
+                        >
+                          {/* Left Column */}
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">User *</label>
                             <select
                               value={auctionFormData.user_id}
                               onChange={(e) => setAuctionFormData(prev => ({...prev, user_id: e.target.value}))}
@@ -12147,6 +12260,7 @@ function AdminPanel() {
                           <Button type="submit">Update Auction</Button>
                         </div>
                       </form>
+                      )}
                     </CardContent>
                   </Card>
                 </div>

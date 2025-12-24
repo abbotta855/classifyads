@@ -72,6 +72,7 @@ Route::post('/ads/{id}/click', [App\Http\Controllers\AdController::class, 'track
 
 // Public auction routes
 Route::get('/auctions', [App\Http\Controllers\AuctionController::class, 'index']);
+Route::get('/auctions/statuses', [App\Http\Controllers\AuctionController::class, 'statuses']); // Public status endpoint
 Route::get('/auctions/{id}', [App\Http\Controllers\AuctionController::class, 'show']);
 Route::get('/auctions/{id}/bids', [App\Http\Controllers\AuctionController::class, 'getBidHistory']);
 Route::post('/auctions/{id}/click', [App\Http\Controllers\AuctionController::class, 'trackClick']);
@@ -223,6 +224,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('auctions/statuses', [AuctionController::class, 'statuses']); // Lightweight status-only endpoint
     Route::apiResource('auctions', AuctionController::class);
     Route::post('auctions/{id}/end', [AuctionController::class, 'endAuction']);
+    Route::post('auctions/{id}/cancel', [AuctionController::class, 'cancelAuction']);
     Route::post('auctions/{id}/determine-winner', [AuctionController::class, 'determineWinner']);
     
     // Deliveries management

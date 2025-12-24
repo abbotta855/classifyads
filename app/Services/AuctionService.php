@@ -6,13 +6,22 @@ use App\Models\Auction;
 use App\Models\Bid;
 use App\Models\User;
 use App\Models\UserNotification;
+use App\Models\Transaction;
 use App\Mail\AuctionWinNotification;
+use App\Services\PayPalService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 
 class AuctionService
 {
+    protected PayPalService $paypalService;
+
+    public function __construct(PayPalService $paypalService)
+    {
+        $this->paypalService = $paypalService;
+    }
+
     /**
      * Place a bid on an auction
      */
@@ -33,6 +42,7 @@ class AuctionService
             $previousBidderId = $auction->current_bidder_id;
             
             // Mark previous winning bid as outbid
+            $previousBidderIdForNotification = null;
             if ($previousBidderId) {
                 Bid::where('auction_id', $auctionId)
                     ->where('is_winning_bid', true)
@@ -41,8 +51,33 @@ class AuctionService
                         'outbid_at' => now(),
                     ]);
                 
-                // Send outbid notification to previous bidder
-                $this->sendOutbidNotification($previousBidderId, $auction);
+                // Store for notification after commit (to avoid transaction rollback)
+                $previousBidderIdForNotification = $previousBidderId;
+            }
+            
+            // Check if we need to extend auction (anti-sniping)
+            // If bid is placed within last 5 minutes, extend auction by 5 minutes
+            $extensionMinutes = 5; // Configurable extension time
+            $extensionWindowMinutes = 5; // Window before end_time to trigger extension
+            $now = now();
+            $originalEndTime = $auction->end_time->copy(); // Create a copy to avoid mutation
+            $timeUntilEnd = $originalEndTime->diffInMinutes($now, false); // Negative if past end_time
+            
+            $shouldExtend = false;
+            $newEndTime = $originalEndTime;
+            
+            if ($timeUntilEnd <= $extensionWindowMinutes && $timeUntilEnd > 0) {
+                // Bid placed within last 5 minutes - extend auction
+                $shouldExtend = true;
+                $newEndTime = $originalEndTime->copy()->addMinutes($extensionMinutes);
+                
+                Log::info('Extending auction due to bid near end time', [
+                    'auction_id' => $auctionId,
+                    'original_end_time' => $originalEndTime->toIso8601String(),
+                    'new_end_time' => $newEndTime->toIso8601String(),
+                    'minutes_until_end' => $timeUntilEnd,
+                    'extension_minutes' => $extensionMinutes,
+                ]);
             }
             
             // Create new bid
@@ -53,22 +88,80 @@ class AuctionService
                 'is_winning_bid' => true,
             ]);
             
-            // Update auction
-            $auction->update([
-                'current_bid_price' => $amount,
-                'current_bidder_id' => $userId,
+            Log::info('Bid created', [
+                'bid_id' => $bid->id,
+                'auction_id' => $auctionId,
+                'user_id' => $userId,
+                'bid_amount' => $amount,
             ]);
             
-            // Send bid placed notification
-            $this->sendBidPlacedNotification($userId, $auction, $amount);
+            // Update auction (including end_time if extended)
+            $updateData = [
+                'current_bid_price' => $amount,
+                'current_bidder_id' => $userId,
+            ];
+            
+            if ($shouldExtend) {
+                $updateData['end_time'] = $newEndTime;
+            }
+            
+            $auction->update($updateData);
             
             DB::commit();
+            
+            // Send notifications AFTER commit to avoid transaction rollback
+            // This ensures the bid is saved even if notifications fail
+            if ($previousBidderIdForNotification) {
+                try {
+                    $this->sendOutbidNotification($previousBidderIdForNotification, $auction);
+                } catch (\Exception $e) {
+                    Log::error('Failed to send outbid notification (non-critical)', [
+                        'user_id' => $previousBidderIdForNotification,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+            
+            try {
+                $this->sendBidPlacedNotification($userId, $auction, $amount);
+            } catch (\Exception $e) {
+                // Log but don't fail the bid placement
+                Log::error('Failed to send bid placed notification (non-critical)', [
+                    'user_id' => $userId,
+                    'auction_id' => $auctionId,
+                    'error' => $e->getMessage()
+                ]);
+            }
+            
+            // Force a new database connection to see the committed transaction
+            // Clear any model cache and get fresh instance
+            DB::connection()->getPdo()->exec('SELECT 1'); // Force connection refresh
+            
+            // Get a completely fresh instance of the auction
+            $auction = Auction::withoutGlobalScopes()
+                ->with(['currentBidder', 'bids'])
+                ->findOrFail($auctionId);
+            
+            // Verify bid count using direct query - force fresh connection
+            $directBidCount = DB::table('bids')
+                ->where('auction_id', $auctionId)
+                ->count();
+            
+            Log::info('Bid placed successfully', [
+                'auction_id' => $auctionId,
+                'bid_id' => $bid->id,
+                'bid_amount' => $amount,
+                'bid_count_from_relationship' => $auction->bids()->count(),
+                'bid_count_from_direct_query' => $directBidCount,
+                'bid_count_from_db_table' => $directBidCount,
+                'bids_collection_count' => $auction->bids->count(),
+            ]);
             
             return [
                 'valid' => true,
                 'message' => 'Bid placed successfully',
                 'bid' => $bid,
-                'auction' => $auction->fresh(['currentBidder', 'bids']),
+                'auction' => $auction,
             ];
             
         } catch (\Exception $e) {
@@ -130,6 +223,22 @@ class AuctionService
             ];
         }
         
+        // Check for unusually high bids (more than 10x starting price)
+        // This is a warning, not an error - user can still proceed with confirmation
+        $startingPrice = (float) $auction->starting_price;
+        $maxReasonableBid = $startingPrice * 10; // 10x starting price
+        
+        if ($amount > $maxReasonableBid) {
+            return [
+                'valid' => true, // Still valid, but requires confirmation
+                'requires_confirmation' => true,
+                'message' => "Warning: Your bid of Rs. " . number_format($amount, 2) . " is unusually high (more than 10x the starting price of Rs. " . number_format($startingPrice, 2) . "). Please confirm you want to proceed.",
+                'bid_amount' => $amount,
+                'starting_price' => $startingPrice,
+                'multiplier' => round($amount / $startingPrice, 2),
+            ];
+        }
+        
         // NOTE: Reserve price check removed - reserve price is hidden during bidding
         // It will only be checked when determining the winner at auction end
         
@@ -146,9 +255,9 @@ class AuctionService
         try {
             $auction = Auction::lockForUpdate()->findOrFail($auctionId);
             
-            // Get highest bid
+            // Get highest bid - query ALL bids, not just is_winning_bid=true
+            // This ensures we get the actual highest bid even if is_winning_bid flag has issues
             $highestBid = Bid::where('auction_id', $auctionId)
-                ->where('is_winning_bid', true)
                 ->orderBy('bid_amount', 'desc')
                 ->first();
             
@@ -268,13 +377,12 @@ class AuctionService
                 'auction_id' => $auctionId,
                 'current_status' => $auction->status,
                 'current_bid_price' => $auction->current_bid_price,
-                'end_time' => $auction->end_time,
+                'original_end_time' => $auction->end_time,
             ]);
             
-            // Update status to ended and set end_time to now to ensure it stays ended
-            // This prevents the statuses endpoint from recalculating it back to active
+            // Update status to ended - preserve original end_time for historical accuracy
+            // Only update status, don't modify end_time to preserve when auction was originally scheduled to end
             $auction->status = 'ended';
-            $auction->end_time = now(); // Set end_time to now so status calculation will show it as ended
             $auction->save();
             
             Log::info('Auction status updated to ended', [
@@ -617,6 +725,248 @@ class AuctionService
             }
         } catch (\Exception $e) {
             Log::error('Failed to send loser notifications', ['auction_id' => $auctionId, 'error' => $e->getMessage()]);
+        }
+    }
+    
+    /**
+     * Cancel an auction
+     * Only allowed for pending or active auctions
+     * Notifies all bidders and handles refunds if payment was made
+     */
+    public function cancelAuction(int $auctionId, ?string $reason = null): array
+    {
+        DB::beginTransaction();
+        
+        try {
+            $auction = Auction::lockForUpdate()->findOrFail($auctionId);
+            
+            // Check if auction can be cancelled
+            if (in_array($auction->status, ['ended', 'completed', 'cancelled'])) {
+                DB::rollBack();
+                return [
+                    'success' => false,
+                    'message' => "Cannot cancel auction with status: {$auction->status}. Only pending or active auctions can be cancelled.",
+                ];
+            }
+            
+            Log::info('Cancelling auction', [
+                'auction_id' => $auctionId,
+                'current_status' => $auction->status,
+                'reason' => $reason,
+            ]);
+            
+            // Update auction status
+            $auction->update([
+                'status' => 'cancelled',
+            ]);
+            
+            // Notify seller
+            try {
+                $this->sendAuctionCancelledNotification($auction->user_id, $auction, $reason);
+            } catch (\Exception $e) {
+                Log::error('Failed to send cancellation notification to seller', [
+                    'auction_id' => $auctionId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+            
+            // Notify all bidders
+            try {
+                $this->sendAuctionCancelledToBidders($auctionId, $auction, $reason);
+            } catch (\Exception $e) {
+                Log::error('Failed to send cancellation notifications to bidders', [
+                    'auction_id' => $auctionId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+            
+            // Handle refunds if payment was already made
+            $refundResult = $this->handleCancellationRefunds($auctionId, $auction);
+            
+            DB::commit();
+            
+            return [
+                'success' => true,
+                'message' => 'Auction cancelled successfully',
+                'auction' => $auction->fresh(['user', 'category', 'location']),
+                'refunds' => $refundResult,
+            ];
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to cancel auction', [
+                'auction_id' => $auctionId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return [
+                'success' => false,
+                'message' => 'Failed to cancel auction: ' . $e->getMessage(),
+            ];
+        }
+    }
+    
+    /**
+     * Handle refunds for cancelled auction
+     */
+    private function handleCancellationRefunds(int $auctionId, Auction $auction): array
+    {
+        $refundResults = [];
+        
+        try {
+            // Find completed transactions for this auction
+            $transactions = Transaction::where('auction_id', $auctionId)
+                ->where('status', 'completed')
+                ->where('payment_method', 'paypal')
+                ->get();
+            
+            foreach ($transactions as $transaction) {
+                try {
+                    // Get PayPal capture ID from payment_id (order ID)
+                    $orderId = $transaction->payment_id;
+                    
+                    // Get order details to find capture ID
+                    $order = $this->paypalService->getOrder($orderId);
+                    
+                    if ($order && isset($order['purchase_units'][0]['payments']['captures'][0]['id'])) {
+                        $captureId = $order['purchase_units'][0]['payments']['captures'][0]['id'];
+                        
+                        // Process refund
+                        $refund = $this->paypalService->refundPayment($captureId);
+                        
+                        if ($refund) {
+                            // Update transaction status
+                            $transaction->update([
+                                'status' => 'refunded',
+                            ]);
+                            
+                            $refundResults[] = [
+                                'transaction_id' => $transaction->id,
+                                'user_id' => $transaction->user_id,
+                                'amount' => $transaction->amount,
+                                'status' => 'refunded',
+                                'refund_id' => $refund['id'] ?? null,
+                            ];
+                            
+                            Log::info('Refund processed for cancelled auction', [
+                                'auction_id' => $auctionId,
+                                'transaction_id' => $transaction->id,
+                                'refund_id' => $refund['id'] ?? null,
+                            ]);
+                        } else {
+                            $refundResults[] = [
+                                'transaction_id' => $transaction->id,
+                                'user_id' => $transaction->user_id,
+                                'amount' => $transaction->amount,
+                                'status' => 'refund_failed',
+                                'error' => 'PayPal refund failed',
+                            ];
+                            
+                            Log::error('Failed to process refund', [
+                                'auction_id' => $auctionId,
+                                'transaction_id' => $transaction->id,
+                            ]);
+                        }
+                    } else {
+                        Log::warning('Could not find PayPal capture ID for refund', [
+                            'auction_id' => $auctionId,
+                            'transaction_id' => $transaction->id,
+                            'payment_id' => $orderId,
+                        ]);
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Exception processing refund', [
+                        'auction_id' => $auctionId,
+                        'transaction_id' => $transaction->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    
+                    $refundResults[] = [
+                        'transaction_id' => $transaction->id,
+                        'user_id' => $transaction->user_id,
+                        'amount' => $transaction->amount,
+                        'status' => 'refund_error',
+                        'error' => $e->getMessage(),
+                    ];
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to handle cancellation refunds', [
+                'auction_id' => $auctionId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+        
+        return $refundResults;
+    }
+    
+    /**
+     * Send cancellation notification to seller
+     */
+    private function sendAuctionCancelledNotification(int $userId, Auction $auction, ?string $reason = null): void
+    {
+        try {
+            $message = "Your auction '{$auction->title}' has been cancelled.";
+            if ($reason) {
+                $message .= " Reason: {$reason}";
+            }
+            
+            UserNotification::create([
+                'user_id' => $userId,
+                'type' => 'auction_cancelled',
+                'title' => 'Auction Cancelled',
+                'message' => $message,
+                'metadata' => ['auction_id' => $auction->id, 'reason' => $reason],
+                'is_read' => false,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send cancellation notification to seller', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+    
+    /**
+     * Send cancellation notifications to all bidders
+     */
+    private function sendAuctionCancelledToBidders(int $auctionId, Auction $auction, ?string $reason = null): void
+    {
+        try {
+            // Get all unique bidders
+            $bidders = Bid::where('auction_id', $auctionId)
+                ->distinct()
+                ->pluck('user_id');
+            
+            $message = "The auction '{$auction->title}' has been cancelled.";
+            if ($reason) {
+                $message .= " Reason: {$reason}";
+            }
+            $message .= " If you made a payment, a refund will be processed automatically.";
+            
+            foreach ($bidders as $bidderId) {
+                try {
+                    UserNotification::create([
+                        'user_id' => $bidderId,
+                        'type' => 'auction_cancelled',
+                        'title' => 'Auction Cancelled',
+                        'message' => $message,
+                        'metadata' => ['auction_id' => $auctionId, 'reason' => $reason],
+                        'is_read' => false,
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Failed to send cancellation notification to bidder', [
+                        'user_id' => $bidderId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to send cancellation notifications to bidders', [
+                'auction_id' => $auctionId,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }

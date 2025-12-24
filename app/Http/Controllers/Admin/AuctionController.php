@@ -391,18 +391,7 @@ class AuctionController extends Controller
   {
     try {
       $auction = Auction::findOrFail($id);
-      
-      // Restrict editing to pending auctions only
-      if ($auction->status !== 'pending') {
-        return response()->json([
-          'error' => 'Validation failed',
-          'message' => 'Auction can only be edited when status is pending. Current status: ' . $auction->status,
-          'errors' => [
-            'status' => ['Auction can only be edited when status is pending.'],
-          ],
-        ], 422);
-      }
-      
+
       Log::info('Updating auction', [
         'auction_id' => $id,
         'request_all_keys' => array_keys($request->all()),
@@ -428,6 +417,48 @@ class AuctionController extends Controller
       'images' => 'sometimes|array|max:4',
       'images.*' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:10240', // Max 10MB per image
     ]);
+
+    // Restrict editing based on status
+    // Pending auctions: can edit everything
+    // Active auctions: only end_time will actually be applied (other fields ignored)
+    if ($auction->status === 'active') {
+      // Keep only end_time in the validated data; ignore other fields even if sent
+      $validated = array_intersect_key(
+        $validated,
+        array_flip(['end_time'])
+      );
+    } elseif ($auction->status !== 'pending') {
+      // Ended/completed auctions cannot be edited
+      return response()->json([
+        'error' => 'Validation failed',
+        'message' => 'Auction can only be edited when status is pending or active. Current status: ' . $auction->status,
+        'errors' => [
+          'status' => ['Auction can only be edited when status is pending or active.'],
+        ],
+      ], 422);
+    }
+
+    // Prevent end_time changes after bids are placed (unless auction is active and only extending)
+    if (isset($validated['end_time']) && $auction->status === 'active') {
+      $hasBids = $auction->bids()->exists();
+      
+      if ($hasBids) {
+        $currentEndTime = $auction->end_time;
+        $newEndTime = \Carbon\Carbon::parse($validated['end_time']);
+        
+        // Only allow extending end_time (making it later), not shortening it
+        // This prevents unfair changes to active auctions with bids
+        if ($newEndTime < $currentEndTime) {
+          return response()->json([
+            'error' => 'Validation failed',
+            'message' => 'Cannot shorten end time for active auction with bids. You can only extend the auction duration.',
+            'errors' => [
+              'end_time' => ['Cannot shorten end time for active auction with bids.'],
+            ],
+          ], 422);
+        }
+      }
+    }
 
     // Validate end_time is after start_time (handle both cases: when both are updated, or only one)
     if (isset($validated['end_time'])) {
@@ -692,6 +723,41 @@ class AuctionController extends Controller
   /**
    * Determine winner of an auction
    */
+  /**
+   * Cancel an auction
+   */
+  public function cancelAuction(Request $request, string $id)
+  {
+    try {
+      $auction = Auction::findOrFail($id);
+      $reason = $request->input('reason', null);
+      
+      $result = $this->auctionService->cancelAuction($auction->id, $reason);
+      
+      if ($result['success']) {
+        return response()->json([
+          'message' => $result['message'],
+          'auction' => $result['auction'],
+          'refunds' => $result['refunds'] ?? [],
+        ], 200);
+      } else {
+        return response()->json([
+          'error' => $result['message'],
+        ], 422);
+      }
+    } catch (\Exception $e) {
+      Log::error('Failed to cancel auction', [
+        'auction_id' => $id,
+        'error' => $e->getMessage(),
+        'trace' => $e->getTraceAsString(),
+      ]);
+      
+      return response()->json([
+        'error' => 'Failed to cancel auction: ' . $e->getMessage(),
+      ], 500);
+    }
+  }
+
   public function determineWinner(string $id)
   {
     try {

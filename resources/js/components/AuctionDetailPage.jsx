@@ -326,9 +326,63 @@ function AuctionDetailPage() {
         return;
       }
 
+      // Client-side check for unusually high bids (more than 10x starting price)
+      const startingPrice = auction.starting_price || 0;
+      const maxReasonableBid = startingPrice * 10;
+      
+      if (amount > maxReasonableBid && startingPrice > 0) {
+        const multiplier = (amount / startingPrice).toFixed(1);
+        const confirmed = window.confirm(
+          `Warning: Your bid of Rs. ${amount.toLocaleString()} is ${multiplier}x the starting price (Rs. ${startingPrice.toLocaleString()}).\n\n` +
+          `This seems unusually high. Are you sure you want to proceed?`
+        );
+        
+        if (!confirmed) {
+          setPlacingBid(false);
+          return;
+        }
+      }
+
       const response = await publicAuctionAPI.placeBid(auction.id, amount);
       
-      // Reload auction to get updated bid info
+      // Check if backend also requires confirmation
+      if (response.data?.requires_confirmation) {
+        const confirmed = window.confirm(response.data.message);
+        if (!confirmed) {
+          setPlacingBid(false);
+          return;
+        }
+        // If confirmed, place the bid again (backend will accept it this time)
+        // Actually, the backend already accepted it, so we can continue
+      }
+      
+      console.log('Bid placed response:', response.data);
+      
+      // Update auction state immediately with response data
+      if (response.data?.auction) {
+        const updatedAuction = response.data.auction;
+        // Ensure bid_count is set correctly - use the value from response or increment
+        const newBidCount = updatedAuction.bid_count !== undefined && updatedAuction.bid_count !== null
+          ? updatedAuction.bid_count 
+          : (auction.bid_count || 0) + 1;
+        
+        console.log('Updating auction state with bid_count:', newBidCount);
+        
+        setAuction(prevAuction => {
+          const updated = {
+            ...prevAuction,
+            ...updatedAuction,
+            bid_count: newBidCount,
+            current_bid: updatedAuction.current_bid_price || updatedAuction.current_bid || prevAuction?.current_bid,
+            current_bid_price: updatedAuction.current_bid_price || updatedAuction.current_bid || prevAuction?.current_bid_price,
+          };
+          console.log('Updated auction state:', updated);
+          return updated;
+        });
+      }
+      
+      // Reload auction to get fully updated bid info (with a small delay to ensure DB is updated)
+      await new Promise(resolve => setTimeout(resolve, 200)); // Small delay to ensure DB commit
       await loadAuction();
       await loadBidHistory();
       

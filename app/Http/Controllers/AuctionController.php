@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Auction;
+use App\Models\Bid;
 use App\Services\AuctionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class AuctionController extends Controller
 {
@@ -381,10 +384,48 @@ class AuctionController extends Controller
                 ], 400);
             }
 
+            // Format auction response to include bid_count
+            $auction = $result['auction'];
+            
+            // Clear any relationship cache and force fresh query
+            $auction->unsetRelation('bids');
+            
+            // Reload bids relationship with fresh query
+            $auction->load('bids');
+            
+            // Calculate bid_count using direct DB query to avoid any caching issues
+            // Use DB::table to ensure we get the most up-to-date count
+            $bidCount = DB::table('bids')
+                ->where('auction_id', $auction->id)
+                ->count();
+            
+            Log::info('Bid count calculation in placeBid response', [
+                'auction_id' => $auction->id,
+                'bid_count_from_relationship' => $auction->bids()->count(),
+                'bid_count_from_direct_query' => $bidCount,
+                'bids_collection_count' => $auction->bids->count(),
+                'bids_loaded' => $auction->relationLoaded('bids'),
+            ]);
+            
+            // Convert to array and ensure bid_count is set
+            $auctionArray = $auction->toArray();
+            
+            // Force set bid_count - don't rely on toArray() preserving it
+            $auctionArray['bid_count'] = (int) $bidCount;
+            
+            Log::info('Final auction array for response', [
+                'auction_id' => $auction->id,
+                'bid_count_in_array' => $auctionArray['bid_count'] ?? 'NOT SET',
+                'has_bid_count_key' => isset($auctionArray['bid_count']),
+            ]);
+            $auctionArray['current_bid'] = (float) ($auction->current_bid_price ?? $auction->starting_price);
+            $auctionArray['current_bid_price'] = (float) ($auction->current_bid_price ?? $auction->starting_price);
+            $auctionArray['next_minimum_bid'] = (float) $auction->getNextMinimumBid();
+            
             return response()->json([
                 'message' => $result['message'],
                 'bid' => $result['bid'],
-                'auction' => $result['auction'],
+                'auction' => $auctionArray,
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
