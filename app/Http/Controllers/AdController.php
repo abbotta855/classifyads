@@ -44,11 +44,29 @@ class AdController extends Controller
                         ?? $ad->image4_url 
                         ?? 'https://via.placeholder.com/1200x1200?text=No+Image';
 
-                    // Get category name
-                    $categoryName = $ad->category ? $ad->category->category : 'Uncategorized';
-                    $subcategoryName = $ad->category && $ad->category->sub_category 
-                        ? $ad->category->sub_category 
-                        : null;
+                    // Build category string from hierarchy (domain > field > item)
+                    $categoryString = null;
+                    if ($ad->category) {
+                        $categoryParts = [];
+                        if ($ad->category->domain_category) {
+                            $categoryParts[] = $ad->category->domain_category;
+                        }
+                        if ($ad->category->field_category) {
+                            $categoryParts[] = $ad->category->field_category;
+                        }
+                        if ($ad->category->item_category) {
+                            $categoryParts[] = $ad->category->item_category;
+                        }
+                        if (!empty($categoryParts)) {
+                            $categoryString = implode(' > ', $categoryParts);
+                        }
+                    }
+                    
+                    // Keep backward compatibility for old category structure
+                    $categoryName = $ad->category ? ($ad->category->domain_category ?? $ad->category->category ?? 'Uncategorized') : 'Uncategorized';
+                    $subcategoryName = $ad->category && $ad->category->field_category 
+                        ? $ad->category->field_category 
+                        : ($ad->category && $ad->category->sub_category ? $ad->category->sub_category : null);
 
                     return [
                         'id' => $ad->id,
@@ -58,6 +76,7 @@ class AdController extends Controller
                         'price' => (float) $ad->price,
                         'image' => $image,
                         'category' => $categoryName,
+                        'category_path' => $categoryString, // Full hierarchy path (domain > field > item)
                         'subcategory' => $subcategoryName,
                         'sub_category' => $subcategoryName, // For backward compatibility
                         'category_id' => $ad->category_id, // Add category_id for filtering
@@ -136,11 +155,29 @@ class AdController extends Controller
                 $images[] = 'https://via.placeholder.com/1200x1200?text=No+Image';
             }
 
-            // Get category info
-            $categoryName = $ad->category ? $ad->category->category : 'Uncategorized';
-            $subcategoryName = $ad->category && $ad->category->sub_category 
-                ? $ad->category->sub_category 
-                : null;
+            // Build category string from hierarchy (domain > field > item)
+            $categoryString = null;
+            if ($ad->category) {
+                $categoryParts = [];
+                if ($ad->category->domain_category) {
+                    $categoryParts[] = $ad->category->domain_category;
+                }
+                if ($ad->category->field_category) {
+                    $categoryParts[] = $ad->category->field_category;
+                }
+                if ($ad->category->item_category) {
+                    $categoryParts[] = $ad->category->item_category;
+                }
+                if (!empty($categoryParts)) {
+                    $categoryString = implode(' > ', $categoryParts);
+                }
+            }
+            
+            // Keep backward compatibility for old category structure
+            $categoryName = $ad->category ? ($ad->category->domain_category ?? $ad->category->category ?? 'Uncategorized') : 'Uncategorized';
+            $subcategoryName = $ad->category && $ad->category->field_category 
+                ? $ad->category->field_category 
+                : ($ad->category && $ad->category->sub_category ? $ad->category->sub_category : null);
 
             // Get seller info (limited)
             $seller = null;
@@ -165,6 +202,7 @@ class AdController extends Controller
                 'images' => $images,
                 'image' => $images[0], // Primary image for backward compatibility
                 'category' => $categoryName,
+                'category_path' => $categoryString, // Full hierarchy path (domain > field > item)
                 'subcategory' => $subcategoryName,
                 'sub_category' => $subcategoryName,
                 'location' => $locationString,

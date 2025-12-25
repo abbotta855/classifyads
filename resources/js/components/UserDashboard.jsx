@@ -450,9 +450,11 @@ function DashboardOverview({ user }) {
   const [selectedLocations, setSelectedLocations] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState(new Set());
-  const [selectedCategories, setSelectedCategories] = useState(new Set());
-  const [selectedSubcategories, setSelectedSubcategories] = useState(new Set());
+  const [expandedCategories, setExpandedCategories] = useState(new Set()); // For domain categories (using name as key)
+  const [expandedFieldCategories, setExpandedFieldCategories] = useState(new Set()); // For field categories (using name as key)
+  const [selectedCategories, setSelectedCategories] = useState(new Set()); // Selected domain category IDs
+  const [selectedSubcategories, setSelectedSubcategories] = useState(new Set()); // Selected field category IDs
+  const [selectedItemCategories, setSelectedItemCategories] = useState(new Set()); // Selected item category IDs
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [expandedProvinces, setExpandedProvinces] = useState(new Set());
   const [expandedDistricts, setExpandedDistricts] = useState(new Set());
@@ -472,6 +474,7 @@ function DashboardOverview({ user }) {
     fetchLocations();
     fetchAds();
   }, []);
+
 
   // Update last login display in real-time
   useEffect(() => {
@@ -589,47 +592,208 @@ function DashboardOverview({ user }) {
     }
   };
 
-  // Helper functions for categories
+  // Helper functions for 3-level categories
   const getTopLevelCategories = () => {
-    return categories.filter(cat => !cat.subcategories || cat.subcategories.length === 0 || categories.every(c => c.id === cat.id || !c.subcategories?.some(sub => sub.id === cat.id)));
+    // Return domain categories (top level)
+    return categories.filter(cat => cat.domain_category || cat.name);
   };
 
-  const getSubcategories = (categoryId) => {
-    const category = categories.find(c => c.id === categoryId);
-    return category?.subcategories || [];
+  const getFieldCategories = (domainCategoryIdOrName) => {
+    // Try to find by id first, then by name
+    const domainCategory = categories.find(c => 
+      c.id === domainCategoryIdOrName || 
+      c.domain_category === domainCategoryIdOrName || 
+      c.name === domainCategoryIdOrName
+    );
+    if (!domainCategory) return [];
+    return domainCategory.field_categories || [];
   };
 
-  const toggleCategory = (categoryId) => {
+  const getItemCategories = (domainCategoryId, fieldCategoryId) => {
+    const domainCategory = categories.find(c => c.id === domainCategoryId);
+    if (!domainCategory) return [];
+    const fieldCategory = domainCategory.field_categories?.find(fc => fc.id === fieldCategoryId);
+    return fieldCategory?.item_categories || [];
+  };
+
+  const toggleCategory = (categoryName) => {
+    // Directly use the category name as key (matching location toggle logic)
     setExpandedCategories(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(categoryId)) {
-        newSet.delete(categoryId);
+      if (newSet.has(categoryName)) {
+        newSet.delete(categoryName);
       } else {
-        newSet.add(categoryId);
+        newSet.add(categoryName);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleFieldCategory = (fieldCategoryName) => {
+    // Directly use the field category name as key (matching location toggle logic)
+    setExpandedFieldCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fieldCategoryName)) {
+        newSet.delete(fieldCategoryName);
+      } else {
+        newSet.add(fieldCategoryName);
       }
       return newSet;
     });
   };
 
   const handleCategoryToggle = (categoryId) => {
+    const domainCategory = categories.find(c => c.id === categoryId);
+    if (!domainCategory) return;
+    
+    const domainCategoryName = domainCategory.domain_category || domainCategory.name;
+    const fieldCategories = domainCategory.field_categories || [];
+    
+    // Check if currently selected
+    const isCurrentlySelected = selectedCategories.has(categoryId);
+    
+    // Toggle domain category selection
     setSelectedCategories(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(categoryId)) {
+      if (isCurrentlySelected) {
         newSet.delete(categoryId);
       } else {
         newSet.add(categoryId);
+        // Auto-expand when selecting
+        if (fieldCategories.length > 0 && domainCategoryName) {
+          setExpandedCategories(prevExpanded => {
+            const newExpanded = new Set(prevExpanded);
+            newExpanded.add(domainCategoryName);
+            return newExpanded;
+          });
+        }
       }
       return newSet;
+    });
+    
+    // Select/deselect all field categories and their item categories
+    fieldCategories.forEach(fieldCat => {
+      setSelectedSubcategories(prev => {
+        const newSet = new Set(prev);
+        if (isCurrentlySelected) {
+          newSet.delete(fieldCat.id);
+        } else {
+          newSet.add(fieldCat.id);
+        }
+        return newSet;
+      });
+      
+      // Select/deselect all item categories under this field category
+      const itemCategories = fieldCat.item_categories || [];
+      itemCategories.forEach(itemCat => {
+        setSelectedItemCategories(prev => {
+          const newSet = new Set(prev);
+          if (isCurrentlySelected) {
+            newSet.delete(itemCat.id);
+          } else {
+            newSet.add(itemCat.id);
+          }
+          return newSet;
+        });
+      });
+    });
+    
+    // Also handle direct item categories (under domain, no field)
+    const directItemCategories = domainCategory.item_categories || [];
+    directItemCategories.forEach(itemCat => {
+      setSelectedItemCategories(prev => {
+        const newSet = new Set(prev);
+        if (isCurrentlySelected) {
+          newSet.delete(itemCat.id);
+        } else {
+          newSet.add(itemCat.id);
+        }
+        return newSet;
+      });
     });
   };
 
   const handleSubcategoryToggle = (subcategoryId) => {
+    // Find which domain category this field category belongs to
+    const domainCategory = categories.find(cat => {
+      const fieldCats = cat.field_categories || [];
+      return fieldCats.some(fc => fc.id === subcategoryId);
+    });
+    
+    if (!domainCategory) return;
+    
+    const fieldCategory = domainCategory.field_categories?.find(fc => fc.id === subcategoryId);
+    if (!fieldCategory) return;
+    
+    const fieldCategoryName = fieldCategory.field_category || fieldCategory.name;
+    const itemCategories = fieldCategory.item_categories || [];
+    
+    // Check if currently selected
+    const isCurrentlySelected = selectedSubcategories.has(subcategoryId);
+    
+    // Toggle field category selection and update domain category status
     setSelectedSubcategories(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(subcategoryId)) {
+      if (isCurrentlySelected) {
         newSet.delete(subcategoryId);
       } else {
         newSet.add(subcategoryId);
+        // Auto-expand when selecting
+        if (itemCategories.length > 0 && fieldCategoryName) {
+          setExpandedFieldCategories(prevExpanded => {
+            const newExpanded = new Set(prevExpanded);
+            newExpanded.add(fieldCategoryName);
+            return newExpanded;
+          });
+        }
+      }
+      
+      // Update domain category selection status
+      // If all field categories under domain are selected, auto-select domain
+      // If any field category is deselected, deselect domain
+      const allFieldCategories = domainCategory.field_categories || [];
+      const allFieldSelected = allFieldCategories.every(fc => {
+        if (fc.id === subcategoryId) {
+          // Use the new state (after toggle)
+          return !isCurrentlySelected;
+        }
+        return newSet.has(fc.id);
+      });
+      
+      setSelectedCategories(prevCats => {
+        const newCats = new Set(prevCats);
+        if (allFieldSelected && allFieldCategories.length > 0) {
+          newCats.add(domainCategory.id);
+        } else {
+          newCats.delete(domainCategory.id);
+        }
+        return newCats;
+      });
+      
+      return newSet;
+    });
+    
+    // Select/deselect all item categories under this field category
+    itemCategories.forEach(itemCat => {
+      setSelectedItemCategories(prev => {
+        const newSet = new Set(prev);
+        if (isCurrentlySelected) {
+          newSet.delete(itemCat.id);
+        } else {
+          newSet.add(itemCat.id);
+        }
+        return newSet;
+      });
+    });
+  };
+
+  const handleItemCategoryToggle = (itemCategoryId) => {
+    setSelectedItemCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemCategoryId)) {
+        newSet.delete(itemCategoryId);
+      } else {
+        newSet.add(itemCategoryId);
       }
       return newSet;
     });
@@ -638,36 +802,222 @@ function DashboardOverview({ user }) {
   const getCategoryAdCount = (categoryId, categoryName) => {
     if (!allAds || allAds.length === 0) return 0;
     
-    const isSubcategory = categories.some(cat => 
-      cat.subcategories && cat.subcategories.some(sub => sub.id === categoryId)
-    );
+    // CRITICAL: Check item categories by NAME first (before any ID matching)
+    // This prevents conflicts where item category ID matches domain/field category IDs
+    let itemCategory = null;
+    let itemCategoryFound = false;
     
-    if (isSubcategory) {
+    if (categoryName) {
+      for (const domainCat of categories) {
+        if (domainCat.item_categories) {
+          itemCategory = domainCat.item_categories.find(item => {
+            const itemName = (item.item_category || item.name || '').trim();
+            const searchName = (categoryName || '').trim();
+            return itemName && searchName && itemName === searchName;
+          });
+          if (itemCategory) {
+            itemCategoryFound = true;
+            break;
+          }
+        }
+        if (domainCat.field_categories) {
+          for (const fieldCat of domainCat.field_categories) {
+            if (fieldCat.item_categories) {
+              itemCategory = fieldCat.item_categories.find(item => {
+                const itemName = (item.item_category || item.name || '').trim();
+                const searchName = (categoryName || '').trim();
+                return itemName && searchName && itemName === searchName;
+              });
+              if (itemCategory) {
+                itemCategoryFound = true;
+                break;
+              }
+            }
+          }
+          if (itemCategoryFound) break;
+        }
+      }
+    }
+    
+    // If item category found by name, count its ads
+    if (itemCategoryFound && itemCategory) {
       return allAds.filter(ad => {
+        if (!ad.category_id) return false;
         const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
         return adCategoryId === categoryId;
       }).length;
     }
     
-    const category = categories.find(c => c.id === categoryId);
-    if (!category) return 0;
+    // CRITICAL: Check field categories by name (before domain category ID matching)
+    // This prevents conflicts where field category ID matches domain category ID
+    let fieldCategory = null;
+    let fieldCategoryFound = false;
     
-    const allCategoryIds = [categoryId];
-    if (category.subcategories) {
-      category.subcategories.forEach(sub => allCategoryIds.push(sub.id));
+    if (categoryName && !itemCategoryFound) {
+      for (const domainCat of categories) {
+        if (domainCat.field_categories) {
+          const foundByName = domainCat.field_categories.find(fc => {
+            const fcName = (fc.field_category || fc.name || '').trim();
+            const searchName = (categoryName || '').trim();
+            return fcName && searchName && fcName === searchName;
+          });
+          // Accept field category if it exists (even if it has no item_categories yet)
+          if (foundByName) {
+            fieldCategory = foundByName;
+            fieldCategoryFound = true;
+            break;
+          }
+        }
+      }
     }
     
-    return allAds.filter(ad => {
-      const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
-      return allCategoryIds.includes(adCategoryId);
-    }).length;
+    // If field category found by name, count its ads
+    if (fieldCategoryFound && fieldCategory) {
+      // Check if field category has item_categories
+      if (fieldCategory.item_categories && Array.isArray(fieldCategory.item_categories) && fieldCategory.item_categories.length > 0) {
+        const itemCategoryIds = fieldCategory.item_categories.map(item => item.id).filter(id => id != null);
+        if (itemCategoryIds.length > 0) {
+          return allAds.filter(ad => {
+            if (!ad.category_id) return false;
+            const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+            return itemCategoryIds.includes(adCategoryId);
+          }).length;
+        }
+      }
+      // If field category has no item_categories, return 0
+      return 0;
+    }
+    
+    // Priority 1: Check if it's a domain category (by name first, then by ID and structure)
+    // Domain categories have field_categories or item_categories structure
+    // IMPORTANT: Domain category IDs can match item category IDs, so we MUST check name/structure first
+    // CRITICAL: Only check domain by ID if we haven't found item or field category
+    const domainCategory = categories.find(c => {
+      // First, check by name (most reliable)
+      if (categoryName && (
+        (c.domain_category && c.domain_category === categoryName) ||
+        (c.name && c.name === categoryName)
+      )) {
+        // Verify it has the structure of a domain category
+        return c.field_categories || c.item_categories;
+      }
+      // Then check by ID, but only if it has domain category structure AND we haven't found item/field category
+      if (!itemCategoryFound && !fieldCategoryFound && c.id === categoryId && (c.field_categories || c.item_categories)) {
+        // Double-check it's not just an item category that happens to have the same ID
+        // A domain category should have field_categories or item_categories array
+        return true;
+      }
+      return false;
+    });
+    
+    if (domainCategory) {
+      // Collect all item category IDs under this domain
+      const allItemCategoryIds = [];
+      
+      // Get item categories directly under domain
+      if (domainCategory.item_categories) {
+        domainCategory.item_categories.forEach(item => {
+          allItemCategoryIds.push(item.id);
+        });
+      }
+      
+      // Get item categories under all field categories
+      if (domainCategory.field_categories) {
+        domainCategory.field_categories.forEach(fieldCat => {
+          if (fieldCat.item_categories) {
+            fieldCat.item_categories.forEach(item => {
+              allItemCategoryIds.push(item.id);
+            });
+          }
+        });
+      }
+      
+      // Remove duplicates (in case of any data inconsistency)
+      const uniqueItemCategoryIds = [...new Set(allItemCategoryIds)];
+      
+      // Count ads that match any of these item category IDs
+      const count = allAds.filter(ad => {
+        if (!ad.category_id) return false;
+        const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+        return uniqueItemCategoryIds.includes(adCategoryId);
+      }).length;
+      
+      return count;
+    }
+    
+    // Priority 2: Check if it's a field category by ID (if name matching didn't work)
+    // Field category IDs are sequential (1, 2, 3...) not database IDs
+    // IMPORTANT: Only check if we haven't found an item category
+    if (!fieldCategoryFound && !itemCategoryFound) {
+      for (const domainCat of categories) {
+        if (domainCat.field_categories) {
+          const foundById = domainCat.field_categories.find(fc => fc.id === categoryId);
+          // Accept if found (even if it has no item_categories yet)
+          if (foundById) {
+            fieldCategory = foundById;
+            fieldCategoryFound = true;
+            break;
+          }
+        }
+      }
+      
+      // If field category found by ID, count its ads
+      if (fieldCategoryFound && fieldCategory) {
+        // Check if field category has item_categories
+        if (fieldCategory.item_categories && Array.isArray(fieldCategory.item_categories) && fieldCategory.item_categories.length > 0) {
+          const itemCategoryIds = fieldCategory.item_categories.map(item => item.id).filter(id => id != null);
+          if (itemCategoryIds.length > 0) {
+            return allAds.filter(ad => {
+              if (!ad.category_id) return false;
+              const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+              return itemCategoryIds.includes(adCategoryId);
+            }).length;
+          }
+        }
+        // If field category has no item_categories, return 0
+        return 0;
+      }
+    }
+    
+    // Priority 3: Check if it's an item category by ID (last resort)
+    // Item categories have actual database IDs that ads reference
+    // Only check if we haven't already identified it as domain, field, or item category
+    if (!domainCategory && !fieldCategoryFound && !itemCategoryFound) {
+      for (const domainCat of categories) {
+        if (domainCat.item_categories) {
+          itemCategory = domainCat.item_categories.find(item => item.id === categoryId);
+          if (itemCategory) break;
+        }
+        if (domainCat.field_categories) {
+          for (const fieldCat of domainCat.field_categories) {
+            if (fieldCat.item_categories) {
+              itemCategory = fieldCat.item_categories.find(item => item.id === categoryId);
+              if (itemCategory) break;
+            }
+          }
+          if (itemCategory) break;
+        }
+      }
+      
+      // If it's an item category, count ads directly linked to it
+      if (itemCategory) {
+        return allAds.filter(ad => {
+          if (!ad.category_id) return false;
+          const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+          return adCategoryId === categoryId;
+        }).length;
+      }
+    }
+    
+    return 0;
   };
 
   const buildCategorySearchString = () => {
-    if (selectedCategories.size === 0 && selectedSubcategories.size === 0) {
+    // Count all selected categories (domain + field + item categories)
+    const total = selectedCategories.size + selectedSubcategories.size + selectedItemCategories.size;
+    if (total === 0) {
       return 'All Categories';
     }
-    const total = selectedCategories.size + selectedSubcategories.size;
     if (total === 1) {
       return '1 category selected';
     }
@@ -811,57 +1161,87 @@ function DashboardOverview({ user }) {
       );
     }
 
-    // Filter by selected categories and subcategories
-    if (selectedCategories.size > 0 || selectedSubcategories.size > 0) {
+    // Filter by selected categories (domain, field, or item categories)
+    // Ads are linked to item category IDs, so we need to collect all relevant item category IDs
+    if (selectedCategories.size > 0 || selectedSubcategories.size > 0 || selectedItemCategories.size > 0) {
+      // Collect all item category IDs that should be included
+      const allItemCategoryIds = new Set();
+      
+      // Normalize selected IDs to numbers for comparison
       const selectedCategoryIds = Array.from(selectedCategories).map(id => typeof id === 'string' ? parseInt(id, 10) : Number(id));
       const selectedSubcategoryIds = Array.from(selectedSubcategories).map(id => typeof id === 'string' ? parseInt(id, 10) : Number(id));
+      const selectedItemCategoryIds = Array.from(selectedItemCategories).map(id => typeof id === 'string' ? parseInt(id, 10) : Number(id));
       
-      filtered = filtered.filter(ad => {
-        if (ad.category_id) {
-          const categoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
-          
-          if (selectedSubcategoryIds.includes(categoryId)) {
-            return true;
+      // Add directly selected item categories
+      selectedItemCategoryIds.forEach(id => allItemCategoryIds.add(id));
+      
+      // For each selected domain category, collect all item category IDs under it
+      selectedCategoryIds.forEach(domainId => {
+        const domainCategory = categories.find(c => {
+          // Match by ID first
+          if (c.id === domainId) {
+            // Verify it's a domain category by checking structure
+            return c.field_categories || c.item_categories || c.domain_category;
           }
-          
-          if (selectedCategoryIds.includes(categoryId)) {
-            return true;
-          }
-        }
+          return false;
+        });
         
-        if (ad.category) {
-          const category = categories.find(cat => 
-            cat.name === ad.category || 
-            cat.category === ad.category
-          );
-          
-          if (category) {
-            if (selectedCategoryIds.includes(category.id)) {
-              return true;
-            }
-            
-            if (category.subcategories && category.subcategories.length > 0) {
-              if (ad.subcategory || ad.sub_category) {
-                const adSubcategoryName = (ad.subcategory || ad.sub_category).trim();
-                const matchingSubcategory = category.subcategories.find(sub => {
-                  if (!selectedSubcategoryIds.includes(sub.id)) {
-                    return false;
-                  }
-                  const subName = (sub.name || '').trim();
-                  const subSlug = (sub.slug || '').trim();
-                  return subName.toLowerCase() === adSubcategoryName.toLowerCase() || 
-                         subSlug.toLowerCase() === adSubcategoryName.toLowerCase();
-                });
-                if (matchingSubcategory) {
-                  return true;
-                }
+        if (domainCategory) {
+          // Get item categories directly under domain
+          if (domainCategory.item_categories && Array.isArray(domainCategory.item_categories)) {
+            domainCategory.item_categories.forEach(item => {
+              if (item && item.id != null) {
+                allItemCategoryIds.add(item.id);
               }
+            });
+          }
+          
+          // Get item categories under all field categories
+          if (domainCategory.field_categories && Array.isArray(domainCategory.field_categories)) {
+            domainCategory.field_categories.forEach(fieldCat => {
+              if (fieldCat && fieldCat.item_categories && Array.isArray(fieldCat.item_categories)) {
+                fieldCat.item_categories.forEach(item => {
+                  if (item && item.id != null) {
+                    allItemCategoryIds.add(item.id);
+                  }
+                });
+              }
+            });
+          }
+        }
+      });
+      
+      // For each selected field category, collect all item category IDs under it
+      selectedSubcategoryIds.forEach(fieldId => {
+        for (const domainCat of categories) {
+          if (domainCat.field_categories && Array.isArray(domainCat.field_categories)) {
+            const fieldCategory = domainCat.field_categories.find(fc => fc && fc.id === fieldId);
+            if (fieldCategory && fieldCategory.item_categories && Array.isArray(fieldCategory.item_categories)) {
+              fieldCategory.item_categories.forEach(item => {
+                if (item && item.id != null) {
+                  allItemCategoryIds.add(item.id);
+                }
+              });
+              break;
             }
           }
         }
-        
-        return false;
       });
+      
+      // Only filter if we have item category IDs to filter by
+      if (allItemCategoryIds.size > 0) {
+        // Filter ads by checking if their category_id matches any collected item category ID
+        filtered = filtered.filter(ad => {
+          if (ad.category_id) {
+            const categoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+            return allItemCategoryIds.has(categoryId);
+          }
+          return false;
+        });
+      } else {
+        // If no item category IDs collected, don't show any ads (categories selected but no matching items)
+        filtered = [];
+      }
     }
 
     // Filter by selected locations
@@ -951,6 +1331,7 @@ function DashboardOverview({ user }) {
     selectedLocations, 
     selectedCategories, 
     selectedSubcategories,
+    selectedItemCategories, // Add this - it was missing!
     sortBy, 
     categories,
     allAds
@@ -970,7 +1351,7 @@ function DashboardOverview({ user }) {
   // Reset page to 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedCategories, selectedSubcategories, selectedLocations]);
+  }, [searchQuery, selectedCategories, selectedSubcategories, selectedItemCategories, selectedLocations]);
 
   // Handle click outside dropdowns
   useEffect(() => {
@@ -1010,58 +1391,118 @@ function DashboardOverview({ user }) {
                   <button
                     type="button"
                     onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-                    className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center"
+                    className={`w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none flex items-center transition-colors ${
+                      showCategoryDropdown ? 'bg-[hsl(var(--accent))]' : ''
+                    }`}
                   >
                     <span>{buildCategorySearchString() || 'All Categories'}</span>
                   </button>
                   
                   {showCategoryDropdown && (
-                    <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[250px] max-h-[500px] overflow-y-auto">
+                    <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[300px] max-h-[500px] overflow-y-auto">
                       <div className="p-3">
                         <div className="space-y-1">
-                          {getTopLevelCategories().map((category) => {
-                            const subcategories = getSubcategories(category.id);
-                            const hasSubcategories = subcategories.length > 0;
-                            const isExpanded = expandedCategories.has(category.id);
-                            const adCount = getCategoryAdCount(category.id, category.name);
+                          {getTopLevelCategories().map((domainCategory) => {
+                            const domainCategoryName = domainCategory.domain_category || domainCategory.name;
+                            // The API already returns field_categories nested in domainCategory
+                            // Use it directly (similar to how locations work: province.districts)
+                            const fieldCategories = domainCategory.field_categories || [];
+                            const hasFieldCategories = fieldCategories && fieldCategories.length > 0;
+                            // Use domain category name as key for expansion (matching location logic)
+                            const isDomainExpanded = expandedCategories.has(domainCategoryName);
+                            const adCount = getCategoryAdCount(domainCategory.id, domainCategoryName);
                             
                             return (
-                              <div key={category.id} className="space-y-1">
+                              <div key={domainCategory.id} className="space-y-1">
+                                {/* Domain Category Level - matching location province structure */}
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center space-x-2 flex-1">
-                                    {hasSubcategories ? (
+                                    {hasFieldCategories ? (
                                       <button
-                                        onClick={() => toggleCategory(category.id)}
+                                        onClick={() => toggleCategory(domainCategoryName)}
                                         className="flex items-center space-x-2 flex-1 text-left"
                                       >
                                         <input
                                           type="checkbox"
-                                          checked={selectedCategories.has(category.id)}
+                                          checked={(() => {
+                                            // Collect all category IDs under this domain (field + item categories) - matching location province logic
+                                            const allCategoryIds = [];
+                                            fieldCategories.forEach(fieldCat => {
+                                              // Add field category ID
+                                              allCategoryIds.push(fieldCat.id);
+                                              // Add all item category IDs under this field
+                                              const itemCategories = fieldCat.item_categories || [];
+                                              itemCategories.forEach(itemCat => {
+                                                allCategoryIds.push(itemCat.id);
+                                              });
+                                            });
+                                            return allCategoryIds.length > 0 && allCategoryIds.every(id => 
+                                              selectedSubcategories.has(id) || selectedItemCategories.has(id)
+                                            );
+                                          })()}
                                           onChange={(e) => {
                                             e.stopPropagation();
-                                            handleCategoryToggle(category.id);
+                                            // Collect all category IDs to toggle - matching location province logic
+                                            const allCategoryIds = [];
+                                            fieldCategories.forEach(fieldCat => {
+                                              allCategoryIds.push(fieldCat.id);
+                                              const itemCategories = fieldCat.item_categories || [];
+                                              itemCategories.forEach(itemCat => {
+                                                allCategoryIds.push(itemCat.id);
+                                              });
+                                            });
+                                            // Check if all are selected using current state - matching location logic exactly
+                                            const allSelected = allCategoryIds.every(id => 
+                                              selectedSubcategories.has(id) || selectedItemCategories.has(id)
+                                            );
+                                            // Toggle all - matching location logic exactly
+                                            setSelectedSubcategories(prev => {
+                                              const newSet = new Set(prev);
+                                              fieldCategories.forEach(fieldCat => {
+                                                if (allSelected) {
+                                                  newSet.delete(fieldCat.id);
+                                                } else {
+                                                  newSet.add(fieldCat.id);
+                                                }
+                                              });
+                                              return newSet;
+                                            });
+                                            setSelectedItemCategories(prev => {
+                                              const newSet = new Set(prev);
+                                              fieldCategories.forEach(fieldCat => {
+                                                const itemCategories = fieldCat.item_categories || [];
+                                                itemCategories.forEach(itemCat => {
+                                                  if (allSelected) {
+                                                    newSet.delete(itemCat.id);
+                                                  } else {
+                                                    newSet.add(itemCat.id);
+                                                  }
+                                                });
+                                              });
+                                              return newSet;
+                                            });
                                           }}
                                           onClick={(e) => e.stopPropagation()}
                                           className="w-4 h-4"
                                         />
                                         <span className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer">
-                                          {category.name}
+                                          {domainCategoryName}
                                         </span>
                                       </button>
                                     ) : (
                                       <label className="flex items-center space-x-2 flex-1 cursor-pointer">
                                         <input
                                           type="checkbox"
-                                          checked={selectedCategories.has(category.id)}
+                                          checked={selectedCategories.has(domainCategory.id)}
                                           onChange={(e) => {
                                             e.stopPropagation();
-                                            handleCategoryToggle(category.id);
+                                            handleCategoryToggle(domainCategory.id);
                                           }}
                                           onClick={(e) => e.stopPropagation()}
                                           className="w-4 h-4"
                                         />
                                         <span className="text-sm text-[hsl(var(--foreground))]">
-                                          {category.name}
+                                          {domainCategoryName}
                                         </span>
                                       </label>
                                     )}
@@ -1071,28 +1512,116 @@ function DashboardOverview({ user }) {
                                   </span>
                                 </div>
                                 
-                                {hasSubcategories && isExpanded && (
+                                {/* Field Categories Level - shown when domain category is expanded - matching location district structure */}
+                                {hasFieldCategories && isDomainExpanded && (
                                   <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
-                                    {subcategories.map((subcategory) => {
-                                      const subAdCount = getCategoryAdCount(subcategory.id, subcategory.name);
+                                    {fieldCategories.map((fieldCategory) => {
+                                      const fieldCategoryName = fieldCategory.field_category || fieldCategory.name;
+                                      // The API already returns item_categories nested in fieldCategory
+                                      // Use it directly (similar to how locations work: district.localLevels)
+                                      const itemCategories = fieldCategory.item_categories || [];
+                                      const hasItemCategories = itemCategories && itemCategories.length > 0;
+                                      // Use field category name as key for expansion (consistent with domain category)
+                                      const isFieldExpanded = expandedFieldCategories.has(fieldCategoryName);
+                                      const fieldAdCount = getCategoryAdCount(fieldCategory.id, fieldCategoryName);
+                                      
                                       return (
-                                        <div key={subcategory.id} className="flex items-center justify-between">
-                                          <label className="flex items-center space-x-2 cursor-pointer flex-1">
-                                            <input
-                                              type="checkbox"
-                                              checked={selectedSubcategories.has(subcategory.id) || selectedSubcategories.has(String(subcategory.id)) || selectedSubcategories.has(Number(subcategory.id))}
-                                              onChange={(e) => {
-                                                e.stopPropagation();
-                                                handleSubcategoryToggle(subcategory.id);
-                                              }}
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="w-4 h-4"
-                                            />
-                                            <span className="text-sm text-[hsl(var(--muted-foreground))]">{subcategory.name}</span>
-                                          </label>
-                                          <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
-                                            ({subAdCount})
-                                          </span>
+                                        <div key={fieldCategory.id} className="space-y-1">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center space-x-2 flex-1">
+                                              {hasItemCategories ? (
+                                                <button
+                                                  onClick={() => toggleFieldCategory(fieldCategoryName)}
+                                                  className="flex items-center space-x-2 flex-1 text-left"
+                                                >
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={(() => {
+                                                      // Collect all item category IDs under this field - matching location district logic
+                                                      const allItemCategoryIds = [];
+                                                      itemCategories.forEach(itemCat => {
+                                                        allItemCategoryIds.push(itemCat.id);
+                                                      });
+                                                      return allItemCategoryIds.length > 0 && allItemCategoryIds.every(id => selectedItemCategories.has(id));
+                                                    })()}
+                                                    onChange={(e) => {
+                                                      e.stopPropagation();
+                                                      // Collect all item category IDs - matching location district logic
+                                                      const allItemCategoryIds = [];
+                                                      itemCategories.forEach(itemCat => {
+                                                        allItemCategoryIds.push(itemCat.id);
+                                                      });
+                                                      // Toggle all - matching location logic exactly
+                                                      setSelectedItemCategories(prev => {
+                                                        const newSet = new Set(prev);
+                                                        const allSelected = allItemCategoryIds.every(id => newSet.has(id));
+                                                        allItemCategoryIds.forEach(id => {
+                                                          if (allSelected) {
+                                                            newSet.delete(id);
+                                                          } else {
+                                                            newSet.add(id);
+                                                          }
+                                                        });
+                                                        return newSet;
+                                                      });
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="w-4 h-4"
+                                                  />
+                                                  <span className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer">
+                                                    {fieldCategoryName}
+                                                  </span>
+                                                </button>
+                                              ) : (
+                                                <label className="flex items-center space-x-2 cursor-pointer flex-1">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={selectedSubcategories.has(fieldCategory.id) || selectedSubcategories.has(String(fieldCategory.id)) || selectedSubcategories.has(Number(fieldCategory.id))}
+                                                    onChange={(e) => {
+                                                      e.stopPropagation();
+                                                      handleSubcategoryToggle(fieldCategory.id);
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="w-4 h-4"
+                                                  />
+                                                  <span className="text-sm text-[hsl(var(--muted-foreground))]">{fieldCategoryName}</span>
+                                                </label>
+                                              )}
+                                            </div>
+                                            <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
+                                              ({fieldAdCount})
+                                            </span>
+                                          </div>
+                                          
+                                          {/* Item Categories Level - shown when field category is expanded - matching location ward structure */}
+                                          {hasItemCategories && isFieldExpanded && (
+                                            <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
+                                              {itemCategories.map((itemCategory) => {
+                                                const itemCategoryName = itemCategory.item_category || itemCategory.name;
+                                                const itemAdCount = getCategoryAdCount(itemCategory.id, itemCategoryName);
+                                                return (
+                                                  <div key={itemCategory.id} className="flex items-center justify-between">
+                                                    <label className="flex items-center space-x-2 cursor-pointer flex-1">
+                                                      <input
+                                                        type="checkbox"
+                                                        checked={selectedItemCategories.has(itemCategory.id)}
+                                                        onChange={(e) => {
+                                                          e.stopPropagation();
+                                                          handleItemCategoryToggle(itemCategory.id);
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="w-4 h-4"
+                                                      />
+                                                      <span className="text-xs text-[hsl(var(--muted-foreground))]">{itemCategoryName}</span>
+                                                    </label>
+                                                    <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
+                                                      ({itemAdCount})
+                                                    </span>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
                                         </div>
                                       );
                                     })}
@@ -1114,13 +1643,15 @@ function DashboardOverview({ user }) {
                   <button
                     type="button"
                     onClick={() => setShowLocationDropdown(!showLocationDropdown)}
-                    className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center"
+                    className={`w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none flex items-center transition-colors ${
+                      showLocationDropdown ? 'bg-[hsl(var(--accent))]' : ''
+                    }`}
                   >
                     <span>{buildSearchLocationString()}</span>
                   </button>
                   
                   {showLocationDropdown && (
-                    <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[200px] max-h-[500px] overflow-y-auto">
+                    <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[300px] max-h-[500px] overflow-y-auto">
                       <div className="p-3">
                         <div className="space-y-1">
                           {locationData.provinces.map((province) => {
@@ -1991,6 +2522,10 @@ function ProfileSection({ user: initialUser }) {
   const [expandedDistricts, setExpandedDistricts] = useState(new Set());
   const [expandedLocalLevels, setExpandedLocalLevels] = useState(new Set());
   const locationDropdownRef = useRef(null);
+  
+  // Crop modal state for profile picture
+  const [cropImageIndex, setCropImageIndex] = useState(null);
+  const [cropImageFile, setCropImageFile] = useState(null);
 
   // Form data
   const [formData, setFormData] = useState({
@@ -2014,6 +2549,99 @@ function ProfileSection({ user: initialUser }) {
     fetchProfile();
     fetchLocations();
   }, []);
+
+  // Compress image before storing
+  const compressImage = (file, maxWidth = 1200, maxHeight = 1200, quality = 0.8) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Calculate new dimensions
+          if (width > height) {
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = (width * maxHeight) / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              const compressedFile = new File([blob], file.name, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            'image/jpeg',
+            quality
+          );
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleCropComplete = async (croppedFile) => {
+    if (cropImageIndex === null) return;
+    
+    // Verify the cropped image is 400x400
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(croppedFile);
+    img.onload = async () => {
+      URL.revokeObjectURL(objectUrl);
+      if (img.width !== 400 || img.height !== 400) {
+        alert('Image must be exactly 400x400 pixels. Please crop again.');
+        return;
+      }
+      
+      // Compress image if it's larger than 1MB
+      let processedFile = croppedFile;
+      if (croppedFile.size > 1024 * 1024) { // 1MB
+        try {
+          processedFile = await compressImage(croppedFile);
+        } catch (err) {
+          console.error('Error compressing image:', err);
+          // Use original file if compression fails
+        }
+      }
+      
+      // Handle profile picture
+      if (cropImageIndex === 'profile') {
+        setFormData(prev => ({ ...prev, profile_picture: processedFile }));
+      }
+      
+      // Close crop modal
+      setCropImageIndex(null);
+      setCropImageFile(null);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      alert('Error processing image. Please try again.');
+    };
+    img.src = objectUrl;
+  };
+
+  const handleCropCancel = () => {
+    setCropImageIndex(null);
+    setCropImageFile(null);
+  };
 
   const fetchProfile = async () => {
     try {
@@ -2079,62 +2707,6 @@ function ProfileSection({ user: initialUser }) {
     };
   }, [showLocationDropdown]);
 
-  // Compress image function for profile picture
-  const compressImage = (file, maxWidth = 1200, maxHeight = 1200, quality = 0.8) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onerror = () => reject(new Error('Failed to load image'));
-        img.src = e.target.result;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-
-          // Calculate new dimensions
-          if (width > height) {
-            if (width > maxWidth) {
-              height = (height * maxWidth) / width;
-              width = maxWidth;
-            }
-          } else {
-            if (height > maxHeight) {
-              width = (width * maxHeight) / height;
-              height = maxHeight;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // Always convert to JPEG for better compression
-          const outputType = 'image/jpeg';
-          canvas.toBlob(
-            (blob) => {
-              if (!blob) {
-                reject(new Error('Failed to compress image'));
-                return;
-              }
-              const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), {
-                type: outputType,
-                lastModified: Date.now(),
-              });
-              resolve(compressedFile);
-            },
-            outputType,
-            quality
-          );
-        };
-      };
-      reader.onerror = () => reject(new Error('Failed to read file'));
-    });
-  };
-
   // Handle form input changes
   const handleInputChange = async (e) => {
     const { name, value, files } = e.target;
@@ -2149,64 +2721,18 @@ function ProfileSection({ user: initialUser }) {
         return;
       }
       
-      const maxSize = 2 * 1024 * 1024; // 2MB
-      
-      // Always try to compress large images, don't reject immediately
-      try {
-        let processedFile = file;
-        
-        // If file is larger than maxSize OR larger than 500KB, compress it
-        if (file.size > maxSize || file.size > 500 * 1024) {
-          setError(null); // Clear any previous errors
-          // Show loading message
-          setError('Compressing image... Please wait.');
-          
-          // First compression attempt - more aggressive for larger files
-          if (file.size > maxSize * 2) {
-            // Very large file - start with aggressive compression
-            processedFile = await compressImage(file, 800, 800, 0.7);
-          } else if (file.size > maxSize) {
-            // Large file - start with moderate compression
-            processedFile = await compressImage(file, 1000, 1000, 0.75);
-          } else {
-            // Medium file - light compression
-            processedFile = await compressImage(file, 1200, 1200, 0.8);
-          }
-          
-          // If still too large, try more aggressive compression
-          if (processedFile.size > maxSize) {
-            processedFile = await compressImage(file, 600, 600, 0.6);
-          }
-          
-          // If still too large, try even more aggressive compression
-          if (processedFile.size > maxSize) {
-            processedFile = await compressImage(file, 400, 400, 0.5);
-          }
-          
-          // Final check - if still too large after all compression attempts
-          if (processedFile.size > maxSize) {
-            setError(`Image is too large even after compression (${(processedFile.size / 1024 / 1024).toFixed(2)}MB). Please choose a smaller image.`);
-            setTimeout(() => setError(null), 5000);
-            return;
-          }
-        }
-        
-        // Validate final file size
-        if (processedFile.size > maxSize) {
-          setError('File size is too large. Maximum size is 2MB. Please choose a smaller image.');
-          setTimeout(() => setError(null), 5000);
-          return;
-        }
-        
-        setFormData(prev => ({ ...prev, [name]: processedFile }));
-        setError(null); // Clear any errors on success
-        setSuccess(`Image ready to upload! (${(processedFile.size / 1024).toFixed(0)}KB)`);
-        setTimeout(() => setSuccess(null), 3000);
-      } catch (err) {
-        console.error('Error processing image:', err);
-        setError('Failed to process image. Please try a different image.');
+      // Validate file size (max 10MB before crop)
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Image size must be less than 10MB');
         setTimeout(() => setError(null), 5000);
+        return;
       }
+      
+      // Open crop modal for profile picture
+      setCropImageIndex('profile');
+      setCropImageFile(file);
+      // Clear the input to allow re-selecting the same file
+      e.target.value = '';
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -2928,6 +3454,19 @@ function ProfileSection({ user: initialUser }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Photo Crop Modal for Profile Picture */}
+      {cropImageFile && (
+        <PhotoCropModal
+          imageFile={cropImageFile}
+          onCropComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+          aspectRatio={1}
+          minWidth={400}
+          minHeight={400}
+          fixedSize={{ width: 400, height: 400 }}
+        />
+      )}
     </div>
   );
 }
@@ -3071,9 +3610,17 @@ function AdPostSection({ user }) {
         }
       }
       
-      const newImages = [...images];
-      newImages[cropImageIndex] = processedFile;
-      setImages(newImages);
+      // Handle profile picture and eBook cover separately
+      if (cropImageIndex === 'profile') {
+        setFormData({ ...formData, profile_picture: processedFile });
+      } else if (cropImageIndex === 'ebook-cover') {
+        setEbookCoverImage(processedFile);
+      } else {
+        // Handle ad images (cropImageIndex is a number)
+        const newImages = [...images];
+        newImages[cropImageIndex] = processedFile;
+        setImages(newImages);
+      }
       
       // Close crop modal
       setCropImageIndex(null);
@@ -3583,8 +4130,8 @@ function AdPostSection({ user }) {
         </CardContent>
       </Card>
 
-      {/* Photo Crop Modal */}
-      {cropImageFile && cropImageIndex !== null && (
+      {/* Photo Crop Modal - for ad images, profile picture, and eBook cover */}
+      {cropImageFile && (
         <PhotoCropModal
           imageFile={cropImageFile}
           onCropComplete={handleCropComplete}
@@ -7912,7 +8459,21 @@ function MyEbooksSection({ user }) {
                 <Input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => setEbookCoverImage(e.target.files[0])}
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      // Validate file size (max 10MB before crop)
+                      if (file.size > 10 * 1024 * 1024) {
+                        setError('Image size must be less than 10MB');
+                        setTimeout(() => setError(null), 3000);
+                        return;
+                      }
+                      // Open crop modal for eBook cover
+                      setCropImageIndex('ebook-cover');
+                      setCropImageFile(file);
+                    }
+                    e.target.value = ''; // Clear input
+                  }}
                 />
               </div>
               {(ebookFormData.book_type === 'hard_copy' || ebookFormData.book_type === 'both') && (
@@ -8120,7 +8681,21 @@ function MyEbooksSection({ user }) {
                 <Input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => setEbookCoverImage(e.target.files[0])}
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      // Validate file size (max 10MB before crop)
+                      if (file.size > 10 * 1024 * 1024) {
+                        setError('Image size must be less than 10MB');
+                        setTimeout(() => setError(null), 3000);
+                        return;
+                      }
+                      // Open crop modal for eBook cover
+                      setCropImageIndex('ebook-cover');
+                      setCropImageFile(file);
+                    }
+                    e.target.value = ''; // Clear input
+                  }}
                 />
               </div>
               {(editingEbookData.book_type === 'hard_copy' || editingEbookData.book_type === 'both') && (

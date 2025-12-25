@@ -146,8 +146,9 @@ function AdminPanel() {
     localAddress: '',
   });
   const [addCategoryFormData, setAddCategoryFormData] = useState({
-    categoryName: '',
-    subcategoryName: '',
+    domainCategoryName: '',
+    fieldCategoryName: '',
+    itemCategoryName: '',
   });
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2597,12 +2598,13 @@ function AdminPanel() {
         id: ad.id,
         sn: ad.id,
         title: ad.title,
-        category: ad.category?.category || 'N/A',
+        category: ad.category_path || ad.category || (ad.category?.category) || 'N/A',
         subcategory: ad.subcategory || ad.sub_category || null,
         category_id: ad.category_id,
         location_id: ad.location_id,
         selected_local_address_index: ad.selected_local_address_index !== undefined ? ad.selected_local_address_index : null,
-        location: ad.location ? (() => {
+        location: ad.location || (typeof ad.location === 'object' && ad.location ? (() => {
+          // Fallback: build from location object if location string is not available
           const parts = [];
           if (ad.location.province) parts.push(ad.location.province);
           if (ad.location.district) parts.push(ad.location.district);
@@ -2613,7 +2615,7 @@ function AdminPanel() {
             if (firstAddress) parts.push(firstAddress);
           }
           return parts.length > 0 ? parts.join(' > ') : null;
-        })() : null,
+        })() : null),
         description: ad.description,
         price: parseFloat(ad.price) || 0,
         views: ad.views || 0,
@@ -3055,15 +3057,17 @@ function AdminPanel() {
     e.preventDefault();
     try {
       await adminAPI.createCategory({
-        categoryName: addCategoryFormData.categoryName,
-        subcategoryName: addCategoryFormData.subcategoryName || null,
+        domainCategoryName: addCategoryFormData.domainCategoryName,
+        fieldCategoryName: addCategoryFormData.fieldCategoryName || null,
+        itemCategoryName: addCategoryFormData.itemCategoryName || null,
       });
       
       setSuccessMessage('Category created successfully');
       setShowAddCategoryForm(false);
       setAddCategoryFormData({
-        categoryName: '',
-        subcategoryName: '',
+        domainCategoryName: '',
+        fieldCategoryName: '',
+        itemCategoryName: '',
       });
       fetchCategoryManagement(); // Refresh the categories list
       fetchCategories(); // Also refresh the public categories for dropdowns
@@ -4842,17 +4846,12 @@ function AdminPanel() {
       // Transform to match expected format - only if we have valid data
       const transformedCategories = Array.isArray(categoriesData) 
         ? categoriesData.map(item => {
-            // IMPORTANT: The backend returns:
-            // - For subcategories: id = subcategory ID, subcategoryId = subcategory ID, categoryId = main category ID
-            // - For main categories: id = main category ID, categoryId = main category ID, subcategoryId = null
-            // We need to use the actual record ID (item.id) which is always the correct ID to delete
+            // Backend now returns 3-level hierarchy: domainCategoryName, fieldCategoryName, itemCategoryName
             return {
-              id: item.id, // Always use item.id - this is the actual database record ID from backend
-            categoryId: item.categoryId || item.id,
-            categoryName: item.categoryName || item.category || '',
-            subcategoryId: item.subcategoryId || null,
-              subcategoryName: item.subcategoryName || item.sub_category || '',
-              isSubcategory: !!item.subcategoryId // Flag to identify subcategories
+              id: item.id,
+              domainCategoryName: item.domainCategoryName || item.domain_category || '',
+              fieldCategoryName: item.fieldCategoryName || item.field_category || '',
+              itemCategoryName: item.itemCategoryName || item.item_category || '',
             };
           })
         : [];
@@ -4873,8 +4872,9 @@ function AdminPanel() {
   const handleEditCategory = (category) => {
     setEditingCategoryId(category.id);
     setEditingCategoryData({
-      categoryName: category.categoryName,
-      subcategoryName: category.subcategoryName
+      domainCategoryName: category.domainCategoryName,
+      fieldCategoryName: category.fieldCategoryName,
+      itemCategoryName: category.itemCategoryName
     });
   };
 
@@ -4883,10 +4883,11 @@ function AdminPanel() {
     try {
       const category = categoryManagementData.find(c => c.id === categoryId);
       
-      // Update both category and subcategory
+      // Update 3-level category structure
       await adminAPI.updateCategory(categoryId, {
-        categoryName: editingCategoryData.categoryName,
-        subcategoryName: editingCategoryData.subcategoryName || null,
+        domainCategoryName: editingCategoryData.domainCategoryName,
+        fieldCategoryName: editingCategoryData.fieldCategoryName || null,
+        itemCategoryName: editingCategoryData.itemCategoryName || null,
       });
       
       setSuccessMessage('Category updated successfully');
@@ -7820,6 +7821,11 @@ function AdminPanel() {
                                     <span className="font-medium">{ad.title}</span>
                                 </td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.category}</td>
+                                <td className="p-3 text-sm max-w-xs">
+                                    <span className="text-[hsl(var(--muted-foreground))] truncate block" title={ad.location || '-'}>
+                                      {ad.location && ad.location.length > 40 ? `${ad.location.substring(0, 40)}...` : (ad.location || 'N/A')}
+                                    </span>
+                                </td>
                                 <td className="p-3 text-sm max-w-xs">
                                     <span className="text-[hsl(var(--muted-foreground))] truncate block">{ad.description}</span>
                                 </td>
@@ -12872,24 +12878,34 @@ function AdminPanel() {
                     {showAddCategoryForm && (
                       <Card className="mb-4">
                         <CardContent className="p-6">
-                          <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Add New Category/Subcategory</h3>
+                          <h3 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Add New Category (3-Level Hierarchy)</h3>
                           <form onSubmit={handleAddCategorySubmit} className="space-y-4">
                             <div>
-                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category Name *</label>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Domain Category *</label>
                               <Input
-                                value={addCategoryFormData.categoryName}
-                                onChange={(e) => setAddCategoryFormData({...addCategoryFormData, categoryName: e.target.value})}
+                                value={addCategoryFormData.domainCategoryName}
+                                onChange={(e) => setAddCategoryFormData({...addCategoryFormData, domainCategoryName: e.target.value})}
                                 className="w-full"
                                 required
+                                placeholder="e.g., Art & Craft"
                               />
                             </div>
                             <div>
-                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Subcategory Name (Optional)</label>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Field Category (Optional)</label>
                               <Input
-                                value={addCategoryFormData.subcategoryName}
-                                onChange={(e) => setAddCategoryFormData({...addCategoryFormData, subcategoryName: e.target.value})}
+                                value={addCategoryFormData.fieldCategoryName}
+                                onChange={(e) => setAddCategoryFormData({...addCategoryFormData, fieldCategoryName: e.target.value})}
                                 className="w-full"
-                                placeholder="Leave empty for main category"
+                                placeholder="e.g., Painting"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Item Category (Optional)</label>
+                              <Input
+                                value={addCategoryFormData.itemCategoryName}
+                                onChange={(e) => setAddCategoryFormData({...addCategoryFormData, itemCategoryName: e.target.value})}
+                                className="w-full"
+                                placeholder="e.g., Oil Painting"
                               />
                             </div>
                             <div className="flex justify-end gap-2 mt-6">
@@ -12899,8 +12915,9 @@ function AdminPanel() {
                                 onClick={() => {
                                   setShowAddCategoryForm(false);
                                   setAddCategoryFormData({
-                                    categoryName: '',
-                                    subcategoryName: '',
+                                    domainCategoryName: '',
+                                    fieldCategoryName: '',
+                                    itemCategoryName: '',
                                   });
                                 }}
                               >
@@ -12919,8 +12936,9 @@ function AdminPanel() {
                       <thead>
                         <tr className="border-b border-[hsl(var(--border))]">
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Category Name</th>
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Subcategory Name</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Domain Category</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Field Category</th>
+                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Item Category</th>
                           <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Action</th>
                         </tr>
                       </thead>
@@ -12931,24 +12949,36 @@ function AdminPanel() {
                             <td className="p-3 text-sm">
                               {editingCategoryId === category.id ? (
                                 <Input
-                                  value={editingCategoryData.categoryName}
-                                  onChange={(e) => setEditingCategoryData({...editingCategoryData, categoryName: e.target.value})}
+                                  value={editingCategoryData.domainCategoryName}
+                                  onChange={(e) => setEditingCategoryData({...editingCategoryData, domainCategoryName: e.target.value})}
                                   className="w-full text-sm"
                                 />
                               ) : (
-                                <span>{category.categoryName}</span>
+                                <span>{category.domainCategoryName}</span>
                               )}
                             </td>
                             <td className="p-3 text-sm">
                               {editingCategoryId === category.id ? (
                                 <Input
-                                  value={editingCategoryData.subcategoryName || ''}
-                                  onChange={(e) => setEditingCategoryData({...editingCategoryData, subcategoryName: e.target.value})}
+                                  value={editingCategoryData.fieldCategoryName || ''}
+                                  onChange={(e) => setEditingCategoryData({...editingCategoryData, fieldCategoryName: e.target.value})}
                                   className="w-full text-sm"
-                                  placeholder="Subcategory (optional)"
+                                  placeholder="Field Category (optional)"
                                 />
                               ) : (
-                                <span>{category.subcategoryName || '-'}</span>
+                                <span>{category.fieldCategoryName || '-'}</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-sm">
+                              {editingCategoryId === category.id ? (
+                                <Input
+                                  value={editingCategoryData.itemCategoryName || ''}
+                                  onChange={(e) => setEditingCategoryData({...editingCategoryData, itemCategoryName: e.target.value})}
+                                  className="w-full text-sm"
+                                  placeholder="Item Category (optional)"
+                                />
+                              ) : (
+                                <span>{category.itemCategoryName || '-'}</span>
                               )}
                             </td>
                             <td className="p-3 text-sm">
@@ -14719,3 +14749,4 @@ function AdminPanel() {
 }
 
 export default AdminPanel;
+

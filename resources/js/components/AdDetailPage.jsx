@@ -419,7 +419,13 @@ function AdDetailPage() {
                 </h1>
                 
                 <div className="flex flex-wrap gap-4 text-sm text-[hsl(var(--muted-foreground))]">
-                  {ad.category && (
+                  {ad.category_path && (
+                    <div className="flex items-center gap-2">
+                      <span>🏷️</span>
+                      <span className="text-[hsl(var(--foreground))]">{ad.category_path}</span>
+                    </div>
+                  )}
+                  {!ad.category_path && ad.category && (
                     <div className="flex items-center gap-2">
                       <span className="font-medium">Category:</span>
                       <span className="text-[hsl(var(--foreground))]">{ad.category}</span>

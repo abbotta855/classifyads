@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Ad;
 use App\Models\Category;
 use App\Models\User;
+use App\Models\Location;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -15,8 +16,16 @@ class AdsSeeder extends Seeder
      */
     public function run(): void
     {
-        // Get all categories and users
-        $categories = Category::whereNull('sub_category')->get()->keyBy('category');
+        // Get all item categories (categories with all three levels: domain, field, item)
+        // These are the actual categories that ads should reference
+        $itemCategories = Category::whereNotNull('item_category')
+            ->whereNotNull('field_category')
+            ->whereNotNull('domain_category')
+            ->get();
+        
+        // Get all locations (wards) for assigning to ads
+        $locations = Location::whereNotNull('ward_number')->get();
+        
         $users = User::all();
         
         if ($users->isEmpty()) {
@@ -24,12 +33,17 @@ class AdsSeeder extends Seeder
             return;
         }
         
-        if ($categories->isEmpty()) {
-            $this->command->warn('No categories found. Please seed categories first.');
+        if ($itemCategories->isEmpty()) {
+            $this->command->warn('No item categories found. Please seed categories first.');
             return;
         }
         
-        $this->command->info('Generating hundreds of ads...');
+        if ($locations->isEmpty()) {
+            $this->command->warn('No locations found. Please seed locations first.');
+            return;
+        }
+        
+        $this->command->info('Generating ads for ' . $itemCategories->count() . ' item categories...');
         
         // Define ad templates by category
         $adTemplates = [
@@ -235,8 +249,11 @@ class AdsSeeder extends Seeder
             ],
         ];
         
+        // Group categories by domain for easier access
+        $categoriesByDomain = $itemCategories->groupBy('domain_category');
+        
         $ads = [];
-        $totalAds = 100; // Generate 100 ads
+        $totalAds = 500; // Generate 500 ads distributed across all item categories
         $postedByOptions = ['user', 'vendor', 'admin'];
         $statusOptions = ['active', 'draft', 'sold', 'expired'];
         
@@ -244,99 +261,127 @@ class AdsSeeder extends Seeder
         $bar = $this->command->getOutput()->createProgressBar($totalAds);
         $bar->start();
         
-        for ($i = 0; $i < $totalAds; $i++) {
-            // Randomly select a category
-            $category = $categories->random();
-            $categoryName = $category->category;
+        // Distribute ads across item categories
+        $adsPerCategory = max(1, floor($totalAds / $itemCategories->count()));
+        $remainingAds = $totalAds % $itemCategories->count();
+        
+        foreach ($itemCategories as $index => $itemCategory) {
+            $domainCategory = $itemCategory->domain_category;
+            $itemCategoryName = $itemCategory->item_category;
             
-            // Get templates and data for this category
-            $templates = $adTemplates[$categoryName] ?? ['{type} - {location}'];
-            $template = $templates[array_rand($templates)];
-            $data = $categoryData[$categoryName] ?? [];
-            
-            // Generate title with fallback to ensure it's never empty
-            $title = $template;
-            
-            // Replace all placeholders
-            if (isset($data['types']) && !empty($data['types'])) {
-                $title = str_replace('{type}', $data['types'][array_rand($data['types'])], $title);
-            }
-            if (isset($data['locations']) && !empty($data['locations'])) {
-                $title = str_replace('{location}', $data['locations'][array_rand($data['locations'])], $title);
-            }
-            if (isset($data['brands']) && !empty($data['brands'])) {
-                $title = str_replace('{brand}', $data['brands'][array_rand($data['brands'])], $title);
-            }
-            if (isset($data['models']) && !empty($data['models'])) {
-                $title = str_replace('{model}', $data['models'][array_rand($data['models'])], $title);
-            }
-            if (isset($data['years']) && !empty($data['years'])) {
-                $title = str_replace('{year}', (string)$data['years'][array_rand($data['years'])], $title);
-            }
-            if (isset($data['storages']) && !empty($data['storages'])) {
-                $title = str_replace('{storage}', (string)$data['storages'][array_rand($data['storages'])], $title);
-            }
-            if (isset($data['colors']) && !empty($data['colors'])) {
-                $title = str_replace('{color}', $data['colors'][array_rand($data['colors'])], $title);
-            }
-            if (isset($data['conditions']) && !empty($data['conditions'])) {
-                $title = str_replace('{condition}', $data['conditions'][array_rand($data['conditions'])], $title);
-            }
-            if (isset($data['specs']) && !empty($data['specs'])) {
-                $title = str_replace('{specs}', $data['specs'][array_rand($data['specs'])], $title);
-            }
-            if (isset($data['materials']) && !empty($data['materials'])) {
-                $title = str_replace('{material}', $data['materials'][array_rand($data['materials'])], $title);
-            }
-            if (isset($data['rooms']) && !empty($data['rooms'])) {
-                $title = str_replace('{room}', $data['rooms'][array_rand($data['rooms'])], $title);
-            }
-            if (isset($data['sizes']) && !empty($data['sizes'])) {
-                $title = str_replace('{size}', $data['sizes'][array_rand($data['sizes'])], $title);
-            }
-            if (isset($data['authors']) && !empty($data['authors'])) {
-                $title = str_replace('{author}', $data['authors'][array_rand($data['authors'])], $title);
-            }
-            if (isset($data['subjects']) && !empty($data['subjects'])) {
-                $title = str_replace('{subject}', $data['subjects'][array_rand($data['subjects'])], $title);
-            }
-            if (isset($data['artists']) && !empty($data['artists'])) {
-                $title = str_replace('{artist}', $data['artists'][array_rand($data['artists'])], $title);
+            // Calculate how many ads for this category
+            $adsForThisCategory = $adsPerCategory;
+            if ($index < $remainingAds) {
+                $adsForThisCategory++;
             }
             
-            // Clean up any remaining placeholders and ensure title is not empty
-            $title = preg_replace('/\{[^}]+\}/', '', $title);
-            $title = trim($title);
+            // Get templates and data for this domain category
+            $templates = $adTemplates[$domainCategory] ?? ['{type} - {location}'];
+            $data = $categoryData[$domainCategory] ?? [];
             
-            // Fallback: if title is still empty or just dashes, use category name + item number
-            if (empty($title) || $title === '-' || $title === '') {
-                $title = $categoryName . ' Item #' . ($i + 1);
+            for ($i = 0; $i < $adsForThisCategory; $i++) {
+                $template = $templates[array_rand($templates)];
+                $title = $template;
+                
+                // Replace all placeholders
+                if (isset($data['types']) && !empty($data['types'])) {
+                    $title = str_replace('{type}', $data['types'][array_rand($data['types'])], $title);
+                }
+                if (isset($data['locations']) && !empty($data['locations'])) {
+                    $title = str_replace('{location}', $data['locations'][array_rand($data['locations'])], $title);
+                }
+                if (isset($data['brands']) && !empty($data['brands'])) {
+                    $title = str_replace('{brand}', $data['brands'][array_rand($data['brands'])], $title);
+                }
+                if (isset($data['models']) && !empty($data['models'])) {
+                    $title = str_replace('{model}', $data['models'][array_rand($data['models'])], $title);
+                }
+                if (isset($data['years']) && !empty($data['years'])) {
+                    $title = str_replace('{year}', (string)$data['years'][array_rand($data['years'])], $title);
+                }
+                if (isset($data['storages']) && !empty($data['storages'])) {
+                    $title = str_replace('{storage}', (string)$data['storages'][array_rand($data['storages'])], $title);
+                }
+                if (isset($data['colors']) && !empty($data['colors'])) {
+                    $title = str_replace('{color}', $data['colors'][array_rand($data['colors'])], $title);
+                }
+                if (isset($data['conditions']) && !empty($data['conditions'])) {
+                    $title = str_replace('{condition}', $data['conditions'][array_rand($data['conditions'])], $title);
+                }
+                if (isset($data['specs']) && !empty($data['specs'])) {
+                    $title = str_replace('{specs}', $data['specs'][array_rand($data['specs'])], $title);
+                }
+                if (isset($data['materials']) && !empty($data['materials'])) {
+                    $title = str_replace('{material}', $data['materials'][array_rand($data['materials'])], $title);
+                }
+                if (isset($data['rooms']) && !empty($data['rooms'])) {
+                    $title = str_replace('{room}', $data['rooms'][array_rand($data['rooms'])], $title);
+                }
+                if (isset($data['sizes']) && !empty($data['sizes'])) {
+                    $title = str_replace('{size}', $data['sizes'][array_rand($data['sizes'])], $title);
+                }
+                if (isset($data['authors']) && !empty($data['authors'])) {
+                    $title = str_replace('{author}', $data['authors'][array_rand($data['authors'])], $title);
+                }
+                if (isset($data['subjects']) && !empty($data['subjects'])) {
+                    $title = str_replace('{subject}', $data['subjects'][array_rand($data['subjects'])], $title);
+                }
+                if (isset($data['artists']) && !empty($data['artists'])) {
+                    $title = str_replace('{artist}', $data['artists'][array_rand($data['artists'])], $title);
+                }
+                
+                // Clean up any remaining placeholders and ensure title is not empty
+                $title = preg_replace('/\{[^}]+\}/', '', $title);
+                $title = trim($title);
+                
+                // Fallback: if title is still empty, use item category name + item number
+                if (empty($title) || $title === '-' || $title === '') {
+                    $title = $itemCategoryName . ' Item #' . ($i + 1);
+                }
+                
+                // Generate price based on domain category
+                $price = $this->generatePrice($domainCategory);
+                
+                // Generate description
+                $description = $this->generateDescription($title, $domainCategory, $itemCategoryName);
+                
+                // Randomly select a location (ward)
+                $location = $locations->random();
+                $locationId = $location->id;
+                
+                // If location has local addresses, randomly select one (30% chance)
+                $selectedLocalAddressIndex = null;
+                if ($location->local_address) {
+                    $localAddresses = explode(', ', $location->local_address);
+                    if (count($localAddresses) > 0 && rand(1, 100) <= 30) {
+                        $selectedLocalAddressIndex = rand(0, count($localAddresses) - 1);
+                    }
+                }
+                
+                $ads[] = [
+                    'user_id' => $users->random()->id,
+                    'category_id' => $itemCategory->id, // Use item category ID (lowest level)
+                    'location_id' => $locationId, // Assign ward location ID
+                    'selected_local_address_index' => $selectedLocalAddressIndex, // Optional: specific local address
+                    'title' => $title,
+                    'description' => $description,
+                    'price' => $price,
+                    'status' => $statusOptions[array_rand($statusOptions)],
+                    'posted_by' => $postedByOptions[array_rand($postedByOptions)],
+                    'views' => rand(0, 5000),
+                    'created_at' => now()->subDays(rand(0, 365)),
+                    'updated_at' => now()->subDays(rand(0, 365)),
+                ];
+                
+                $bar->advance();
             }
-            
-            // Generate price based on category
-            $price = $this->generatePrice($categoryName);
-            
-            // Generate description
-            $description = $this->generateDescription($title, $categoryName);
-            
-            $ads[] = [
-                'user_id' => $users->random()->id,
-                'category_id' => $category->id,
-                'title' => $title,
-                'description' => $description,
-                'price' => $price,
-                'status' => $statusOptions[array_rand($statusOptions)],
-                'posted_by' => $postedByOptions[array_rand($postedByOptions)],
-                'views' => rand(0, 5000),
-                'created_at' => now()->subDays(rand(0, 365)),
-                'updated_at' => now()->subDays(rand(0, 365)),
-            ];
-            
-            $bar->advance();
         }
         
         $bar->finish();
         $this->command->newLine();
+        
+        // Clear existing ads first
+        DB::table('ads')->truncate();
         
         // Insert in batches for performance
         $this->command->info('Inserting ads into database...');
@@ -348,7 +393,7 @@ class AdsSeeder extends Seeder
         $this->command->info("Successfully created " . count($ads) . " ads!");
     }
     
-    private function generatePrice(string $categoryName): float
+    private function generatePrice(string $domainCategory): float
     {
         $priceRanges = [
             'Property' => [500000, 50000000],
@@ -363,13 +408,27 @@ class AdsSeeder extends Seeder
             'Art & Craft' => [1000, 100000],
             'Music & Musical instrument' => [5000, 500000],
             'Photography' => [10000, 500000],
+            'Jewelers' => [5000, 500000],
+            'Health & Beauty' => [500, 50000],
+            'Building & Construction' => [1000, 500000],
+            'Business for Sale' => [100000, 10000000],
+            'Events/Tickets' => [500, 50000],
+            'Farming & Agriculture' => [1000, 200000],
+            'Jobs' => [0, 0], // Jobs might not have prices
+            'Office Supply' => [100, 50000],
+            'Pets & Animal' => [1000, 100000],
+            'Travel & Tourism' => [1000, 200000],
+            'Bicycle & Accessories' => [5000, 200000],
         ];
         
-        $range = $priceRanges[$categoryName] ?? [1000, 100000];
+        $range = $priceRanges[$domainCategory] ?? [1000, 100000];
+        if ($range[0] === 0 && $range[1] === 0) {
+            return 0; // For categories like Jobs that don't have prices
+        }
         return round(rand($range[0], $range[1]) / 100) * 100; // Round to nearest 100
     }
     
-    private function generateDescription(string $title, string $categoryName): string
+    private function generateDescription(string $title, string $domainCategory, string $itemCategory): string
     {
         $descriptions = [
             'Property' => [
@@ -434,7 +493,7 @@ class AdsSeeder extends Seeder
             ],
         ];
         
-        $categoryDescriptions = $descriptions[$categoryName] ?? ["Great item in excellent condition. Perfect for your needs. Contact for more details."];
+        $categoryDescriptions = $descriptions[$domainCategory] ?? ["Great {$itemCategory} in excellent condition. Perfect for your needs. Contact for more details."];
         return $categoryDescriptions[array_rand($categoryDescriptions)];
     }
 }

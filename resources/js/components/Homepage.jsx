@@ -19,9 +19,11 @@ function Homepage() {
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false); // For search bar category dropdown
   const [selectedCategoryName, setSelectedCategoryName] = useState(''); // Selected category name for showing subcategories
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState(''); // Selected subcategory ID
-  const [expandedCategories, setExpandedCategories] = useState(new Set()); // For category dropdown - track expanded categories
-  const [selectedCategories, setSelectedCategories] = useState(new Set()); // Selected category IDs (checkboxes)
-  const [selectedSubcategories, setSelectedSubcategories] = useState(new Set()); // Selected subcategory IDs (checkboxes)
+  const [expandedCategories, setExpandedCategories] = useState(new Set()); // For domain categories (using name as key)
+  const [expandedFieldCategories, setExpandedFieldCategories] = useState(new Set()); // For field categories (using name as key)
+  const [selectedCategories, setSelectedCategories] = useState(new Set()); // Selected domain category IDs
+  const [selectedSubcategories, setSelectedSubcategories] = useState(new Set()); // Selected field category IDs
+  const [selectedItemCategories, setSelectedItemCategories] = useState(new Set()); // Selected item category IDs
   const [showLocationDropdown, setShowLocationDropdown] = useState(false); // For search bar
   const categoryDropdownRef = useRef(null);
   const [showSidebarLocationDropdown, setShowSidebarLocationDropdown] = useState(false); // For sidebar filter
@@ -162,46 +164,104 @@ function Homepage() {
     });
   };
 
-  // Category toggle functions (similar to location toggles)
-  const toggleCategory = (categoryId) => {
+  // Category toggle functions (matching UserDashboard logic)
+  const toggleCategory = (categoryName) => {
+    // Directly use the category name as key (matching location toggle logic)
     setExpandedCategories(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(categoryId)) {
-        newSet.delete(categoryId);
+      if (newSet.has(categoryName)) {
+        newSet.delete(categoryName);
       } else {
-        newSet.add(categoryId);
+        newSet.add(categoryName);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleFieldCategory = (fieldCategoryName) => {
+    // Directly use the field category name as key (matching location toggle logic)
+    setExpandedFieldCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fieldCategoryName)) {
+        newSet.delete(fieldCategoryName);
+      } else {
+        newSet.add(fieldCategoryName);
       }
       return newSet;
     });
   };
 
   const handleCategoryToggle = (categoryId) => {
-    // Find the category to get its subcategories
-    const category = categories.find(cat => cat.id === categoryId);
-    if (!category) return;
-
+    const domainCategory = categories.find(c => c.id === categoryId);
+    if (!domainCategory) return;
+    
+    const domainCategoryName = domainCategory.domain_category || domainCategory.name;
+    const fieldCategories = domainCategory.field_categories || [];
+    
+    // Check if currently selected
     const isCurrentlySelected = selectedCategories.has(categoryId);
     
-    // Update selectedCategories
+    // Toggle domain category selection
     setSelectedCategories(prev => {
       const newSet = new Set(prev);
       if (isCurrentlySelected) {
         newSet.delete(categoryId);
       } else {
         newSet.add(categoryId);
+        // Auto-expand when selecting
+        if (fieldCategories.length > 0 && domainCategoryName) {
+          setExpandedCategories(prevExpanded => {
+            const newExpanded = new Set(prevExpanded);
+            newExpanded.add(domainCategoryName);
+            return newExpanded;
+          });
+        }
       }
       return newSet;
     });
-
-    // Update selectedSubcategories - select/unselect all subcategories of this category
-    if (category.subcategories && category.subcategories.length > 0) {
-      setSelectedSubcategories(prev => {
-        const newSet = new Set(prev);
-        category.subcategories.forEach(sub => {
+    
+    // Select/deselect all field categories and their item categories
+    // Use a single state update to avoid race conditions
+    setSelectedSubcategories(prev => {
+      const newSet = new Set(prev);
+      fieldCategories.forEach(fieldCat => {
+        if (isCurrentlySelected) {
+          newSet.delete(fieldCat.id);
+        } else {
+          newSet.add(fieldCat.id);
+        }
+      });
+      return newSet;
+    });
+    
+    // Select/deselect all item categories under field categories
+    // Use a single state update to avoid race conditions
+    setSelectedItemCategories(prev => {
+      const newSet = new Set(prev);
+      fieldCategories.forEach(fieldCat => {
+        const itemCategories = fieldCat.item_categories || [];
+        itemCategories.forEach(itemCat => {
           if (isCurrentlySelected) {
-            newSet.delete(sub.id);
+            newSet.delete(itemCat.id);
           } else {
-            newSet.add(sub.id);
+            newSet.add(itemCat.id);
+          }
+        });
+      });
+      return newSet;
+    });
+    
+    // Also handle direct item categories (under domain, no field)
+    // Use a single state update to avoid race conditions
+    const directItemCategories = domainCategory.item_categories || [];
+    if (directItemCategories.length > 0) {
+      setSelectedItemCategories(prev => {
+        const newSet = new Set(prev);
+        directItemCategories.forEach(itemCat => {
+          if (isCurrentlySelected) {
+            newSet.delete(itemCat.id);
+          } else {
+            newSet.add(itemCat.id);
           }
         });
         return newSet;
@@ -210,51 +270,101 @@ function Homepage() {
   };
 
   const handleSubcategoryToggle = (subcategoryId) => {
-    // Find which category this subcategory belongs to
-    const parentCategory = categories.find(cat => 
-      cat.subcategories && cat.subcategories.some(sub => sub.id === subcategoryId)
-    );
+    // Find which domain category this field category belongs to
+    const domainCategory = categories.find(cat => {
+      const fieldCats = cat.field_categories || [];
+      return fieldCats.some(fc => fc.id === subcategoryId);
+    });
     
+    if (!domainCategory) return;
+    
+    const fieldCategory = domainCategory.field_categories?.find(fc => fc.id === subcategoryId);
+    if (!fieldCategory) return;
+    
+    const fieldCategoryName = fieldCategory.field_category || fieldCategory.name;
+    const itemCategories = fieldCategory.item_categories || [];
+    
+    // Check if currently selected
     const isCurrentlySelected = selectedSubcategories.has(subcategoryId);
     
-    // Update selectedSubcategories
+    // Toggle field category selection and update domain category status
     setSelectedSubcategories(prev => {
       const newSet = new Set(prev);
       if (isCurrentlySelected) {
         newSet.delete(subcategoryId);
       } else {
         newSet.add(subcategoryId);
-      }
-      
-      // If unselecting a subcategory, check if parent category should also be unselected
-      if (parentCategory && !isCurrentlySelected) {
-        // After adding, check if all subcategories are now selected
-        const allSubcategoriesSelected = parentCategory.subcategories.every(sub => 
-          newSet.has(sub.id)
-        );
-        if (allSubcategoriesSelected && !selectedCategories.has(parentCategory.id)) {
-          // Select parent category if all subcategories are selected
-          setSelectedCategories(prevCat => {
-            const newCatSet = new Set(prevCat);
-            newCatSet.add(parentCategory.id);
-            return newCatSet;
-          });
-        }
-      } else if (parentCategory && isCurrentlySelected) {
-        // After removing, check if parent category should be unselected
-        const allSubcategoriesSelected = parentCategory.subcategories.every(sub => 
-          newSet.has(sub.id)
-        );
-        if (!allSubcategoriesSelected && selectedCategories.has(parentCategory.id)) {
-          // Unselect parent category if not all subcategories are selected
-          setSelectedCategories(prevCat => {
-            const newCatSet = new Set(prevCat);
-            newCatSet.delete(parentCategory.id);
-            return newCatSet;
+        // Auto-expand when selecting
+        if (itemCategories.length > 0 && fieldCategoryName) {
+          setExpandedFieldCategories(prevExpanded => {
+            const newExpanded = new Set(prevExpanded);
+            newExpanded.add(fieldCategoryName);
+            return newExpanded;
           });
         }
       }
       
+      // Update domain category selection status
+      // If all field categories under domain are selected, auto-select domain
+      // IMPORTANT: Only auto-deselect domain if it was auto-selected (all fields were selected)
+      // Don't deselect if the domain was manually selected by the user
+      const allFieldCategories = domainCategory.field_categories || [];
+      const allFieldSelected = allFieldCategories.every(fc => {
+        if (fc.id === subcategoryId) {
+          // Use the new state (after toggle)
+          return !isCurrentlySelected;
+        }
+        return newSet.has(fc.id);
+      });
+      
+      // Only update domain selection if it has field categories
+      if (allFieldCategories.length > 0) {
+        setSelectedCategories(prevCats => {
+          const newCats = new Set(prevCats);
+          if (allFieldSelected) {
+            // Auto-select domain when all fields are selected
+            newCats.add(domainCategory.id);
+          } else {
+            // Only deselect if ALL field categories are now deselected
+            // This prevents accidentally deselecting a manually selected domain
+            const hasAnyFieldSelected = Array.from(newSet).some(id => 
+              allFieldCategories.some(fc => fc.id === id)
+            );
+            if (!hasAnyFieldSelected) {
+              // All fields are deselected, safe to deselect domain
+              newCats.delete(domainCategory.id);
+            }
+            // Otherwise, keep domain selected (it was manually selected)
+          }
+          return newCats;
+        });
+      }
+      
+      return newSet;
+    });
+    
+    // Select/deselect all item categories under this field category
+    itemCategories.forEach(itemCat => {
+      setSelectedItemCategories(prev => {
+        const newSet = new Set(prev);
+        if (isCurrentlySelected) {
+          newSet.delete(itemCat.id);
+        } else {
+          newSet.add(itemCat.id);
+        }
+        return newSet;
+      });
+    });
+  };
+
+  const handleItemCategoryToggle = (itemCategoryId) => {
+    setSelectedItemCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemCategoryId)) {
+        newSet.delete(itemCategoryId);
+      } else {
+        newSet.add(itemCategoryId);
+      }
       return newSet;
     });
   };
@@ -262,35 +372,36 @@ function Homepage() {
   const handleSelectAllCategories = () => {
     setSelectedCategories(new Set());
     setSelectedSubcategories(new Set());
+    setSelectedItemCategories(new Set());
   };
 
   const buildCategorySearchString = () => {
-    if (selectedCategories.size === 0 && selectedSubcategories.size === 0) {
+    if (selectedCategories.size === 0 && selectedSubcategories.size === 0 && selectedItemCategories.size === 0) {
       return 'All Categories';
     }
-    const total = selectedCategories.size + selectedSubcategories.size;
+    const total = selectedCategories.size + selectedSubcategories.size + selectedItemCategories.size;
     if (total === 1) {
       return '1 category selected';
     }
     return `${total} categories selected`;
   };
 
-  // Handle click outside location dropdown
+  // Handle click outside dropdowns
   useEffect(() => {
     const handleClickOutside = (event) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
+        setShowCategoryDropdown(false);
+      }
       if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target)) {
         setShowLocationDropdown(false);
-    }
+      }
     };
 
-    if (showLocationDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
+    document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showLocationDropdown]);
+  }, []);
 
 
   useEffect(() => {
@@ -354,70 +465,87 @@ function Homepage() {
       );
     }
 
-    // Filter by selected categories and subcategories from search bar dropdown
-    if (selectedCategories.size > 0 || selectedSubcategories.size > 0) {
+    // Filter by selected categories (domain, field, or item categories)
+    // Ads are linked to item category IDs, so we need to collect all relevant item category IDs
+    if (selectedCategories.size > 0 || selectedSubcategories.size > 0 || selectedItemCategories.size > 0) {
+      // Collect all item category IDs that should be included
+      const allItemCategoryIds = new Set();
+      
       // Normalize selected IDs to numbers for comparison
       const selectedCategoryIds = Array.from(selectedCategories).map(id => typeof id === 'string' ? parseInt(id, 10) : Number(id));
       const selectedSubcategoryIds = Array.from(selectedSubcategories).map(id => typeof id === 'string' ? parseInt(id, 10) : Number(id));
+      const selectedItemCategoryIds = Array.from(selectedItemCategories).map(id => typeof id === 'string' ? parseInt(id, 10) : Number(id));
       
-      filtered = filtered.filter(ad => {
-        // Method 1: Check if ad's category_id matches any selected category or subcategory ID
-        // This is the primary method - ads should be linked to subcategory records when subcategory is selected
-        if (ad.category_id) {
-          const categoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
-          
-          // Check if it matches a selected subcategory ID (prioritize subcategory match)
-          if (selectedSubcategoryIds.includes(categoryId)) {
-            return true;
+      // Add directly selected item categories
+      selectedItemCategoryIds.forEach(id => allItemCategoryIds.add(id));
+      
+      // For each selected domain category, collect all item category IDs under it
+      selectedCategoryIds.forEach(domainId => {
+        const domainCategory = categories.find(c => {
+          // Match by ID first
+          if (c.id === domainId) {
+            // Verify it's a domain category by checking structure
+            return c.field_categories || c.item_categories || c.domain_category;
           }
-          
-          // Check if it matches a selected main category ID
-          if (selectedCategoryIds.includes(categoryId)) {
-            return true;
-          }
-        }
+          return false;
+        });
         
-        // Method 2: Check by category/subcategory names (fallback for legacy data or name-based matching)
-        if (ad.category) {
-          // Find the category object that matches the ad's category name
-          const category = categories.find(cat => 
-            cat.name === ad.category || 
-            cat.category === ad.category
-          );
-          
-          if (category) {
-            // Check if this main category is selected
-            if (selectedCategoryIds.includes(category.id)) {
-              return true;
-            }
-            
-            // Check if any of its subcategories are selected
-            if (category.subcategories && category.subcategories.length > 0) {
-              // If ad has a subcategory name, match by subcategory name
-              if (ad.subcategory || ad.sub_category) {
-                const adSubcategoryName = (ad.subcategory || ad.sub_category).trim();
-                const matchingSubcategory = category.subcategories.find(sub => {
-                  // Check if this subcategory is selected (by ID)
-                  if (!selectedSubcategoryIds.includes(sub.id)) {
-                    return false;
-                  }
-                  
-                  // Match by name (case-insensitive comparison)
-                  const subName = (sub.name || '').trim();
-                  const subSlug = (sub.slug || '').trim();
-                  return subName.toLowerCase() === adSubcategoryName.toLowerCase() || 
-                         subSlug.toLowerCase() === adSubcategoryName.toLowerCase();
-                });
-                if (matchingSubcategory) {
-                  return true;
-                }
+        if (domainCategory) {
+          // Get item categories directly under domain
+          if (domainCategory.item_categories && Array.isArray(domainCategory.item_categories)) {
+            domainCategory.item_categories.forEach(item => {
+              if (item && item.id != null) {
+                allItemCategoryIds.add(item.id);
               }
+            });
+          }
+          
+          // Get item categories under all field categories
+          if (domainCategory.field_categories && Array.isArray(domainCategory.field_categories)) {
+            domainCategory.field_categories.forEach(fieldCat => {
+              if (fieldCat && fieldCat.item_categories && Array.isArray(fieldCat.item_categories)) {
+                fieldCat.item_categories.forEach(item => {
+                  if (item && item.id != null) {
+                    allItemCategoryIds.add(item.id);
+                  }
+                });
+              }
+            });
+          }
+        }
+      });
+      
+      // For each selected field category, collect all item category IDs under it
+      selectedSubcategoryIds.forEach(fieldId => {
+        for (const domainCat of categories) {
+          if (domainCat.field_categories && Array.isArray(domainCat.field_categories)) {
+            const fieldCategory = domainCat.field_categories.find(fc => fc && fc.id === fieldId);
+            if (fieldCategory && fieldCategory.item_categories && Array.isArray(fieldCategory.item_categories)) {
+              fieldCategory.item_categories.forEach(item => {
+                if (item && item.id != null) {
+                  allItemCategoryIds.add(item.id);
+                }
+              });
+              break;
             }
           }
         }
-        
-        return false;
       });
+      
+      // Only filter if we have item category IDs to filter by
+      if (allItemCategoryIds.size > 0) {
+        // Filter ads by checking if their category_id matches any collected item category ID
+        filtered = filtered.filter(ad => {
+          if (ad.category_id) {
+            const categoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+            return allItemCategoryIds.has(categoryId);
+          }
+          return false;
+        });
+      } else {
+        // If no item category IDs collected, don't show any ads (categories selected but no matching items)
+        filtered = [];
+      }
     }
 
     // Filter by selected locations (checkboxes)
@@ -547,7 +675,8 @@ function Homepage() {
     searchQuery, 
     selectedLocations, 
     selectedCategories, 
-    selectedSubcategories, // Add this - it was missing!
+    selectedSubcategories,
+    selectedItemCategories, // Add this - it was missing!
     priceRange, 
     sortBy, 
     currentPage,
@@ -595,22 +724,6 @@ function Homepage() {
     return categories.find(c => c.name === selectedCategoryName);
   };
 
-  // Handle click outside category dropdown
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
-        setShowCategoryDropdown(false);
-      }
-    };
-
-    if (showCategoryDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showCategoryDropdown]);
 
   // Removed generateMockAds() - now using fetchAds() to get real data from API
 
@@ -629,96 +742,225 @@ function Homepage() {
   };
 
 
-  // Calculate ad count for a category (including its subcategories) or a subcategory (only itself)
+  // Calculate ad count for a category in the 3-level hierarchy (domain → field → item)
   const getCategoryAdCount = (categoryId, categoryName) => {
-    // First, check if this ID is a subcategory by searching in all categories' subcategories arrays
-    let isSubcategory = false;
-    let subcategory = null;
+    if (!allAds || allAds.length === 0) return 0;
     
-    for (const parentCat of categories) {
-      if (parentCat.subcategories && Array.isArray(parentCat.subcategories)) {
-        const foundSub = parentCat.subcategories.find(sub => sub.id === categoryId);
-        if (foundSub) {
-          isSubcategory = true;
-          subcategory = foundSub;
-          break;
+    // CRITICAL: Check item categories by NAME first (before any ID matching)
+    // This prevents conflicts where item category ID matches domain/field category IDs
+    let itemCategory = null;
+    let itemCategoryFound = false;
+    
+    if (categoryName) {
+      for (const domainCat of categories) {
+        if (domainCat.item_categories) {
+          itemCategory = domainCat.item_categories.find(item => {
+            const itemName = (item.item_category || item.name || '').trim();
+            const searchName = (categoryName || '').trim();
+            return itemName && searchName && itemName === searchName;
+          });
+          if (itemCategory) {
+            itemCategoryFound = true;
+            break;
+          }
+        }
+        if (domainCat.field_categories) {
+          for (const fieldCat of domainCat.field_categories) {
+            if (fieldCat.item_categories) {
+              itemCategory = fieldCat.item_categories.find(item => {
+                const itemName = (item.item_category || item.name || '').trim();
+                const searchName = (categoryName || '').trim();
+                return itemName && searchName && itemName === searchName;
+              });
+              if (itemCategory) {
+                itemCategoryFound = true;
+                break;
+              }
+            }
+          }
+          if (itemCategoryFound) break;
         }
       }
     }
     
-    // If it's a subcategory, count only ads directly linked to this subcategory
-    if (isSubcategory && subcategory) {
+    // If item category found by name, count its ads
+    if (itemCategoryFound && itemCategory) {
       return allAds.filter(ad => {
-        if (ad.category_id !== null && ad.category_id !== undefined) {
-          // Normalize both IDs to numbers for comparison
-          const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
-          const targetCategoryId = typeof categoryId === 'string' ? parseInt(categoryId, 10) : Number(categoryId);
-          return adCategoryId === targetCategoryId;
-        }
-        // Match by subcategory name (for backward compatibility)
-        if (ad.category || ad.sub_category) {
-          const adCategoryName = (ad.category || ad.sub_category || '').trim().toLowerCase();
-          const subcategoryName = (subcategory.name || categoryName || '').trim().toLowerCase();
-          return adCategoryName === subcategoryName;
-        }
-        return false;
+        if (!ad.category_id) return false;
+        const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+        return adCategoryId === categoryId;
       }).length;
     }
     
-    // Find the category (for main categories)
-    const category = categories.find(c => c.id === categoryId);
-    if (!category) return 0;
+    // CRITICAL: Check field categories by name (before domain category ID matching)
+    // This prevents conflicts where field category ID matches domain category ID
+    let fieldCategory = null;
+    let fieldCategoryFound = false;
     
-    // For main categories, count ads in this category AND all its subcategories
-    const getAllSubcategoryIds = (cat) => {
-      let ids = [cat.id];
-      if (cat.subcategories && cat.subcategories.length > 0) {
-        cat.subcategories.forEach(sub => {
-          ids.push(sub.id);
-          // Recursively get nested subcategories if they exist
-          const nestedSub = categories.find(c => c.id === sub.id);
-          if (nestedSub && nestedSub.subcategories) {
-            ids = ids.concat(nestedSub.subcategories.map(s => s.id));
+    if (categoryName && !itemCategoryFound) {
+      for (const domainCat of categories) {
+        if (domainCat.field_categories) {
+          const foundByName = domainCat.field_categories.find(fc => {
+            const fcName = (fc.field_category || fc.name || '').trim();
+            const searchName = (categoryName || '').trim();
+            return fcName && searchName && fcName === searchName;
+          });
+          // Accept field category if it exists (even if it has no item_categories yet)
+          if (foundByName) {
+            fieldCategory = foundByName;
+            fieldCategoryFound = true;
+            break;
+          }
+        }
+      }
+    }
+    
+    // If field category found by name, count its ads
+    if (fieldCategoryFound && fieldCategory) {
+      // Check if field category has item_categories
+      if (fieldCategory.item_categories && Array.isArray(fieldCategory.item_categories) && fieldCategory.item_categories.length > 0) {
+        const itemCategoryIds = fieldCategory.item_categories.map(item => item.id).filter(id => id != null);
+        if (itemCategoryIds.length > 0) {
+          return allAds.filter(ad => {
+            if (!ad.category_id) return false;
+            const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+            return itemCategoryIds.includes(adCategoryId);
+          }).length;
+        }
+      }
+      // If field category has no item_categories, return 0
+      return 0;
+    }
+    
+    // Priority 1: Check if it's a domain category (by name first, then by ID and structure)
+    // Domain categories have field_categories or item_categories structure
+    // IMPORTANT: Domain category IDs can match item category IDs, so we MUST check name/structure first
+    // CRITICAL: Only check domain by ID if we haven't found item or field category
+    const domainCategory = categories.find(c => {
+      // First, check by name (most reliable)
+      if (categoryName && (
+        (c.domain_category && c.domain_category === categoryName) ||
+        (c.name && c.name === categoryName)
+      )) {
+        // Verify it has the structure of a domain category
+        return c.field_categories || c.item_categories;
+      }
+      // Then check by ID, but only if it has domain category structure AND we haven't found item/field category
+      if (!itemCategoryFound && !fieldCategoryFound && c.id === categoryId && (c.field_categories || c.item_categories)) {
+        // Double-check it's not just an item category that happens to have the same ID
+        // A domain category should have field_categories or item_categories array
+        return true;
+      }
+      return false;
+    });
+    
+    if (domainCategory) {
+      // Collect all item category IDs under this domain
+      const allItemCategoryIds = [];
+      
+      // Get item categories directly under domain
+      if (domainCategory.item_categories) {
+        domainCategory.item_categories.forEach(item => {
+          allItemCategoryIds.push(item.id);
+        });
+      }
+      
+      // Get item categories under all field categories
+      if (domainCategory.field_categories) {
+        domainCategory.field_categories.forEach(fieldCat => {
+          if (fieldCat.item_categories) {
+            fieldCat.item_categories.forEach(item => {
+              allItemCategoryIds.push(item.id);
+            });
           }
         });
       }
-      return ids;
-    };
-
-    const allCategoryIds = getAllSubcategoryIds(category);
+      
+      // Remove duplicates (in case of any data inconsistency)
+      const uniqueItemCategoryIds = [...new Set(allItemCategoryIds)];
+      
+      // Count ads that match any of these item category IDs
+      const count = allAds.filter(ad => {
+        if (!ad.category_id) return false;
+        const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+        return uniqueItemCategoryIds.includes(adCategoryId);
+      }).length;
+      
+      return count;
+    }
     
-    // Count ads that match this category or any of its subcategories
-    return allAds.filter(ad => {
-      // Match by category ID (primary method)
-      if (ad.category_id) {
-        const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : ad.category_id;
-        return allCategoryIds.includes(adCategoryId);
-      } 
-      // Match by category name (for backward compatibility)
-      else if (ad.category || ad.sub_category) {
-        const adCategoryName = (ad.category || ad.sub_category || '').trim();
-        // Check if main category name matches
-        if (category.name === adCategoryName) {
-          return true;
-        }
-        // Check if any subcategory name matches
-        if (category.subcategories && category.subcategories.length > 0) {
-          return category.subcategories.some(sub => sub.name === adCategoryName);
+    // Priority 2: Check if it's a field category by ID (if name matching didn't work)
+    // Field category IDs are sequential (1, 2, 3...) not database IDs
+    // IMPORTANT: Only check if we haven't found an item category
+    if (!fieldCategoryFound && !itemCategoryFound) {
+      for (const domainCat of categories) {
+        if (domainCat.field_categories) {
+          const foundById = domainCat.field_categories.find(fc => fc.id === categoryId);
+          // Accept if found (even if it has no item_categories yet)
+          if (foundById) {
+            fieldCategory = foundById;
+            fieldCategoryFound = true;
+            break;
+          }
         }
       }
-      return false;
-    }).length;
+      
+      // If field category found by ID, count its ads
+      if (fieldCategoryFound && fieldCategory) {
+        // Check if field category has item_categories
+        if (fieldCategory.item_categories && Array.isArray(fieldCategory.item_categories) && fieldCategory.item_categories.length > 0) {
+          const itemCategoryIds = fieldCategory.item_categories.map(item => item.id).filter(id => id != null);
+          if (itemCategoryIds.length > 0) {
+            return allAds.filter(ad => {
+              if (!ad.category_id) return false;
+              const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+              return itemCategoryIds.includes(adCategoryId);
+            }).length;
+          }
+        }
+        // If field category has no item_categories, return 0
+        return 0;
+      }
+    }
+    
+    // Priority 3: Check if it's an item category by ID (last resort)
+    // Item categories have actual database IDs that ads reference
+    // Only check if we haven't already identified it as domain, field, or item category
+    if (!domainCategory && !fieldCategoryFound && !itemCategoryFound) {
+      for (const domainCat of categories) {
+        if (domainCat.item_categories) {
+          itemCategory = domainCat.item_categories.find(item => item.id === categoryId);
+          if (itemCategory) break;
+        }
+        if (domainCat.field_categories) {
+          for (const fieldCat of domainCat.field_categories) {
+            if (fieldCat.item_categories) {
+              itemCategory = fieldCat.item_categories.find(item => item.id === categoryId);
+              if (itemCategory) break;
+            }
+          }
+          if (itemCategory) break;
+        }
+      }
+      
+      // If it's an item category, count ads directly linked to it
+      if (itemCategory) {
+        return allAds.filter(ad => {
+          if (!ad.category_id) return false;
+          const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+          return adCategoryId === categoryId;
+        }).length;
+      }
+    }
+    
+    return 0;
   };
 
   // Get subcategories for a parent category
-  const getSubcategories = (parentId) => {
-    const category = categories.find(cat => cat.id === parentId);
-    return category && category.subcategories ? category.subcategories : [];
-  };
-
-  // Get top-level categories (categories without parent)
+  // Get top-level categories (domain categories)
   const getTopLevelCategories = () => {
-    return categories.filter(cat => !cat.parent_id || cat.parent_id === null);
+    // Return domain categories (top level)
+    return categories.filter(cat => cat.domain_category || cat.name);
   };
 
   // Calculate ad count for a location (province, district, local level, ward, or address)
@@ -852,15 +1094,23 @@ function Homepage() {
         const [categoryName] = searchCategory.split(' > ');
         const category = categories.find(c => c.name === categoryName);
         if (category && !selectedCategories.has(category.id)) {
-          setSelectedCategories(new Set([category.id]));
+          setSelectedCategories(prev => {
+            const newSet = new Set(prev);
+            newSet.add(category.id);
+            return newSet;
+          });
         }
       } else {
         // Main category only
-      const category = categories.find(c => c.name === searchCategory);
-      if (category && !selectedCategories.has(category.id)) {
-        setSelectedCategories(new Set([category.id]));
+        const category = categories.find(c => c.name === searchCategory);
+        if (category && !selectedCategories.has(category.id)) {
+          setSelectedCategories(prev => {
+            const newSet = new Set(prev);
+            newSet.add(category.id);
+            return newSet;
+          });
+        }
       }
-    }
     }
   };
 
@@ -935,49 +1185,131 @@ function Homepage() {
                       <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[250px] max-h-[500px] overflow-y-auto">
                         <div className="p-3">
                           <div className="space-y-1">
-                            {getTopLevelCategories().map((category) => {
-                              const subcategories = getSubcategories(category.id);
-                              const hasSubcategories = subcategories.length > 0;
-                              const isExpanded = expandedCategories.has(category.id);
-                              const adCount = getCategoryAdCount(category.id, category.name);
+                            {getTopLevelCategories().map((domainCategory) => {
+                              const domainCategoryName = domainCategory.domain_category || domainCategory.name;
+                              // The API already returns field_categories nested in domainCategory
+                              // Use it directly (similar to how locations work: province.districts)
+                              const fieldCategories = domainCategory.field_categories || [];
+                              const hasFieldCategories = fieldCategories && fieldCategories.length > 0;
+                              // Use domain category name as key for expansion (matching location logic)
+                              const isDomainExpanded = expandedCategories.has(domainCategoryName);
+                              const adCount = getCategoryAdCount(domainCategory.id, domainCategoryName);
                               
                               return (
-                                <div key={category.id} className="space-y-1">
+                                <div key={domainCategory.id} className="space-y-1">
+                                  {/* Domain Category Level - matching location province structure */}
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center space-x-2 flex-1">
-                                      {hasSubcategories ? (
+                                      {hasFieldCategories ? (
                                         <button
-                                          onClick={() => toggleCategory(category.id)}
+                                          onClick={(e) => {
+                                            // Only toggle expansion if clicking the button/span, not the checkbox
+                                            if (e.target.type !== 'checkbox') {
+                                              toggleCategory(domainCategoryName);
+                                            }
+                                          }}
                                           className="flex items-center space-x-2 flex-1 text-left"
                                         >
                                           <input
                                             type="checkbox"
-                                            checked={selectedCategories.has(category.id)}
+                                            checked={(() => {
+                                              // Collect all category IDs under this domain (field + item categories)
+                                              const allCategoryIds = [];
+                                              fieldCategories.forEach(fieldCat => {
+                                                // Add field category ID if it's selected
+                                                if (selectedSubcategories.has(fieldCat.id)) {
+                                                  allCategoryIds.push(fieldCat.id);
+                                                }
+                                                // Add all item category IDs under this field
+                                                const itemCategories = fieldCat.item_categories || [];
+                                                itemCategories.forEach(itemCat => {
+                                                  if (selectedItemCategories.has(itemCat.id)) {
+                                                    allCategoryIds.push(itemCat.id);
+                                                  }
+                                                });
+                                              });
+                                              // Check if all are selected
+                                              const totalExpected = fieldCategories.reduce((sum, fieldCat) => {
+                                                const itemCategories = fieldCat.item_categories || [];
+                                                return sum + 1 + itemCategories.length; // 1 for field + items
+                                              }, 0);
+                                              return totalExpected > 0 && allCategoryIds.length === totalExpected;
+                                            })()}
                                             onChange={(e) => {
                                               e.stopPropagation();
-                                              handleCategoryToggle(category.id);
+                                              // Collect all category IDs to toggle
+                                              const allCategoryIds = [];
+                                              fieldCategories.forEach(fieldCat => {
+                                                allCategoryIds.push(fieldCat.id);
+                                                const itemCategories = fieldCat.item_categories || [];
+                                                itemCategories.forEach(itemCat => {
+                                                  allCategoryIds.push(itemCat.id);
+                                                });
+                                              });
+                                              // Toggle all
+                                              const allSelected = allCategoryIds.every(id => 
+                                                selectedSubcategories.has(id) || selectedItemCategories.has(id)
+                                              );
+                                              setSelectedSubcategories(prev => {
+                                                const newSet = new Set(prev);
+                                                fieldCategories.forEach(fieldCat => {
+                                                  if (allSelected) {
+                                                    newSet.delete(fieldCat.id);
+                                                  } else {
+                                                    newSet.add(fieldCat.id);
+                                                  }
+                                                });
+                                                return newSet;
+                                              });
+                                              setSelectedItemCategories(prev => {
+                                                const newSet = new Set(prev);
+                                                fieldCategories.forEach(fieldCat => {
+                                                  const itemCategories = fieldCat.item_categories || [];
+                                                  itemCategories.forEach(itemCat => {
+                                                    if (allSelected) {
+                                                      newSet.delete(itemCat.id);
+                                                    } else {
+                                                      newSet.add(itemCat.id);
+                                                    }
+                                                  });
+                                                });
+                                                return newSet;
+                                              });
                                             }}
-                                            onClick={(e) => e.stopPropagation()}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              // Don't trigger button onClick when clicking checkbox
+                                            }}
+                                            onMouseDown={(e) => {
+                                              e.stopPropagation();
+                                              // Prevent button click when clicking checkbox
+                                            }}
                                             className="w-4 h-4"
                                           />
-                                          <span className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer">
-                                            {category.name}
+                                          <span 
+                                            className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer flex-1"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleCategory(domainCategoryName);
+                                            }}
+                                          >
+                                            {domainCategoryName}
                                           </span>
                                         </button>
                                       ) : (
                                         <label className="flex items-center space-x-2 flex-1 cursor-pointer">
                                           <input
                                             type="checkbox"
-                                            checked={selectedCategories.has(category.id)}
+                                            checked={selectedCategories.has(domainCategory.id)}
                                             onChange={(e) => {
                                               e.stopPropagation();
-                                              handleCategoryToggle(category.id);
+                                              handleCategoryToggle(domainCategory.id);
                                             }}
                                             onClick={(e) => e.stopPropagation()}
                                             className="w-4 h-4"
                                           />
                                           <span className="text-sm text-[hsl(var(--foreground))]">
-                                            {category.name}
+                                            {domainCategoryName}
                                           </span>
                                         </label>
                                       )}
@@ -987,29 +1319,126 @@ function Homepage() {
                                     </span>
                                   </div>
                                   
-                                  {/* Show subcategories when expanded */}
-                                  {hasSubcategories && isExpanded && (
+                                  {/* Field Categories Level - shown when domain category is expanded - matching location district structure */}
+                                  {hasFieldCategories && isDomainExpanded && (
                                     <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
-                                      {subcategories.map((subcategory) => {
-                                        const subAdCount = getCategoryAdCount(subcategory.id, subcategory.name);
+                                      {fieldCategories.map((fieldCategory) => {
+                                        const fieldCategoryName = fieldCategory.field_category || fieldCategory.name;
+                                        // The API already returns item_categories nested in fieldCategory
+                                        // Use it directly (similar to how locations work: district.localLevels)
+                                        const itemCategories = fieldCategory.item_categories || [];
+                                        const hasItemCategories = itemCategories && itemCategories.length > 0;
+                                        // Use field category name as key for expansion (consistent with domain category)
+                                        const isFieldExpanded = expandedFieldCategories.has(fieldCategoryName);
+                                        const fieldAdCount = getCategoryAdCount(fieldCategory.id, fieldCategoryName);
+                                        
                                         return (
-                                          <div key={subcategory.id} className="flex items-center justify-between">
-                                            <label className="flex items-center space-x-2 cursor-pointer flex-1">
-                                              <input
-                                                type="checkbox"
-                                                checked={selectedSubcategories.has(subcategory.id) || selectedSubcategories.has(String(subcategory.id)) || selectedSubcategories.has(Number(subcategory.id))}
-                                                onChange={(e) => {
-                                                  e.stopPropagation();
-                                                  handleSubcategoryToggle(subcategory.id);
-                                                }}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="w-4 h-4"
-                                              />
-                                              <span className="text-sm text-[hsl(var(--muted-foreground))]">{subcategory.name}</span>
-                                            </label>
-                                            <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
-                                              ({subAdCount})
-                                            </span>
+                                          <div key={fieldCategory.id} className="space-y-1">
+                                            <div className="flex items-center justify-between">
+                                              <div className="flex items-center space-x-2 flex-1">
+                                                {hasItemCategories ? (
+                                                  <button
+                                                    onClick={(e) => {
+                                                      // Only toggle expansion if clicking the button/span, not the checkbox
+                                                      if (e.target.type !== 'checkbox') {
+                                                        toggleFieldCategory(fieldCategoryName);
+                                                      }
+                                                    }}
+                                                    className="flex items-center space-x-2 flex-1 text-left"
+                                                  >
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={(() => {
+                                                        // Check if all item categories under this field are selected
+                                                        if (itemCategories.length === 0) return false;
+                                                        return itemCategories.every(itemCat => selectedItemCategories.has(itemCat.id));
+                                                      })()}
+                                                      onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        // Toggle all item categories
+                                                        const allSelected = itemCategories.every(itemCat => selectedItemCategories.has(itemCat.id));
+                                                        setSelectedItemCategories(prev => {
+                                                          const newSet = new Set(prev);
+                                                          itemCategories.forEach(itemCat => {
+                                                            if (allSelected) {
+                                                              newSet.delete(itemCat.id);
+                                                            } else {
+                                                              newSet.add(itemCat.id);
+                                                            }
+                                                          });
+                                                          return newSet;
+                                                        });
+                                                      }}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        // Don't trigger button onClick when clicking checkbox
+                                                      }}
+                                                      onMouseDown={(e) => {
+                                                        e.stopPropagation();
+                                                        // Prevent button click when clicking checkbox
+                                                      }}
+                                                      className="w-4 h-4"
+                                                    />
+                                                    <span 
+                                                      className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer flex-1"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleFieldCategory(fieldCategoryName);
+                                                      }}
+                                                    >
+                                                      {fieldCategoryName}
+                                                    </span>
+                                                  </button>
+                                                ) : (
+                                                  <label className="flex items-center space-x-2 cursor-pointer flex-1">
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={selectedSubcategories.has(fieldCategory.id) || selectedSubcategories.has(String(fieldCategory.id)) || selectedSubcategories.has(Number(fieldCategory.id))}
+                                                      onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        handleSubcategoryToggle(fieldCategory.id);
+                                                      }}
+                                                      onClick={(e) => e.stopPropagation()}
+                                                      className="w-4 h-4"
+                                                    />
+                                                    <span className="text-sm text-[hsl(var(--muted-foreground))]">{fieldCategoryName}</span>
+                                                  </label>
+                                                )}
+                                              </div>
+                                              <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
+                                                ({fieldAdCount})
+                                              </span>
+                                            </div>
+                                            
+                                            {/* Item Categories Level - shown when field category is expanded - matching location ward structure */}
+                                            {hasItemCategories && isFieldExpanded && (
+                                              <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
+                                                {itemCategories.map((itemCategory) => {
+                                                  const itemCategoryName = itemCategory.item_category || itemCategory.name;
+                                                  const itemAdCount = getCategoryAdCount(itemCategory.id, itemCategoryName);
+                                                  return (
+                                                    <div key={itemCategory.id} className="flex items-center justify-between">
+                                                      <label className="flex items-center space-x-2 cursor-pointer flex-1">
+                                                        <input
+                                                          type="checkbox"
+                                                          checked={selectedItemCategories.has(itemCategory.id) || selectedItemCategories.has(String(itemCategory.id)) || selectedItemCategories.has(Number(itemCategory.id))}
+                                                          onChange={(e) => {
+                                                            e.stopPropagation();
+                                                            handleItemCategoryToggle(itemCategory.id);
+                                                          }}
+                                                          onClick={(e) => e.stopPropagation()}
+                                                          className="w-4 h-4"
+                                                        />
+                                                        <span className="text-xs text-[hsl(var(--muted-foreground))]">{itemCategoryName}</span>
+                                                      </label>
+                                                      <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
+                                                        ({itemAdCount})
+                                                      </span>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            )}
                                           </div>
                                         );
                                       })}
@@ -1635,89 +2064,232 @@ function Homepage() {
                   </button>
                   {showCategoryFilter && (
                     <div className="space-y-1 max-h-96 overflow-y-auto">
-                    {getTopLevelCategories().map((category) => {
-                      const subcategories = getSubcategories(category.id);
-                      const hasSubcategories = subcategories.length > 0;
-                      const isExpanded = expandedCategories.has(category.id);
-                      const adCount = getCategoryAdCount(category.id, category.name);
-                      
-                      return (
-                        <div key={category.id} className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2 flex-1">
-                              {hasSubcategories ? (
-                                <button
-                                  onClick={() => toggleCategory(category.id)}
-                                  className="flex items-center space-x-2 flex-1 text-left"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedCategories.has(category.id)}
-                                    onChange={(e) => {
-                                      e.stopPropagation();
-                                      handleCategoryToggle(category.id);
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="w-4 h-4"
-                                  />
-                                  <span className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer">
-                                    {category.name}
-                                  </span>
-                                </button>
-                              ) : (
-                                <label className="flex items-center space-x-2 flex-1 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedCategories.has(category.id)}
-                                    onChange={(e) => {
-                                      e.stopPropagation();
-                                      handleCategoryToggle(category.id);
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="w-4 h-4"
-                                  />
-                                  <span className="text-sm text-[hsl(var(--foreground))]">
-                                    {category.name}
-                                  </span>
-                                </label>
-                              )}
-                            </div>
-                            <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
-                              ({adCount})
-                            </span>
-                          </div>
-                          
-                          {/* Show subcategories when expanded */}
-                          {hasSubcategories && isExpanded && (
-                            <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
-                              {subcategories.map((subcategory) => {
-                                const subAdCount = getCategoryAdCount(subcategory.id, subcategory.name);
-                                return (
-                                  <div key={subcategory.id} className="flex items-center justify-between">
-                                    <label className="flex items-center space-x-2 cursor-pointer flex-1">
-                                      <input
-                                        type="checkbox"
-                                        checked={selectedSubcategories.has(subcategory.id) || selectedSubcategories.has(String(subcategory.id)) || selectedSubcategories.has(Number(subcategory.id))}
-                                        onChange={(e) => {
-                                          e.stopPropagation();
-                                          handleSubcategoryToggle(subcategory.id);
-                                        }}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="w-4 h-4"
-                                      />
-                                      <span className="text-sm text-[hsl(var(--muted-foreground))]">{subcategory.name}</span>
-                                    </label>
-                                    <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
-                                      ({subAdCount})
+                      {getTopLevelCategories().map((domainCategory) => {
+                        const domainCategoryName = domainCategory.domain_category || domainCategory.name;
+                        // The API already returns field_categories nested in domainCategory
+                        // Use it directly (similar to how locations work: province.districts)
+                        const fieldCategories = domainCategory.field_categories || [];
+                        const hasFieldCategories = fieldCategories && fieldCategories.length > 0;
+                        // Use domain category name as key for expansion (matching location logic)
+                        const isDomainExpanded = expandedCategories.has(domainCategoryName);
+                        const adCount = getCategoryAdCount(domainCategory.id, domainCategoryName);
+                        
+                        return (
+                          <div key={domainCategory.id} className="space-y-1">
+                            {/* Domain Category Level - matching location province structure */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2 flex-1">
+                                {hasFieldCategories ? (
+                                  <button
+                                    onClick={() => toggleCategory(domainCategoryName)}
+                                    className="flex items-center space-x-2 flex-1 text-left"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={(() => {
+                                        // Collect all category IDs under this domain (field + item categories)
+                                        const allCategoryIds = [];
+                                        fieldCategories.forEach(fieldCat => {
+                                          // Add field category ID if it's selected
+                                          if (selectedSubcategories.has(fieldCat.id)) {
+                                            allCategoryIds.push(fieldCat.id);
+                                          }
+                                          // Add all item category IDs under this field
+                                          const itemCategories = fieldCat.item_categories || [];
+                                          itemCategories.forEach(itemCat => {
+                                            if (selectedItemCategories.has(itemCat.id)) {
+                                              allCategoryIds.push(itemCat.id);
+                                            }
+                                          });
+                                        });
+                                        // Check if all are selected
+                                        const totalExpected = fieldCategories.reduce((sum, fieldCat) => {
+                                          const itemCategories = fieldCat.item_categories || [];
+                                          return sum + 1 + itemCategories.length; // 1 for field + items
+                                        }, 0);
+                                        return totalExpected > 0 && allCategoryIds.length === totalExpected;
+                                      })()}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        // Collect all category IDs to toggle
+                                        const allCategoryIds = [];
+                                        fieldCategories.forEach(fieldCat => {
+                                          allCategoryIds.push(fieldCat.id);
+                                          const itemCategories = fieldCat.item_categories || [];
+                                          itemCategories.forEach(itemCat => {
+                                            allCategoryIds.push(itemCat.id);
+                                          });
+                                        });
+                                        // Toggle all
+                                        const allSelected = allCategoryIds.every(id => 
+                                          selectedSubcategories.has(id) || selectedItemCategories.has(id)
+                                        );
+                                        setSelectedSubcategories(prev => {
+                                          const newSet = new Set(prev);
+                                          fieldCategories.forEach(fieldCat => {
+                                            if (allSelected) {
+                                              newSet.delete(fieldCat.id);
+                                            } else {
+                                              newSet.add(fieldCat.id);
+                                            }
+                                          });
+                                          return newSet;
+                                        });
+                                        setSelectedItemCategories(prev => {
+                                          const newSet = new Set(prev);
+                                          fieldCategories.forEach(fieldCat => {
+                                            const itemCategories = fieldCat.item_categories || [];
+                                            itemCategories.forEach(itemCat => {
+                                              if (allSelected) {
+                                                newSet.delete(itemCat.id);
+                                              } else {
+                                                newSet.add(itemCat.id);
+                                              }
+                                            });
+                                          });
+                                          return newSet;
+                                        });
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="w-4 h-4"
+                                    />
+                                    <span className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer">
+                                      {domainCategoryName}
                                     </span>
-                                  </div>
-                                );
-                              })}
+                                  </button>
+                                ) : (
+                                  <label className="flex items-center space-x-2 flex-1 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedCategories.has(domainCategory.id)}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        handleCategoryToggle(domainCategory.id);
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="w-4 h-4"
+                                    />
+                                    <span className="text-sm text-[hsl(var(--foreground))]">
+                                      {domainCategoryName}
+                                    </span>
+                                  </label>
+                                )}
+                              </div>
+                              <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
+                                ({adCount})
+                              </span>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                            
+                            {/* Field Categories Level - shown when domain category is expanded - matching location district structure */}
+                            {hasFieldCategories && isDomainExpanded && (
+                              <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
+                                {fieldCategories.map((fieldCategory) => {
+                                  const fieldCategoryName = fieldCategory.field_category || fieldCategory.name;
+                                  // The API already returns item_categories nested in fieldCategory
+                                  // Use it directly (similar to how locations work: district.localLevels)
+                                  const itemCategories = fieldCategory.item_categories || [];
+                                  const hasItemCategories = itemCategories && itemCategories.length > 0;
+                                  // Use field category name as key for expansion (consistent with domain category)
+                                  const isFieldExpanded = expandedFieldCategories.has(fieldCategoryName);
+                                  const fieldAdCount = getCategoryAdCount(fieldCategory.id, fieldCategoryName);
+                                  
+                                  return (
+                                    <div key={fieldCategory.id} className="space-y-1">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-2 flex-1">
+                                          {hasItemCategories ? (
+                                            <button
+                                              onClick={() => toggleFieldCategory(fieldCategoryName)}
+                                              className="flex items-center space-x-2 flex-1 text-left"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={(() => {
+                                                  // Check if all item categories under this field are selected
+                                                  if (itemCategories.length === 0) return false;
+                                                  return itemCategories.every(itemCat => selectedItemCategories.has(itemCat.id));
+                                                })()}
+                                                onChange={(e) => {
+                                                  e.stopPropagation();
+                                                  // Toggle all item categories
+                                                  const allSelected = itemCategories.every(itemCat => selectedItemCategories.has(itemCat.id));
+                                                  setSelectedItemCategories(prev => {
+                                                    const newSet = new Set(prev);
+                                                    itemCategories.forEach(itemCat => {
+                                                      if (allSelected) {
+                                                        newSet.delete(itemCat.id);
+                                                      } else {
+                                                        newSet.add(itemCat.id);
+                                                      }
+                                                    });
+                                                    return newSet;
+                                                  });
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="w-4 h-4"
+                                              />
+                                              <span className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer">
+                                                {fieldCategoryName}
+                                              </span>
+                                            </button>
+                                          ) : (
+                                            <label className="flex items-center space-x-2 cursor-pointer flex-1">
+                                              <input
+                                                type="checkbox"
+                                                checked={selectedSubcategories.has(fieldCategory.id) || selectedSubcategories.has(String(fieldCategory.id)) || selectedSubcategories.has(Number(fieldCategory.id))}
+                                                onChange={(e) => {
+                                                  e.stopPropagation();
+                                                  handleSubcategoryToggle(fieldCategory.id);
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="w-4 h-4"
+                                              />
+                                              <span className="text-sm text-[hsl(var(--muted-foreground))]">{fieldCategoryName}</span>
+                                            </label>
+                                          )}
+                                        </div>
+                                        <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
+                                          ({fieldAdCount})
+                                        </span>
+                                      </div>
+                                      
+                                      {/* Item Categories Level - shown when field category is expanded - matching location ward structure */}
+                                      {hasItemCategories && isFieldExpanded && (
+                                        <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
+                                          {itemCategories.map((itemCategory) => {
+                                            const itemCategoryName = itemCategory.item_category || itemCategory.name;
+                                            const itemAdCount = getCategoryAdCount(itemCategory.id, itemCategoryName);
+                                            return (
+                                              <div key={itemCategory.id} className="flex items-center justify-between">
+                                                <label className="flex items-center space-x-2 cursor-pointer flex-1">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={selectedItemCategories.has(itemCategory.id) || selectedItemCategories.has(String(itemCategory.id)) || selectedItemCategories.has(Number(itemCategory.id))}
+                                                    onChange={(e) => {
+                                                      e.stopPropagation();
+                                                      handleItemCategoryToggle(itemCategory.id);
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="w-4 h-4"
+                                                  />
+                                                  <span className="text-xs text-[hsl(var(--muted-foreground))]">{itemCategoryName}</span>
+                                                </label>
+                                                <span className="text-xs text-[hsl(var(--muted-foreground))] ml-2">
+                                                  ({itemAdCount})
+                                                </span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

@@ -14,46 +14,23 @@ class CategoryController extends Controller
      */
     public function index()
     {
-        // Get all categories ordered by category, then sub_category, then id (newest at bottom of same hierarchy)
-        $categories = Category::orderBy('category')
-            ->orderBy('sub_category')
-            ->orderBy('id', 'asc') // Within same hierarchy, newest at bottom
+        // Get all categories ordered by domain_category, then field_category, then item_category, then id
+        $categories = Category::orderBy('domain_category')
+            ->orderBy('field_category')
+            ->orderBy('item_category')
+            ->orderBy('id', 'asc')
             ->get();
 
-        // Transform to include category and subcategory info
+        // Transform to include 3-level hierarchy info
         $result = [];
-        $processedCategories = [];
         
         foreach ($categories as $category) {
-            $categoryName = $category->category;
-            
-            // If this is a main category (sub_category is null), add it as a row
-            if ($category->sub_category === null) {
-                if (!in_array($categoryName, $processedCategories)) {
-                    $result[] = [
-                        'id' => $category->id,
-                        'categoryId' => $category->id,
-                        'categoryName' => $category->category,
-                        'subcategoryId' => null,
-                        'subcategoryName' => '',
-                    ];
-                    $processedCategories[] = $categoryName;
-                }
-            } else {
-                // This is a subcategory
-                // Find the main category ID for this category name
-                $mainCategory = Category::where('category', $categoryName)
-                    ->whereNull('sub_category')
-                    ->first();
-                
-                $result[] = [
-                    'id' => $category->id,
-                    'categoryId' => $mainCategory ? $mainCategory->id : $category->id,
-                    'categoryName' => $category->category,
-                    'subcategoryId' => $category->id,
-                    'subcategoryName' => $category->sub_category,
-                ];
-            }
+            $result[] = [
+                'id' => $category->id,
+                'domainCategoryName' => $category->domain_category,
+                'fieldCategoryName' => $category->field_category,
+                'itemCategoryName' => $category->item_category,
+            ];
         }
 
         return response()->json($result);
@@ -65,23 +42,16 @@ class CategoryController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'categoryName' => 'required|string|max:255',
-            'subcategoryName' => 'nullable|string|max:255',
+            'domainCategoryName' => 'required|string|max:255',
+            'fieldCategoryName' => 'nullable|string|max:255',
+            'itemCategoryName' => 'nullable|string|max:255',
         ]);
 
-        if (!empty($validated['subcategoryName'])) {
-            // Create subcategory
-            $category = Category::create([
-                'category' => $validated['categoryName'],
-                'sub_category' => $validated['subcategoryName'],
-            ]);
-        } else {
-            // Create main category
-            $category = Category::create([
-                'category' => $validated['categoryName'],
-                'sub_category' => null,
-            ]);
-        }
+        $category = Category::create([
+            'domain_category' => $validated['domainCategoryName'],
+            'field_category' => $validated['fieldCategoryName'] ?: null,
+            'item_category' => $validated['itemCategoryName'] ?: null,
+        ]);
 
         return response()->json($category, 201);
     }
@@ -103,18 +73,24 @@ class CategoryController extends Controller
         $category = Category::findOrFail($id);
 
         $validated = $request->validate([
-            'categoryName' => 'sometimes|string|max:255',
-            'subcategoryName' => 'nullable|string|max:255',
+            'domainCategoryName' => 'sometimes|string|max:255',
+            'fieldCategoryName' => 'nullable|string|max:255',
+            'itemCategoryName' => 'nullable|string|max:255',
         ]);
 
-        // Update category name if provided
-        if (isset($validated['categoryName'])) {
-            $category->category = $validated['categoryName'];
+        // Update domain category name if provided
+        if (isset($validated['domainCategoryName'])) {
+            $category->domain_category = $validated['domainCategoryName'];
         }
 
-        // Update subcategory name if provided (can be null to convert subcategory to main category)
-        if (array_key_exists('subcategoryName', $validated)) {
-            $category->sub_category = $validated['subcategoryName'] ?: null;
+        // Update field category name if provided (can be null)
+        if (array_key_exists('fieldCategoryName', $validated)) {
+            $category->field_category = $validated['fieldCategoryName'] ?: null;
+        }
+
+        // Update item category name if provided (can be null)
+        if (array_key_exists('itemCategoryName', $validated)) {
+            $category->item_category = $validated['itemCategoryName'] ?: null;
         }
 
         $category->save();
