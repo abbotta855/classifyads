@@ -4482,13 +4482,32 @@ function AdminPanel() {
   };
 
   const buildSearchLocationString = () => {
-    if (selectedLocations.size === 0) {
+    // Count only addresses (leaf level) and wards without addresses - matching UserDashboard logic
+    const selectedIds = Array.from(selectedLocations);
+    const addressIds = selectedIds.filter(id => typeof id === 'string' && id.includes('-'));
+    
+    // Count wards without addresses (numeric IDs that don't have corresponding addresses selected)
+    const wardIdsWithoutAddresses = selectedIds.filter(id => {
+      if (typeof id === 'number' || (typeof id === 'string' && !id.includes('-'))) {
+        // Check if this ward has any addresses selected
+        const wardId = typeof id === 'number' ? id : parseInt(id, 10);
+        const hasAddresses = selectedIds.some(selectedId => 
+          typeof selectedId === 'string' && selectedId.startsWith(`${wardId}-`)
+        );
+        return !hasAddresses;
+      }
+      return false;
+    });
+    
+    const totalCount = addressIds.length + wardIdsWithoutAddresses.length;
+    
+    if (totalCount === 0) {
       return 'All Locations';
     }
-    if (selectedLocations.size === 1) {
+    if (totalCount === 1) {
       return '1 location selected';
     }
-    return `${selectedLocations.size} locations selected`;
+    return `${totalCount} locations selected`;
   };
 
   const toggleProvince = (provinceId) => {
@@ -4529,7 +4548,9 @@ function AdminPanel() {
 
   // Category helper functions matching Homepage design
   const getTopLevelCategories = () => {
-    return categories.filter(cat => !cat.parent_id || cat.parent_id === null);
+    // In AdminPanel, all categories in the array are already top-level categories with nested subcategories
+    // So just return all categories
+    return categories;
   };
 
   const getSubcategories = (parentId) => {
@@ -4550,17 +4571,34 @@ function AdminPanel() {
   };
 
   const handleCategoryToggle = (categoryId) => {
-    const category = categories.find(cat => cat.id === categoryId);
+    // Normalize ID to number for consistency
+    const normalizedId = typeof categoryId === 'string' ? parseInt(categoryId, 10) : Number(categoryId);
+    const category = categories.find(cat => {
+      const catId = typeof cat.id === 'string' ? parseInt(cat.id, 10) : Number(cat.id);
+      return catId === normalizedId;
+    });
     if (!category) return;
 
-    const isCurrentlySelected = selectedCategories.has(categoryId);
+    // Check if currently selected (normalize all IDs for comparison)
+    let isCurrentlySelected = false;
+    selectedCategories.forEach(id => {
+      const idNum = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+      if (idNum === normalizedId) {
+        isCurrentlySelected = true;
+      }
+    });
     
     setSelectedCategories(prev => {
       const newSet = new Set(prev);
-      if (isCurrentlySelected) {
-        newSet.delete(categoryId);
-      } else {
-        newSet.add(categoryId);
+      // Remove any existing variations of this ID
+      newSet.forEach(id => {
+        const idNum = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+        if (idNum === normalizedId) {
+          newSet.delete(id);
+        }
+      });
+      if (!isCurrentlySelected) {
+        newSet.add(normalizedId);
       }
       return newSet;
     });
@@ -4570,10 +4608,16 @@ function AdminPanel() {
       setSelectedSubcategories(prev => {
         const newSet = new Set(prev);
         category.subcategories.forEach(sub => {
-          if (isCurrentlySelected) {
-            newSet.delete(sub.id);
-          } else {
-            newSet.add(sub.id);
+          const subId = typeof sub.id === 'string' ? parseInt(sub.id, 10) : Number(sub.id);
+          // Remove any existing variations of this ID
+          newSet.forEach(id => {
+            const idNum = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+            if (idNum === subId) {
+              newSet.delete(id);
+            }
+          });
+          if (!isCurrentlySelected) {
+            newSet.add(subId);
           }
         });
         return newSet;
@@ -4582,13 +4626,33 @@ function AdminPanel() {
   };
 
   const handleSubcategoryToggle = (subcategoryId) => {
+    // Normalize ID to number for consistency
+    const normalizedId = typeof subcategoryId === 'string' ? parseInt(subcategoryId, 10) : Number(subcategoryId);
+    
     setSelectedSubcategories(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(subcategoryId)) {
-        newSet.delete(subcategoryId);
-      } else {
-        newSet.add(subcategoryId);
+      // Check if already selected (handle type variations)
+      let isSelected = false;
+      newSet.forEach(id => {
+        const idNum = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+        if (idNum === normalizedId) {
+          isSelected = true;
+        }
+      });
+      
+      // Remove any existing variations of this ID
+      newSet.forEach(id => {
+        const idNum = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+        if (idNum === normalizedId) {
+          newSet.delete(id);
+        }
+      });
+      
+      // Add if not selected
+      if (!isSelected) {
+        newSet.add(normalizedId);
       }
+      
       return newSet;
     });
   };
@@ -5158,14 +5222,14 @@ function AdminPanel() {
   };
 
   const buildCategorySearchString = () => {
-    if (selectedCategories.size === 0 && selectedSubcategories.size === 0) {
+    // Count only subcategories (leaf level) - matching UserDashboard logic
+    if (selectedSubcategories.size === 0) {
       return 'All Categories';
     }
-    const total = selectedCategories.size + selectedSubcategories.size;
-    if (total === 1) {
+    if (selectedSubcategories.size === 1) {
       return '1 category selected';
     }
-    return `${total} categories selected`;
+    return `${selectedSubcategories.size} categories selected`;
   };
 
   const buildCategorySearchStringOld = () => {
@@ -5717,7 +5781,11 @@ function AdminPanel() {
                                           >
                                             <input
                                               type="checkbox"
-                                              checked={selectedCategories.has(category.id)}
+                                              checked={selectedCategories.has(category.id) || selectedCategories.has(String(category.id)) || Array.from(selectedCategories).some(id => {
+                                                const idNum = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+                                                const catId = typeof category.id === 'string' ? parseInt(category.id, 10) : Number(category.id);
+                                                return idNum === catId;
+                                              })}
                                               onChange={(e) => {
                                                 e.stopPropagation();
                                                 handleCategoryToggle(category.id);
@@ -5733,7 +5801,11 @@ function AdminPanel() {
                                           <label className="flex items-center space-x-2 flex-1 cursor-pointer">
                                             <input
                                               type="checkbox"
-                                              checked={selectedCategories.has(category.id)}
+                                              checked={selectedCategories.has(category.id) || selectedCategories.has(String(category.id)) || Array.from(selectedCategories).some(id => {
+                                                const idNum = typeof id === 'string' ? parseInt(id, 10) : Number(id);
+                                                const catId = typeof category.id === 'string' ? parseInt(category.id, 10) : Number(category.id);
+                                                return idNum === catId;
+                                              })}
                                               onChange={(e) => {
                                                 e.stopPropagation();
                                                 handleCategoryToggle(category.id);

@@ -119,13 +119,32 @@ function Homepage() {
   };
 
   const buildSearchLocationString = () => {
-    if (selectedLocations.size === 0) {
+    // Count only addresses (leaf level) and wards without addresses - matching UserDashboard logic
+    const selectedIds = Array.from(selectedLocations);
+    const addressIds = selectedIds.filter(id => typeof id === 'string' && id.includes('-'));
+    
+    // Count wards without addresses (numeric IDs that don't have corresponding addresses selected)
+    const wardIdsWithoutAddresses = selectedIds.filter(id => {
+      if (typeof id === 'number' || (typeof id === 'string' && !id.includes('-'))) {
+        // Check if this ward has any addresses selected
+        const wardId = typeof id === 'number' ? id : parseInt(id, 10);
+        const hasAddresses = selectedIds.some(selectedId => 
+          typeof selectedId === 'string' && selectedId.startsWith(`${wardId}-`)
+        );
+        return !hasAddresses;
+      }
+      return false;
+    });
+    
+    const totalCount = addressIds.length + wardIdsWithoutAddresses.length;
+    
+    if (totalCount === 0) {
       return 'All Locations';
     }
-    if (selectedLocations.size === 1) {
+    if (totalCount === 1) {
       return '1 location selected';
     }
-    return `${selectedLocations.size} locations selected`;
+    return `${totalCount} locations selected`;
   };
 
   const toggleProvince = (provinceId) => {
@@ -208,14 +227,7 @@ function Homepage() {
         newSet.delete(categoryId);
       } else {
         newSet.add(categoryId);
-        // Auto-expand when selecting
-        if (fieldCategories.length > 0 && domainCategoryName) {
-          setExpandedCategories(prevExpanded => {
-            const newExpanded = new Set(prevExpanded);
-            newExpanded.add(domainCategoryName);
-            return newExpanded;
-          });
-        }
+        // Don't auto-expand - user must click the name/button to expand
       }
       return newSet;
     });
@@ -294,14 +306,7 @@ function Homepage() {
         newSet.delete(subcategoryId);
       } else {
         newSet.add(subcategoryId);
-        // Auto-expand when selecting
-        if (itemCategories.length > 0 && fieldCategoryName) {
-          setExpandedFieldCategories(prevExpanded => {
-            const newExpanded = new Set(prevExpanded);
-            newExpanded.add(fieldCategoryName);
-            return newExpanded;
-          });
-        }
+        // Don't auto-expand - user must click the name/button to expand
       }
       
       // Update domain category selection status
@@ -376,14 +381,14 @@ function Homepage() {
   };
 
   const buildCategorySearchString = () => {
-    if (selectedCategories.size === 0 && selectedSubcategories.size === 0 && selectedItemCategories.size === 0) {
+    // Count only item categories (leaf level) - matching UserDashboard logic
+    if (selectedItemCategories.size === 0) {
       return 'All Categories';
     }
-    const total = selectedCategories.size + selectedSubcategories.size + selectedItemCategories.size;
-    if (total === 1) {
+    if (selectedItemCategories.size === 1) {
       return '1 category selected';
     }
-    return `${total} categories selected`;
+    return `${selectedItemCategories.size} categories selected`;
   };
 
   // Handle click outside dropdowns
@@ -750,6 +755,8 @@ function Homepage() {
     // This prevents conflicts where item category ID matches domain/field category IDs
     let itemCategory = null;
     let itemCategoryFound = false;
+    let fieldCategory = null;
+    let fieldCategoryFound = false;
     
     if (categoryName) {
       for (const domainCat of categories) {
@@ -792,47 +799,8 @@ function Homepage() {
       }).length;
     }
     
-    // CRITICAL: Check field categories by name (before domain category ID matching)
-    // This prevents conflicts where field category ID matches domain category ID
-    let fieldCategory = null;
-    let fieldCategoryFound = false;
-    
-    if (categoryName && !itemCategoryFound) {
-      for (const domainCat of categories) {
-        if (domainCat.field_categories) {
-          const foundByName = domainCat.field_categories.find(fc => {
-            const fcName = (fc.field_category || fc.name || '').trim();
-            const searchName = (categoryName || '').trim();
-            return fcName && searchName && fcName === searchName;
-          });
-          // Accept field category if it exists (even if it has no item_categories yet)
-          if (foundByName) {
-            fieldCategory = foundByName;
-            fieldCategoryFound = true;
-            break;
-          }
-        }
-      }
-    }
-    
-    // If field category found by name, count its ads
-    if (fieldCategoryFound && fieldCategory) {
-      // Check if field category has item_categories
-      if (fieldCategory.item_categories && Array.isArray(fieldCategory.item_categories) && fieldCategory.item_categories.length > 0) {
-        const itemCategoryIds = fieldCategory.item_categories.map(item => item.id).filter(id => id != null);
-        if (itemCategoryIds.length > 0) {
-          return allAds.filter(ad => {
-            if (!ad.category_id) return false;
-            const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
-            return itemCategoryIds.includes(adCategoryId);
-          }).length;
-        }
-      }
-      // If field category has no item_categories, return 0
-      return 0;
-    }
-    
-    // Priority 1: Check if it's a domain category (by name first, then by ID and structure)
+    // Priority 1: Check if it's a domain category FIRST (by name, then by ID and structure)
+    // This must come before field category check to prevent domain categories from being misidentified
     // Domain categories have field_categories or item_categories structure
     // IMPORTANT: Domain category IDs can match item category IDs, so we MUST check name/structure first
     // CRITICAL: Only check domain by ID if we haven't found item or field category
@@ -845,8 +813,8 @@ function Homepage() {
         // Verify it has the structure of a domain category
         return c.field_categories || c.item_categories;
       }
-      // Then check by ID, but only if it has domain category structure AND we haven't found item/field category
-      if (!itemCategoryFound && !fieldCategoryFound && c.id === categoryId && (c.field_categories || c.item_categories)) {
+      // Then check by ID, but only if it has domain category structure
+      if (!itemCategoryFound && c.id === categoryId && (c.field_categories || c.item_categories)) {
         // Double-check it's not just an item category that happens to have the same ID
         // A domain category should have field_categories or item_categories array
         return true;
@@ -855,41 +823,42 @@ function Homepage() {
     });
     
     if (domainCategory) {
-      // Collect all item category IDs under this domain
-      const allItemCategoryIds = [];
+      // Collect all item category IDs under this domain - MUST match filtering logic exactly
+      const allItemCategoryIds = new Set();
       
       // Get item categories directly under domain
-      if (domainCategory.item_categories) {
+      if (domainCategory.item_categories && Array.isArray(domainCategory.item_categories)) {
         domainCategory.item_categories.forEach(item => {
-          allItemCategoryIds.push(item.id);
+          if (item && item.id != null) {
+            allItemCategoryIds.add(item.id);
+          }
         });
       }
       
       // Get item categories under all field categories
-      if (domainCategory.field_categories) {
+      if (domainCategory.field_categories && Array.isArray(domainCategory.field_categories)) {
         domainCategory.field_categories.forEach(fieldCat => {
-          if (fieldCat.item_categories) {
+          if (fieldCat && fieldCat.item_categories && Array.isArray(fieldCat.item_categories)) {
             fieldCat.item_categories.forEach(item => {
-              allItemCategoryIds.push(item.id);
+              if (item && item.id != null) {
+                allItemCategoryIds.add(item.id);
+              }
             });
           }
         });
       }
       
-      // Remove duplicates (in case of any data inconsistency)
-      const uniqueItemCategoryIds = [...new Set(allItemCategoryIds)];
-      
-      // Count ads that match any of these item category IDs
+      // Count ads that match any of these item category IDs - using Set.has() like filtering logic
       const count = allAds.filter(ad => {
         if (!ad.category_id) return false;
         const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
-        return uniqueItemCategoryIds.includes(adCategoryId);
+        return allItemCategoryIds.has(adCategoryId);
       }).length;
       
       return count;
     }
     
-    // Priority 2: Check if it's a field category by ID (if name matching didn't work)
+    // Priority 3: Check if it's a field category by ID (if name matching didn't work)
     // Field category IDs are sequential (1, 2, 3...) not database IDs
     // IMPORTANT: Only check if we haven't found an item category
     if (!fieldCategoryFound && !itemCategoryFound) {
@@ -1213,86 +1182,54 @@ function Homepage() {
                                           <input
                                             type="checkbox"
                                             checked={(() => {
-                                              // Collect all category IDs under this domain (field + item categories)
-                                              const allCategoryIds = [];
+                                              // Collect all item category IDs under this domain - matching location province logic
+                                              const allItemCategoryIds = [];
+                                              // Get item categories from field categories
                                               fieldCategories.forEach(fieldCat => {
-                                                // Add field category ID if it's selected
-                                                if (selectedSubcategories.has(fieldCat.id)) {
-                                                  allCategoryIds.push(fieldCat.id);
-                                                }
-                                                // Add all item category IDs under this field
-                                                const itemCategories = fieldCat.item_categories || [];
-                                                itemCategories.forEach(itemCat => {
-                                                  if (selectedItemCategories.has(itemCat.id)) {
-                                                    allCategoryIds.push(itemCat.id);
-                                                  }
+                                                const itemCats = fieldCat.item_categories || [];
+                                                itemCats.forEach(itemCat => {
+                                                  allItemCategoryIds.push(itemCat.id);
                                                 });
                                               });
-                                              // Check if all are selected
-                                              const totalExpected = fieldCategories.reduce((sum, fieldCat) => {
-                                                const itemCategories = fieldCat.item_categories || [];
-                                                return sum + 1 + itemCategories.length; // 1 for field + items
-                                              }, 0);
-                                              return totalExpected > 0 && allCategoryIds.length === totalExpected;
+                                              // Get direct item categories under domain
+                                              const directItemCategories = domainCategory.item_categories || [];
+                                              directItemCategories.forEach(itemCat => {
+                                                allItemCategoryIds.push(itemCat.id);
+                                              });
+                                              return allItemCategoryIds.length > 0 && allItemCategoryIds.every(id => selectedItemCategories.has(id));
                                             })()}
                                             onChange={(e) => {
                                               e.stopPropagation();
-                                              // Collect all category IDs to toggle
-                                              const allCategoryIds = [];
+                                              // Collect all item category IDs - matching location province logic
+                                              const allItemCategoryIds = [];
                                               fieldCategories.forEach(fieldCat => {
-                                                allCategoryIds.push(fieldCat.id);
-                                                const itemCategories = fieldCat.item_categories || [];
-                                                itemCategories.forEach(itemCat => {
-                                                  allCategoryIds.push(itemCat.id);
+                                                const itemCats = fieldCat.item_categories || [];
+                                                itemCats.forEach(itemCat => {
+                                                  allItemCategoryIds.push(itemCat.id);
                                                 });
                                               });
-                                              // Toggle all
-                                              const allSelected = allCategoryIds.every(id => 
-                                                selectedSubcategories.has(id) || selectedItemCategories.has(id)
-                                              );
-                                              setSelectedSubcategories(prev => {
+                                              const directItemCategories = domainCategory.item_categories || [];
+                                              directItemCategories.forEach(itemCat => {
+                                                allItemCategoryIds.push(itemCat.id);
+                                              });
+                                              // Toggle all - matching location logic exactly
+                                              setSelectedItemCategories(prev => {
                                                 const newSet = new Set(prev);
-                                                fieldCategories.forEach(fieldCat => {
+                                                const allSelected = allItemCategoryIds.every(id => newSet.has(id));
+                                                allItemCategoryIds.forEach(id => {
                                                   if (allSelected) {
-                                                    newSet.delete(fieldCat.id);
+                                                    newSet.delete(id);
                                                   } else {
-                                                    newSet.add(fieldCat.id);
+                                                    newSet.add(id);
                                                   }
                                                 });
                                                 return newSet;
                                               });
-                                              setSelectedItemCategories(prev => {
-                                                const newSet = new Set(prev);
-                                                fieldCategories.forEach(fieldCat => {
-                                                  const itemCategories = fieldCat.item_categories || [];
-                                                  itemCategories.forEach(itemCat => {
-                                                    if (allSelected) {
-                                                      newSet.delete(itemCat.id);
-                                                    } else {
-                                                      newSet.add(itemCat.id);
-                                                    }
-                                                  });
-                                                });
-                                                return newSet;
-                                              });
                                             }}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              // Don't trigger button onClick when clicking checkbox
-                                            }}
-                                            onMouseDown={(e) => {
-                                              e.stopPropagation();
-                                              // Prevent button click when clicking checkbox
-                                            }}
+                                            onClick={(e) => e.stopPropagation()}
                                             className="w-4 h-4"
                                           />
-                                          <span 
-                                            className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer flex-1"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              toggleCategory(domainCategoryName);
-                                            }}
-                                          >
+                                          <span className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer">
                                             {domainCategoryName}
                                           </span>
                                         </button>
@@ -1300,10 +1237,28 @@ function Homepage() {
                                         <label className="flex items-center space-x-2 flex-1 cursor-pointer">
                                           <input
                                             type="checkbox"
-                                            checked={selectedCategories.has(domainCategory.id)}
+                                            checked={(() => {
+                                              // For domains without field categories, check direct item categories
+                                              const directItemCategories = domainCategory.item_categories || [];
+                                              const allItemCategoryIds = directItemCategories.map(itemCat => itemCat.id);
+                                              return allItemCategoryIds.length > 0 && allItemCategoryIds.every(id => selectedItemCategories.has(id));
+                                            })()}
                                             onChange={(e) => {
                                               e.stopPropagation();
-                                              handleCategoryToggle(domainCategory.id);
+                                              const directItemCategories = domainCategory.item_categories || [];
+                                              const allItemCategoryIds = directItemCategories.map(itemCat => itemCat.id);
+                                              setSelectedItemCategories(prev => {
+                                                const newSet = new Set(prev);
+                                                const allSelected = allItemCategoryIds.every(id => newSet.has(id));
+                                                allItemCategoryIds.forEach(id => {
+                                                  if (allSelected) {
+                                                    newSet.delete(id);
+                                                  } else {
+                                                    newSet.add(id);
+                                                  }
+                                                });
+                                                return newSet;
+                                              });
                                             }}
                                             onClick={(e) => e.stopPropagation()}
                                             className="w-4 h-4"
@@ -1338,54 +1293,44 @@ function Homepage() {
                                               <div className="flex items-center space-x-2 flex-1">
                                                 {hasItemCategories ? (
                                                   <button
-                                                    onClick={(e) => {
-                                                      // Only toggle expansion if clicking the button/span, not the checkbox
-                                                      if (e.target.type !== 'checkbox') {
-                                                        toggleFieldCategory(fieldCategoryName);
-                                                      }
-                                                    }}
+                                                    onClick={() => toggleFieldCategory(fieldCategoryName)}
                                                     className="flex items-center space-x-2 flex-1 text-left"
                                                   >
                                                     <input
                                                       type="checkbox"
                                                       checked={(() => {
-                                                        // Check if all item categories under this field are selected
-                                                        if (itemCategories.length === 0) return false;
-                                                        return itemCategories.every(itemCat => selectedItemCategories.has(itemCat.id));
+                                                        // Collect all item category IDs under this field - matching location district logic
+                                                        const allItemCategoryIds = [];
+                                                        itemCategories.forEach(itemCat => {
+                                                          allItemCategoryIds.push(itemCat.id);
+                                                        });
+                                                        return allItemCategoryIds.length > 0 && allItemCategoryIds.every(id => selectedItemCategories.has(id));
                                                       })()}
                                                       onChange={(e) => {
                                                         e.stopPropagation();
-                                                        // Toggle all item categories
-                                                        const allSelected = itemCategories.every(itemCat => selectedItemCategories.has(itemCat.id));
+                                                        // Collect all item category IDs - matching location district logic
+                                                        const allItemCategoryIds = [];
+                                                        itemCategories.forEach(itemCat => {
+                                                          allItemCategoryIds.push(itemCat.id);
+                                                        });
+                                                        // Toggle all - matching location logic exactly
                                                         setSelectedItemCategories(prev => {
                                                           const newSet = new Set(prev);
-                                                          itemCategories.forEach(itemCat => {
+                                                          const allSelected = allItemCategoryIds.every(id => newSet.has(id));
+                                                          allItemCategoryIds.forEach(id => {
                                                             if (allSelected) {
-                                                              newSet.delete(itemCat.id);
+                                                              newSet.delete(id);
                                                             } else {
-                                                              newSet.add(itemCat.id);
+                                                              newSet.add(id);
                                                             }
                                                           });
                                                           return newSet;
                                                         });
                                                       }}
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        // Don't trigger button onClick when clicking checkbox
-                                                      }}
-                                                      onMouseDown={(e) => {
-                                                        e.stopPropagation();
-                                                        // Prevent button click when clicking checkbox
-                                                      }}
+                                                      onClick={(e) => e.stopPropagation()}
                                                       className="w-4 h-4"
                                                     />
-                                                    <span 
-                                                      className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer flex-1"
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        toggleFieldCategory(fieldCategoryName);
-                                                      }}
-                                                    >
+                                                    <span className="text-sm text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] cursor-pointer">
                                                       {fieldCategoryName}
                                                     </span>
                                                   </button>
@@ -2087,65 +2032,46 @@ function Homepage() {
                                     <input
                                       type="checkbox"
                                       checked={(() => {
-                                        // Collect all category IDs under this domain (field + item categories)
-                                        const allCategoryIds = [];
+                                        // Collect all item category IDs under this domain - matching location province logic
+                                        const allItemCategoryIds = [];
+                                        // Get item categories from field categories
                                         fieldCategories.forEach(fieldCat => {
-                                          // Add field category ID if it's selected
-                                          if (selectedSubcategories.has(fieldCat.id)) {
-                                            allCategoryIds.push(fieldCat.id);
-                                          }
-                                          // Add all item category IDs under this field
-                                          const itemCategories = fieldCat.item_categories || [];
-                                          itemCategories.forEach(itemCat => {
-                                            if (selectedItemCategories.has(itemCat.id)) {
-                                              allCategoryIds.push(itemCat.id);
-                                            }
+                                          const itemCats = fieldCat.item_categories || [];
+                                          itemCats.forEach(itemCat => {
+                                            allItemCategoryIds.push(itemCat.id);
                                           });
                                         });
-                                        // Check if all are selected
-                                        const totalExpected = fieldCategories.reduce((sum, fieldCat) => {
-                                          const itemCategories = fieldCat.item_categories || [];
-                                          return sum + 1 + itemCategories.length; // 1 for field + items
-                                        }, 0);
-                                        return totalExpected > 0 && allCategoryIds.length === totalExpected;
+                                        // Get direct item categories under domain
+                                        const directItemCategories = domainCategory.item_categories || [];
+                                        directItemCategories.forEach(itemCat => {
+                                          allItemCategoryIds.push(itemCat.id);
+                                        });
+                                        return allItemCategoryIds.length > 0 && allItemCategoryIds.every(id => selectedItemCategories.has(id));
                                       })()}
                                       onChange={(e) => {
                                         e.stopPropagation();
-                                        // Collect all category IDs to toggle
-                                        const allCategoryIds = [];
+                                        // Collect all item category IDs - matching location province logic
+                                        const allItemCategoryIds = [];
                                         fieldCategories.forEach(fieldCat => {
-                                          allCategoryIds.push(fieldCat.id);
-                                          const itemCategories = fieldCat.item_categories || [];
-                                          itemCategories.forEach(itemCat => {
-                                            allCategoryIds.push(itemCat.id);
+                                          const itemCats = fieldCat.item_categories || [];
+                                          itemCats.forEach(itemCat => {
+                                            allItemCategoryIds.push(itemCat.id);
                                           });
                                         });
-                                        // Toggle all
-                                        const allSelected = allCategoryIds.every(id => 
-                                          selectedSubcategories.has(id) || selectedItemCategories.has(id)
-                                        );
-                                        setSelectedSubcategories(prev => {
-                                          const newSet = new Set(prev);
-                                          fieldCategories.forEach(fieldCat => {
-                                            if (allSelected) {
-                                              newSet.delete(fieldCat.id);
-                                            } else {
-                                              newSet.add(fieldCat.id);
-                                            }
-                                          });
-                                          return newSet;
+                                        const directItemCategories = domainCategory.item_categories || [];
+                                        directItemCategories.forEach(itemCat => {
+                                          allItemCategoryIds.push(itemCat.id);
                                         });
+                                        // Toggle all - matching location logic exactly
                                         setSelectedItemCategories(prev => {
                                           const newSet = new Set(prev);
-                                          fieldCategories.forEach(fieldCat => {
-                                            const itemCategories = fieldCat.item_categories || [];
-                                            itemCategories.forEach(itemCat => {
-                                              if (allSelected) {
-                                                newSet.delete(itemCat.id);
-                                              } else {
-                                                newSet.add(itemCat.id);
-                                              }
-                                            });
+                                          const allSelected = allItemCategoryIds.every(id => newSet.has(id));
+                                          allItemCategoryIds.forEach(id => {
+                                            if (allSelected) {
+                                              newSet.delete(id);
+                                            } else {
+                                              newSet.add(id);
+                                            }
                                           });
                                           return newSet;
                                         });
@@ -2161,10 +2087,28 @@ function Homepage() {
                                   <label className="flex items-center space-x-2 flex-1 cursor-pointer">
                                     <input
                                       type="checkbox"
-                                      checked={selectedCategories.has(domainCategory.id)}
+                                      checked={(() => {
+                                        // For domains without field categories, check direct item categories
+                                        const directItemCategories = domainCategory.item_categories || [];
+                                        const allItemCategoryIds = directItemCategories.map(itemCat => itemCat.id);
+                                        return allItemCategoryIds.length > 0 && allItemCategoryIds.every(id => selectedItemCategories.has(id));
+                                      })()}
                                       onChange={(e) => {
                                         e.stopPropagation();
-                                        handleCategoryToggle(domainCategory.id);
+                                        const directItemCategories = domainCategory.item_categories || [];
+                                        const allItemCategoryIds = directItemCategories.map(itemCat => itemCat.id);
+                                        setSelectedItemCategories(prev => {
+                                          const newSet = new Set(prev);
+                                          const allSelected = allItemCategoryIds.every(id => newSet.has(id));
+                                          allItemCategoryIds.forEach(id => {
+                                            if (allSelected) {
+                                              newSet.delete(id);
+                                            } else {
+                                              newSet.add(id);
+                                            }
+                                          });
+                                          return newSet;
+                                        });
                                       }}
                                       onClick={(e) => e.stopPropagation()}
                                       className="w-4 h-4"
@@ -2205,21 +2149,29 @@ function Homepage() {
                                               <input
                                                 type="checkbox"
                                                 checked={(() => {
-                                                  // Check if all item categories under this field are selected
-                                                  if (itemCategories.length === 0) return false;
-                                                  return itemCategories.every(itemCat => selectedItemCategories.has(itemCat.id));
+                                                  // Collect all item category IDs under this field - matching location district logic
+                                                  const allItemCategoryIds = [];
+                                                  itemCategories.forEach(itemCat => {
+                                                    allItemCategoryIds.push(itemCat.id);
+                                                  });
+                                                  return allItemCategoryIds.length > 0 && allItemCategoryIds.every(id => selectedItemCategories.has(id));
                                                 })()}
                                                 onChange={(e) => {
                                                   e.stopPropagation();
-                                                  // Toggle all item categories
-                                                  const allSelected = itemCategories.every(itemCat => selectedItemCategories.has(itemCat.id));
+                                                  // Collect all item category IDs - matching location district logic
+                                                  const allItemCategoryIds = [];
+                                                  itemCategories.forEach(itemCat => {
+                                                    allItemCategoryIds.push(itemCat.id);
+                                                  });
+                                                  // Toggle all - matching location logic exactly
                                                   setSelectedItemCategories(prev => {
                                                     const newSet = new Set(prev);
-                                                    itemCategories.forEach(itemCat => {
+                                                    const allSelected = allItemCategoryIds.every(id => newSet.has(id));
+                                                    allItemCategoryIds.forEach(id => {
                                                       if (allSelected) {
-                                                        newSet.delete(itemCat.id);
+                                                        newSet.delete(id);
                                                       } else {
-                                                        newSet.add(itemCat.id);
+                                                        newSet.add(id);
                                                       }
                                                     });
                                                     return newSet;
