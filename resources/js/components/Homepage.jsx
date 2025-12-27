@@ -799,13 +799,56 @@ function Homepage() {
       }).length;
     }
     
-    // Priority 1: Check if it's a domain category FIRST (by name, then by ID and structure)
-    // This must come before field category check to prevent domain categories from being misidentified
+    // Priority 2: Check if it's a field category by NAME first (before domain category check)
+    // CRITICAL: Check field categories by name BEFORE domain categories to prevent misidentification
+    // Field categories have sequential IDs (1, 2, 3...) that might match domain category database IDs
+    if (categoryName && !itemCategoryFound) {
+      for (const domainCat of categories) {
+        if (domainCat.field_categories) {
+          const foundByName = domainCat.field_categories.find(fc => {
+            const fcName = (fc.field_category || fc.name || '').trim();
+            const searchName = (categoryName || '').trim();
+            return fcName && searchName && fcName === searchName;
+          });
+          // Accept field category if it exists (even if it has no item_categories yet)
+          if (foundByName) {
+            fieldCategory = foundByName;
+            fieldCategoryFound = true;
+            break;
+          }
+        }
+      }
+    }
+    
+    // If field category found by name, count its ads
+    if (fieldCategoryFound && fieldCategory) {
+      // Check if field category has item_categories
+      if (fieldCategory.item_categories && Array.isArray(fieldCategory.item_categories) && fieldCategory.item_categories.length > 0) {
+        // Use Set for consistency with filtering logic
+        const itemCategoryIds = new Set();
+        fieldCategory.item_categories.forEach(item => {
+          if (item && item.id != null) {
+            itemCategoryIds.add(item.id);
+          }
+        });
+        if (itemCategoryIds.size > 0) {
+          return allAds.filter(ad => {
+            if (!ad.category_id) return false;
+            const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+            return itemCategoryIds.has(adCategoryId);
+          }).length;
+        }
+      }
+      // If field category has no item_categories, return 0
+      return 0;
+    }
+    
+    // Priority 3: Check if it's a domain category (by name first, then by ID and structure)
     // Domain categories have field_categories or item_categories structure
-    // IMPORTANT: Domain category IDs can match item category IDs, so we MUST check name/structure first
-    // CRITICAL: Only check domain by ID if we haven't found item or field category
+    // CRITICAL: Only check domain if we haven't found item or field category
+    // IMPORTANT: Check by name FIRST before ID to prevent ID conflicts
     const domainCategory = categories.find(c => {
-      // First, check by name (most reliable)
+      // First, check by name (most reliable - prevents ID conflicts)
       if (categoryName && (
         (c.domain_category && c.domain_category === categoryName) ||
         (c.name && c.name === categoryName)
@@ -813,8 +856,8 @@ function Homepage() {
         // Verify it has the structure of a domain category
         return c.field_categories || c.item_categories;
       }
-      // Then check by ID, but only if it has domain category structure
-      if (!itemCategoryFound && c.id === categoryId && (c.field_categories || c.item_categories)) {
+      // Then check by ID, but only if it has domain category structure and we haven't found field category
+      if (!itemCategoryFound && !fieldCategoryFound && c.id === categoryId && (c.field_categories || c.item_categories)) {
         // Double-check it's not just an item category that happens to have the same ID
         // A domain category should have field_categories or item_categories array
         return true;
@@ -849,18 +892,20 @@ function Homepage() {
       }
       
       // Count ads that match any of these item category IDs - using Set.has() like filtering logic
-      const count = allAds.filter(ad => {
-        if (!ad.category_id) return false;
-        const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
-        return allItemCategoryIds.has(adCategoryId);
-      }).length;
-      
-      return count;
+      if (allItemCategoryIds.size > 0) {
+        const count = allAds.filter(ad => {
+          if (!ad.category_id) return false;
+          const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+          return allItemCategoryIds.has(adCategoryId);
+        }).length;
+        return count;
+      }
+      return 0;
     }
     
-    // Priority 3: Check if it's a field category by ID (if name matching didn't work)
+    // Priority 4: Check if it's a field category by ID (fallback if name matching didn't work)
     // Field category IDs are sequential (1, 2, 3...) not database IDs
-    // IMPORTANT: Only check if we haven't found an item category
+    // IMPORTANT: Only check if we haven't found an item or field category
     if (!fieldCategoryFound && !itemCategoryFound) {
       for (const domainCat of categories) {
         if (domainCat.field_categories) {
@@ -878,12 +923,18 @@ function Homepage() {
       if (fieldCategoryFound && fieldCategory) {
         // Check if field category has item_categories
         if (fieldCategory.item_categories && Array.isArray(fieldCategory.item_categories) && fieldCategory.item_categories.length > 0) {
-          const itemCategoryIds = fieldCategory.item_categories.map(item => item.id).filter(id => id != null);
-          if (itemCategoryIds.length > 0) {
+          // Use Set for consistency with filtering logic
+          const itemCategoryIds = new Set();
+          fieldCategory.item_categories.forEach(item => {
+            if (item && item.id != null) {
+              itemCategoryIds.add(item.id);
+            }
+          });
+          if (itemCategoryIds.size > 0) {
             return allAds.filter(ad => {
               if (!ad.category_id) return false;
               const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
-              return itemCategoryIds.includes(adCategoryId);
+              return itemCategoryIds.has(adCategoryId);
             }).length;
           }
         }
@@ -892,7 +943,7 @@ function Homepage() {
       }
     }
     
-    // Priority 3: Check if it's an item category by ID (last resort)
+    // Priority 5: Check if it's an item category by ID (last resort)
     // Item categories have actual database IDs that ads reference
     // Only check if we haven't already identified it as domain, field, or item category
     if (!domainCategory && !fieldCategoryFound && !itemCategoryFound) {
