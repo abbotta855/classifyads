@@ -1466,11 +1466,11 @@ function DashboardOverview({ user }) {
                                               const newSet = new Set(prev);
                                               const allSelected = allItemCategoryIds.every(id => newSet.has(id));
                                               allItemCategoryIds.forEach(id => {
-                                                if (allSelected) {
+                                                  if (allSelected) {
                                                   newSet.delete(id);
-                                                } else {
+                                                  } else {
                                                   newSet.add(id);
-                                                }
+                                                  }
                                               });
                                               return newSet;
                                             });

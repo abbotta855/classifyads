@@ -19,14 +19,34 @@ class TransactionManagementController extends Controller
             ->orderBy('id', 'desc')
             ->get()
             ->map(function ($transaction) {
+                $category = $transaction->category;
+                // Determine category name based on which field is populated
+                $categoryName = 'N/A';
+                $subcategoryName = null;
+                
+                if ($category) {
+                    if ($category->item_category) {
+                        // Item category selected - need to find parent field and domain
+                        $categoryName = $category->item_category;
+                        $subcategoryName = $category->field_category ?? null;
+                    } elseif ($category->field_category) {
+                        // Field category selected
+                        $categoryName = $category->field_category;
+                        $subcategoryName = $category->domain_category ?? null;
+                    } elseif ($category->domain_category) {
+                        // Domain category selected
+                        $categoryName = $category->domain_category;
+                    }
+                }
+                
                 return [
                     'id' => $transaction->id,
                     'vendor_id' => $transaction->vendor_id,
                     'vendor_name' => $transaction->vendor->name ?? 'N/A',
                     'num_of_posted_ad' => $transaction->num_of_posted_ad,
                     'category_id' => $transaction->category_id,
-                    'category_name' => $transaction->category->category ?? 'N/A',
-                    'subcategory_name' => $transaction->category->sub_category ?? null,
+                    'category_name' => $categoryName,
+                    'subcategory_name' => $subcategoryName,
                     'amount' => $transaction->amount,
                     'payment_method' => $transaction->payment_method,
                     'start_date' => $transaction->start_date,
@@ -57,10 +77,12 @@ class TransactionManagementController extends Controller
         $yearlyEarning = AdPostTransaction::whereYear('start_date', Carbon::now()->year)
             ->sum('amount') ?? 0;
 
-        // Total earning from Ad post major category wise
+        // Total earning from Ad post major category wise (group by domain_category)
+        // Each category record has domain_category set (it's the top level), so we can use it directly
         $categoryWiseEarning = AdPostTransaction::join('categories', 'ad_post_transactions.category_id', '=', 'categories.id')
-            ->select('categories.category', DB::raw('SUM(ad_post_transactions.amount) as total'))
-            ->groupBy('categories.category')
+            ->select('categories.domain_category as category', DB::raw('SUM(ad_post_transactions.amount) as total'))
+            ->whereNotNull('categories.domain_category')
+            ->groupBy('categories.domain_category')
             ->get()
             ->map(function ($item) {
                 return [

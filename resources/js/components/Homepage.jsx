@@ -893,12 +893,12 @@ function Homepage() {
       
       // Count ads that match any of these item category IDs - using Set.has() like filtering logic
       if (allItemCategoryIds.size > 0) {
-        const count = allAds.filter(ad => {
-          if (!ad.category_id) return false;
-          const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+      const count = allAds.filter(ad => {
+        if (!ad.category_id) return false;
+        const adCategoryId = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
           return allItemCategoryIds.has(adCategoryId);
-        }).length;
-        return count;
+      }).length;
+      return count;
       }
       return 0;
     }
@@ -1268,11 +1268,11 @@ function Homepage() {
                                                 const newSet = new Set(prev);
                                                 const allSelected = allItemCategoryIds.every(id => newSet.has(id));
                                                 allItemCategoryIds.forEach(id => {
-                                                  if (allSelected) {
+                                                    if (allSelected) {
                                                     newSet.delete(id);
-                                                  } else {
+                                                    } else {
                                                     newSet.add(id);
-                                                  }
+                                                    }
                                                 });
                                                 return newSet;
                                               });
@@ -2118,11 +2118,11 @@ function Homepage() {
                                           const newSet = new Set(prev);
                                           const allSelected = allItemCategoryIds.every(id => newSet.has(id));
                                           allItemCategoryIds.forEach(id => {
-                                            if (allSelected) {
+                                              if (allSelected) {
                                               newSet.delete(id);
-                                            } else {
+                                              } else {
                                               newSet.add(id);
-                                            }
+                                              }
                                           });
                                           return newSet;
                                         });
