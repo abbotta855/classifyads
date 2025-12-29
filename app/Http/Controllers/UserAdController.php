@@ -18,7 +18,76 @@ class UserAdController extends Controller
         $ads = Ad::with(['category', 'location'])
             ->where('user_id', Auth::id())
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->get()
+            ->map(function ($ad) {
+                // Build category string from hierarchy (domain > field > item)
+                $categoryString = null;
+                if ($ad->category) {
+                    $categoryParts = [];
+                    if ($ad->category->domain_category) {
+                        $categoryParts[] = $ad->category->domain_category;
+                    }
+                    if ($ad->category->field_category) {
+                        $categoryParts[] = $ad->category->field_category;
+                    }
+                    if ($ad->category->item_category) {
+                        $categoryParts[] = $ad->category->item_category;
+                    }
+                    if (!empty($categoryParts)) {
+                        $categoryString = implode(' > ', $categoryParts);
+                    }
+                }
+                
+                // Build location string from hierarchy
+                $locationString = null;
+                if ($ad->location) {
+                    $parts = [];
+                    if ($ad->location->province) $parts[] = $ad->location->province;
+                    if ($ad->location->district) $parts[] = $ad->location->district;
+                    if ($ad->location->local_level) $parts[] = $ad->location->local_level;
+                    if ($ad->location->ward_number) $parts[] = 'Ward ' . $ad->location->ward_number;
+                    if ($ad->location->local_address) {
+                        $addresses = explode(', ', $ad->location->local_address);
+                        if (!empty($addresses[0])) {
+                            $parts[] = $addresses[0];
+                        }
+                    }
+                    $locationString = implode(' > ', $parts);
+                }
+                
+                return [
+                    'id' => $ad->id,
+                    'title' => $ad->title,
+                    'description' => $ad->description,
+                    'price' => (float) $ad->price,
+                    'category_id' => $ad->category_id,
+                    'category_path' => $categoryString, // Full hierarchy path (domain > field > item)
+                    'category' => $ad->category ? [
+                        'id' => $ad->category->id,
+                        'domain_category' => $ad->category->domain_category,
+                        'field_category' => $ad->category->field_category,
+                        'item_category' => $ad->category->item_category,
+                        // Backward compatibility
+                        'category' => $ad->category->domain_category ?? $ad->category->category ?? null,
+                        'sub_category' => $ad->category->field_category ?? $ad->category->sub_category ?? null,
+                    ] : null,
+                    'location' => $ad->location ? [
+                        'id' => $ad->location->id,
+                        'name' => $locationString,
+                    ] : null,
+                    'location_id' => $ad->location_id,
+                    'selected_local_address_index' => $ad->selected_local_address_index,
+                    'status' => $ad->status,
+                    'item_sold' => $ad->status === 'sold',
+                    'views' => $ad->views ?? 0,
+                    'image1_url' => $ad->image1_url,
+                    'image2_url' => $ad->image2_url,
+                    'image3_url' => $ad->image3_url,
+                    'image4_url' => $ad->image4_url,
+                    'created_at' => $ad->created_at->toIso8601String(),
+                    'updated_at' => $ad->updated_at->toIso8601String(),
+                ];
+            });
 
         return response()->json($ads);
     }

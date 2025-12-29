@@ -7,6 +7,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI, sellerOfferAPI, buyerSellerMessageAPI, sellerVerificationAPI, sellerEbookAPI, userAuctionAPI, getAdUrl } from '../utils/api';
+import { localDateTimeToUTC } from '../utils/timezone';
 import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import RatingModal from './RatingModal';
 import PhotoCropModal from './PhotoCropModal';
@@ -3493,7 +3494,11 @@ function AdPostSection({ user }) {
   const [locationData, setLocationData] = useState({ provinces: [] });
   const [selectedCategoryName, setSelectedCategoryName] = useState('');
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState('');
+  const [selectedItemCategoryId, setSelectedItemCategoryId] = useState('');
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState(new Set());
+  const [expandedSubcategories, setExpandedSubcategories] = useState(new Set());
+  const categoryDropdownRef = useRef(null);
   const [selectedLocations, setSelectedLocations] = useState(new Set());
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [expandedProvinces, setExpandedProvinces] = useState(new Set());
@@ -3510,8 +3515,11 @@ function AdPostSection({ user }) {
     fetchCategories();
     fetchLocations();
     
-    // Handle click outside location dropdown
+    // Handle click outside dropdowns
     const handleClickOutside = (event) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
+        setShowCategoryDropdown(false);
+      }
       if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target)) {
         setShowLocationDropdown(false);
       }
@@ -3523,9 +3531,49 @@ function AdPostSection({ user }) {
   const fetchCategories = async () => {
     try {
       const response = await axios.get('/api/categories');
-      setCategories(response.data || []);
+      const categoriesData = response.data || [];
+      
+      // Transform 3-level structure (domain > field > item) to 2-level structure (category > subcategory)
+      const categoriesWithSubcategories = [];
+      
+      if (Array.isArray(categoriesData)) {
+        categoriesData.forEach((domainCategory) => {
+          const mainCategory = {
+            id: domainCategory.id,
+            name: domainCategory.domain_category || domainCategory.name,
+            subcategories: []
+          };
+          
+          if (domainCategory.field_categories && Array.isArray(domainCategory.field_categories)) {
+            domainCategory.field_categories.forEach((fieldCategory) => {
+              mainCategory.subcategories.push({
+                id: fieldCategory.id,
+                name: fieldCategory.field_category || fieldCategory.name,
+                item_categories: fieldCategory.item_categories || []
+              });
+            });
+          }
+          
+          if (domainCategory.item_categories && Array.isArray(domainCategory.item_categories) && domainCategory.item_categories.length > 0) {
+            if (mainCategory.subcategories.length === 0) {
+              mainCategory.subcategories.push({
+                id: domainCategory.item_categories[0].id,
+                name: domainCategory.domain_category || domainCategory.name,
+                item_categories: domainCategory.item_categories
+              });
+            }
+          }
+          
+          if (mainCategory.subcategories.length > 0 || domainCategory.item_categories?.length > 0) {
+            categoriesWithSubcategories.push(mainCategory);
+          }
+        });
+      }
+      
+      setCategories(categoriesWithSubcategories);
     } catch (err) {
       console.error('Error fetching categories:', err);
+      setCategories([]);
     }
   };
 
@@ -3657,28 +3705,85 @@ function AdPostSection({ user }) {
     return categories.find(c => c.name === selectedCategoryName);
   };
 
-  const handleCategorySelect = (categoryName) => {
-    setSelectedCategoryName(categoryName);
+  const toggleCategory = (categoryName) => {
+    const trimmedName = (categoryName || '').trim();
+    if (!trimmedName) return;
+    
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(trimmedName)) {
+        newSet.delete(trimmedName);
+      } else {
+        newSet.add(trimmedName);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSubcategory = (subcategoryName) => {
+    const trimmedName = (subcategoryName || '').trim();
+    if (!trimmedName) return;
+    
+    setExpandedSubcategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(trimmedName)) {
+        newSet.delete(trimmedName);
+      } else {
+        newSet.add(trimmedName);
+      }
+      return newSet;
+    });
+  };
+
+  const handleCategorySelect = (categoryId, categoryName, hasSubcategories = false) => {
+    const trimmedCategoryName = (categoryName || '').trim();
+    
+    setSelectedCategoryName(trimmedCategoryName);
     setSelectedSubcategoryId('');
-    const category = categories.find(c => c.name === categoryName);
-    if (category) {
-      setFormData({ ...formData, category_id: category.id.toString() });
+    setSelectedItemCategoryId('');
+    setFormData(prev => ({...prev, category_id: categoryId.toString()}));
+    
+    if (!hasSubcategories) {
+      setShowCategoryDropdown(false);
     }
   };
 
-  const handleSubcategorySelect = (subcategoryId) => {
-    setSelectedSubcategoryId(subcategoryId);
+  const handleSubcategorySelect = (subcategoryId, subcategoryName, hasItemCategories = false) => {
     const category = getSelectedCategory();
     if (category) {
-      const subcategory = category.subcategories?.find(s => s.id === parseInt(subcategoryId));
-      if (subcategory) {
-        setFormData({ ...formData, category_id: subcategory.id.toString() });
+      setSelectedSubcategoryId(subcategoryId.toString());
+      setSelectedItemCategoryId('');
+      setFormData(prev => ({...prev, category_id: subcategoryId.toString()}));
+      
+      if (!hasItemCategories) {
         setShowCategoryDropdown(false);
       }
     }
   };
 
+  const handleItemCategorySelect = (itemCategoryId, categoryName, subcategoryId) => {
+    const itemIdStr = itemCategoryId.toString();
+    if (categoryName) setSelectedCategoryName(categoryName);
+    if (subcategoryId) setSelectedSubcategoryId(subcategoryId.toString());
+    setSelectedItemCategoryId(itemIdStr);
+    setFormData(prev => ({...prev, category_id: itemIdStr}));
+    setShowCategoryDropdown(false);
+  };
+
   const buildCategoryString = () => {
+    if (selectedItemCategoryId) {
+      const category = getSelectedCategory();
+      if (category && selectedSubcategoryId) {
+        const subcategory = category.subcategories?.find(s => s.id === parseInt(selectedSubcategoryId));
+        if (subcategory && subcategory.item_categories) {
+          const itemCategory = subcategory.item_categories.find(item => item.id === parseInt(selectedItemCategoryId));
+          if (itemCategory) {
+            const itemName = itemCategory.item_category || itemCategory.name;
+            return `${category.name} > ${subcategory.name} > ${itemName}`;
+          }
+        }
+      }
+    }
     if (selectedSubcategoryId) {
       const category = getSelectedCategory();
       const subcategory = category?.subcategories?.find(s => s.id === parseInt(selectedSubcategoryId));
@@ -3840,6 +3945,9 @@ function AdPostSection({ user }) {
       setImages([null, null, null, null]);
       setSelectedCategoryName('');
       setSelectedSubcategoryId('');
+      setSelectedItemCategoryId('');
+      setExpandedCategories(new Set());
+      setExpandedSubcategories(new Set());
       setSelectedLocations(new Set());
       
       setTimeout(() => setSuccess(null), 3000);
@@ -3938,46 +4046,101 @@ function AdPostSection({ user }) {
             </div>
 
             {/* Category */}
-            <div className="relative" ref={locationDropdownRef}>
+            <div className="relative" ref={categoryDropdownRef}>
               <Label>Category *</Label>
               <button
                 type="button"
                 onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
                 className="w-full text-left px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
               >
-                {buildCategoryString()}
+                {buildCategoryString() || 'Select Category'}
               </button>
               {showCategoryDropdown && (
                 <div className="absolute z-50 w-full mt-1 bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-md shadow-lg max-h-96 overflow-y-auto">
-                  {categories.map((category) => (
-                    <div key={category.id}>
-                      <button
-                        type="button"
-                        onClick={() => handleCategorySelect(category.name)}
-                        className={`w-full text-left px-4 py-2 hover:bg-[hsl(var(--accent))] ${
-                          selectedCategoryName === category.name ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
-                        }`}
-                      >
-                        {category.name}
-                      </button>
-                      {selectedCategoryName === category.name && category.subcategories && category.subcategories.length > 0 && (
-                        <div className="pl-4">
-                          {category.subcategories.map((subcategory) => (
-                            <button
-                              key={subcategory.id}
-                              type="button"
-                              onClick={() => handleSubcategorySelect(subcategory.id)}
-                              className={`w-full text-left px-4 py-2 hover:bg-[hsl(var(--accent))] ${
-                                selectedSubcategoryId === subcategory.id.toString() ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
-                              }`}
-                            >
-                              &nbsp;&nbsp;→ {subcategory.name}
-                            </button>
-                          ))}
+                  {categories.map((category) => {
+                    const hasSubcategories = category.subcategories && category.subcategories.length > 0;
+                    const isExpanded = expandedCategories.has(category.name);
+                    
+                    return (
+                      <div key={category.id}>
+                        <div className="flex items-center">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleCategory(category.name);
+                            }}
+                            className="px-2 py-1 text-xs"
+                          >
+                            {hasSubcategories ? (isExpanded ? '▼' : '▶') : ''}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCategorySelect(category.id, category.name, hasSubcategories)}
+                            className={`flex-1 text-left px-2 py-2 hover:bg-[hsl(var(--accent))] ${
+                              selectedCategoryName === category.name && !selectedSubcategoryId && !selectedItemCategoryId 
+                                ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                            }`}
+                          >
+                            {category.name}
+                          </button>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {isExpanded && hasSubcategories && (
+                          <div className="pl-6">
+                            {category.subcategories.map((subcategory) => {
+                              const hasItemCategories = subcategory.item_categories && subcategory.item_categories.length > 0;
+                              const subcategoryKey = `${category.name}-${subcategory.name}`;
+                              const isSubExpanded = expandedSubcategories.has(subcategoryKey);
+                              
+                              return (
+                                <div key={subcategory.id}>
+                                  <div className="flex items-center">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleSubcategory(subcategoryKey);
+                                      }}
+                                      className="px-2 py-1 text-xs"
+                                    >
+                                      {hasItemCategories ? (isSubExpanded ? '▼' : '▶') : ''}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSubcategorySelect(subcategory.id, subcategory.name, hasItemCategories)}
+                                      className={`flex-1 text-left px-2 py-2 hover:bg-[hsl(var(--accent))] ${
+                                        selectedSubcategoryId === subcategory.id.toString() && !selectedItemCategoryId 
+                                          ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                                      }`}
+                                    >
+                                      {subcategory.name}
+                                    </button>
+                                  </div>
+                                  {isSubExpanded && hasItemCategories && (
+                                    <div className="pl-6">
+                                      {subcategory.item_categories.map((itemCategory) => (
+                                        <button
+                                          key={itemCategory.id}
+                                          type="button"
+                                          onClick={() => handleItemCategorySelect(itemCategory.id, category.name, subcategory.id)}
+                                          className={`w-full text-left px-2 py-2 hover:bg-[hsl(var(--accent))] ${
+                                            selectedItemCategoryId === itemCategory.id.toString() 
+                                              ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                                          }`}
+                                        >
+                                          {itemCategory.item_category || itemCategory.name}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -4173,7 +4336,11 @@ function CategoriesSection({ user }) {
   
   // Category selection state
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [selectedCategoryName, setSelectedCategoryName] = useState('');
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState('');
+  const [selectedItemCategoryId, setSelectedItemCategoryId] = useState('');
   const [expandedCategories, setExpandedCategories] = useState(new Set());
+  const [expandedSubcategories, setExpandedSubcategories] = useState(new Set());
   const categoryDropdownRef = useRef(null);
   
   // Location selection state
@@ -4217,15 +4384,46 @@ function CategoriesSection({ user }) {
   const fetchCategories = async () => {
     try {
       const response = await axios.get('/api/categories');
-      // Ensure we always set an array
-      const categoriesData = response.data;
+      const categoriesData = response.data || [];
+      
+      // Transform 3-level structure (domain > field > item) to 2-level structure (category > subcategory)
+      const categoriesWithSubcategories = [];
+      
       if (Array.isArray(categoriesData)) {
-        setCategories(categoriesData);
-      } else if (categoriesData && Array.isArray(categoriesData.data)) {
-        setCategories(categoriesData.data);
-      } else {
-        setCategories([]);
+        categoriesData.forEach((domainCategory) => {
+          const mainCategory = {
+            id: domainCategory.id,
+            name: domainCategory.domain_category || domainCategory.name,
+            subcategories: []
+          };
+          
+          if (domainCategory.field_categories && Array.isArray(domainCategory.field_categories)) {
+            domainCategory.field_categories.forEach((fieldCategory) => {
+              mainCategory.subcategories.push({
+                id: fieldCategory.id,
+                name: fieldCategory.field_category || fieldCategory.name,
+                item_categories: fieldCategory.item_categories || []
+              });
+            });
+          }
+          
+          if (domainCategory.item_categories && Array.isArray(domainCategory.item_categories) && domainCategory.item_categories.length > 0) {
+            if (mainCategory.subcategories.length === 0) {
+              mainCategory.subcategories.push({
+                id: domainCategory.item_categories[0].id,
+                name: domainCategory.domain_category || domainCategory.name,
+                item_categories: domainCategory.item_categories
+              });
+            }
+          }
+          
+          if (mainCategory.subcategories.length > 0 || domainCategory.item_categories?.length > 0) {
+            categoriesWithSubcategories.push(mainCategory);
+          }
+        });
       }
+      
+      setCategories(categoriesWithSubcategories);
     } catch (err) {
       console.error('Failed to fetch categories:', err);
       setCategories([]);
@@ -4278,6 +4476,11 @@ function CategoriesSection({ user }) {
         max_price: '',
         is_active: true,
       });
+      setSelectedCategoryName('');
+      setSelectedSubcategoryId('');
+      setSelectedItemCategoryId('');
+      setExpandedCategories(new Set());
+      setExpandedSubcategories(new Set());
       fetchSavedSearches();
     } catch (err) {
       console.error('Failed to save search:', err);
@@ -4305,56 +4508,104 @@ function CategoriesSection({ user }) {
     }
   };
 
-  // Category helper functions
-  const toggleCategory = (categoryId) => {
+  // Category selection helper functions (similar to MyAuctionsSection)
+  const getSelectedCategory = () => {
+    if (!selectedCategoryName) return null;
+    return categories.find(c => c.name === selectedCategoryName);
+  };
+
+  const toggleCategory = (categoryName) => {
+    const trimmedName = (categoryName || '').trim();
+    if (!trimmedName) return;
+    
     setExpandedCategories(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(categoryId)) {
-        newSet.delete(categoryId);
+      if (newSet.has(trimmedName)) {
+        newSet.delete(trimmedName);
       } else {
-        newSet.add(categoryId);
+        newSet.add(trimmedName);
       }
       return newSet;
     });
   };
 
-  const handleCategorySelect = (categoryId, subcategoryId = null) => {
-    if (subcategoryId) {
-      // Subcategory selected - use subcategory ID
-      setFormData({ ...formData, category_id: subcategoryId.toString() });
-    } else if (categoryId) {
-      // Main category selected - use main category ID
-      setFormData({ ...formData, category_id: categoryId.toString() });
-    } else {
-      // Clear selection
-      setFormData({ ...formData, category_id: '' });
+  const toggleSubcategory = (subcategoryName) => {
+    const trimmedName = (subcategoryName || '').trim();
+    if (!trimmedName) return;
+    
+    setExpandedSubcategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(trimmedName)) {
+        newSet.delete(trimmedName);
+      } else {
+        newSet.add(trimmedName);
+      }
+      return newSet;
+    });
+  };
+
+  const handleCategorySelect = (categoryId, categoryName, hasSubcategories = false) => {
+    const trimmedCategoryName = (categoryName || '').trim();
+    
+    setSelectedCategoryName(trimmedCategoryName);
+    setSelectedSubcategoryId('');
+    setSelectedItemCategoryId('');
+    setFormData(prev => ({...prev, category_id: categoryId.toString()}));
+    
+    if (!hasSubcategories) {
+      setShowCategoryDropdown(false);
     }
+  };
+
+  const handleSubcategorySelect = (subcategoryId, subcategoryName, hasItemCategories = false) => {
+    const category = getSelectedCategory();
+    if (category) {
+      setSelectedSubcategoryId(subcategoryId.toString());
+      setSelectedItemCategoryId('');
+      setFormData(prev => ({...prev, category_id: subcategoryId.toString()}));
+      
+      if (!hasItemCategories) {
+        setShowCategoryDropdown(false);
+      }
+    }
+  };
+
+  const handleItemCategorySelect = (itemCategoryId, categoryName, subcategoryId) => {
+    const itemIdStr = itemCategoryId.toString();
+    if (categoryName) setSelectedCategoryName(categoryName);
+    if (subcategoryId) setSelectedSubcategoryId(subcategoryId.toString());
+    setSelectedItemCategoryId(itemIdStr);
+    setFormData(prev => ({...prev, category_id: itemIdStr}));
     setShowCategoryDropdown(false);
   };
 
   const buildCategoryString = () => {
-    if (!formData.category_id) return 'All Categories';
-    const selectedId = parseInt(formData.category_id);
-    
-    // CRITICAL: Check main category IDs first
-    // If the ID matches a main category's ID, return just the category name
-    // This takes priority even if the same ID exists as a subcategory
-    const mainCategory = categories.find(cat => cat.id === selectedId);
-    if (mainCategory) {
-      // Return main category name - this is what user selected when clicking main category button
-      return mainCategory.name;
-    }
-    
-    // Only if it's NOT a main category ID, check if it's a subcategory
-    for (const category of categories) {
-      if (category.subcategories && category.subcategories.length > 0) {
-        const subcategory = category.subcategories.find(sub => sub.id === selectedId);
-        if (subcategory) {
-          return `${category.name} > ${subcategory.name}`;
+    if (selectedItemCategoryId) {
+      const category = getSelectedCategory();
+      if (category && selectedSubcategoryId) {
+        const subcategory = category.subcategories?.find(s => s.id === parseInt(selectedSubcategoryId));
+        if (subcategory && subcategory.item_categories) {
+          const itemCategory = subcategory.item_categories.find(item => item.id === parseInt(selectedItemCategoryId));
+          if (itemCategory) {
+            const itemName = itemCategory.item_category || itemCategory.name;
+            return `${category.name} > ${subcategory.name} > ${itemName}`;
+          }
         }
       }
     }
-    
+    if (selectedSubcategoryId) {
+      const category = getSelectedCategory();
+      const subcategory = category?.subcategories?.find(s => s.id === parseInt(selectedSubcategoryId));
+      if (category && subcategory) {
+        return `${category.name} > ${subcategory.name}`;
+      }
+    }
+    if (selectedCategoryName) {
+      return selectedCategoryName;
+    }
+    if (formData.category_id) {
+      return 'All Categories';
+    }
     return 'All Categories';
   };
 
@@ -4500,59 +4751,196 @@ function CategoriesSection({ user }) {
                       <span>{buildCategoryString()}</span>
                       <span>{showCategoryDropdown ? '▼' : '▶'}</span>
                     </button>
-                    {showCategoryDropdown && Array.isArray(categories) && categories.length > 0 && (
-                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-full max-h-[400px] overflow-y-auto">
+                    {showCategoryDropdown && (
+                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[325px] max-h-[500px] overflow-y-auto">
                         <div className="p-3">
-                          <button
-                            type="button"
-                            onClick={() => handleCategorySelect('')}
-                            className="w-full text-left px-3 py-2 hover:bg-[hsl(var(--accent))] rounded text-sm"
-                          >
-                            All Categories
-                          </button>
-                          {categories.map((category) => (
-                            <div key={category.id} className="mt-1">
-                              <div className="flex items-center">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleCategory(category.id);
-                                  }}
-                                  className="mr-2 text-xs px-2 w-6 text-center"
-                                >
-                                  {category.subcategories && category.subcategories.length > 0 
-                                    ? (expandedCategories.has(category.id) ? '▼' : '▶')
-                                    : ''}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCategorySelect(category.id)}
-                                  className={`flex-1 text-left px-2 py-1 hover:bg-[hsl(var(--accent))] rounded text-sm font-medium ${
-                                    formData.category_id === category.id.toString() ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
-                                  }`}
-                                >
-                                  {category.name}
-                                </button>
-                              </div>
-                              {expandedCategories.has(category.id) && category.subcategories && category.subcategories.length > 0 && (
-                                <div className="ml-8 mt-1 space-y-1">
-                                  {category.subcategories.map((subcategory) => (
-                                    <button
-                                      key={subcategory.id}
-                                      type="button"
-                                      onClick={() => handleCategorySelect(category.id, subcategory.id)}
-                                      className={`w-full text-left px-3 py-1 hover:bg-[hsl(var(--accent))] rounded text-sm ${
-                                        formData.category_id === subcategory.id.toString() ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
-                                      }`}
-                                    >
-                                      {subcategory.name}
-                                    </button>
-                                  ))}
+                          <div className="space-y-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData(prev => ({...prev, category_id: ''}));
+                                setSelectedCategoryName('');
+                                setSelectedSubcategoryId('');
+                                setSelectedItemCategoryId('');
+                                setShowCategoryDropdown(false);
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-[hsl(var(--accent))] rounded text-sm"
+                            >
+                              All Categories
+                            </button>
+                            {categories.map((category) => {
+                              const subcategories = category.subcategories || [];
+                              const hasSubcategories = subcategories.length > 0;
+                              const categoryName = (category.name || '').trim();
+                              const isCategoryExpanded = categoryName ? expandedCategories.has(categoryName) : false;
+                              const isCategorySelected = selectedCategoryName === categoryName && !selectedSubcategoryId && !selectedItemCategoryId;
+                              
+                              return (
+                                <div key={category.id} className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-2 flex-1">
+                                      {hasSubcategories ? (
+                                        <div className="flex items-center space-x-2 flex-1">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleCategory(categoryName);
+                                            }}
+                                            className="text-xs text-[hsl(var(--muted-foreground))] px-1"
+                                          >
+                                            {isCategoryExpanded ? '▼' : '▶'}
+                                          </button>
+                                          <div className="flex items-center space-x-2 flex-1">
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (hasSubcategories && !isCategoryExpanded) {
+                                                  toggleCategory(categoryName);
+                                                }
+                                                handleCategorySelect(category.id, categoryName, hasSubcategories);
+                                              }}
+                                              className={`flex-1 text-left text-sm ${
+                                                isCategorySelected
+                                                  ? 'text-[hsl(var(--primary))] font-medium'
+                                                  : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
+                                              }`}
+                                            >
+                                              {category.name}
+                                            </button>
+                                            {isCategorySelected && (
+                                              <span className="text-xs text-[hsl(var(--primary))]">✓</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCategorySelect(category.id, categoryName, false);
+                                          }}
+                                          className={`flex-1 text-left text-sm ${
+                                            isCategorySelected
+                                              ? 'text-[hsl(var(--primary))] font-medium'
+                                              : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
+                                          }`}
+                                        >
+                                          {category.name}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  {hasSubcategories && isCategoryExpanded && (
+                                    <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
+                                      {subcategories.map((subcategory) => {
+                                        const itemCategories = subcategory.item_categories || [];
+                                        const hasItemCategories = itemCategories.length > 0;
+                                        const subcategoryName = (subcategory.name || '').trim();
+                                        const isSubcategoryExpanded = subcategoryName ? expandedSubcategories.has(subcategoryName) : false;
+                                        const subcategoryIdStr = subcategory.id.toString();
+                                        const isSubcategorySelected = selectedSubcategoryId === subcategoryIdStr && !selectedItemCategoryId;
+                                        
+                                        return (
+                                          <div key={subcategory.id} className="space-y-1">
+                                            <div className="flex items-center justify-between">
+                                              <div className="flex items-center space-x-2 flex-1">
+                                                {hasItemCategories ? (
+                                                  <div className="flex items-center space-x-2 flex-1">
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleSubcategory(subcategoryName);
+                                                      }}
+                                                      className="text-xs text-[hsl(var(--muted-foreground))] px-1"
+                                                    >
+                                                      {isSubcategoryExpanded ? '▼' : '▶'}
+                                                    </button>
+                                                    <div className="flex items-center space-x-2 flex-1">
+                                                      <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          if (hasItemCategories && !isSubcategoryExpanded) {
+                                                            toggleSubcategory(subcategoryName);
+                                                          }
+                                                          handleSubcategorySelect(subcategory.id, subcategoryName, hasItemCategories);
+                                                        }}
+                                                        className={`flex-1 text-left text-sm ${
+                                                          isSubcategorySelected
+                                                            ? 'text-[hsl(var(--primary))] font-medium'
+                                                            : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
+                                                        }`}
+                                                      >
+                                                        {subcategory.name}
+                                                      </button>
+                                                      {isSubcategorySelected && (
+                                                        <span className="text-xs text-[hsl(var(--primary))]">✓</span>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                ) : (
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleSubcategorySelect(subcategory.id, subcategoryName, false);
+                                                    }}
+                                                    className={`flex-1 text-left text-sm ${
+                                                      isSubcategorySelected
+                                                        ? 'text-[hsl(var(--primary))] font-medium'
+                                                        : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
+                                                    }`}
+                                                  >
+                                                    {subcategory.name}
+                                                  </button>
+                                                )}
+                                              </div>
+                                            </div>
+                                            
+                                            {hasItemCategories && isSubcategoryExpanded && (
+                                              <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
+                                                {itemCategories.map((itemCategory) => {
+                                                  const itemCategoryIdStr = itemCategory.id.toString();
+                                                  const isItemCategorySelected = selectedItemCategoryId === itemCategoryIdStr;
+                                                  const itemName = itemCategory.item_category || itemCategory.name;
+                                                  
+                                                  return (
+                                                    <div key={itemCategory.id} className="flex items-center space-x-2">
+                                                      <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          handleItemCategorySelect(itemCategory.id, categoryName, subcategory.id);
+                                                        }}
+                                                        className={`flex-1 text-left text-sm px-2 py-1 rounded ${
+                                                          isItemCategorySelected
+                                                            ? 'text-[hsl(var(--primary))] font-medium bg-[hsl(var(--primary))]/10'
+                                                            : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--accent))]'
+                                                        }`}
+                                                      >
+                                                        {itemName}
+                                                      </button>
+                                                      {isItemCategorySelected && (
+                                                        <span className="text-xs text-[hsl(var(--primary))]">✓</span>
+                                                      )}
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -4973,15 +5361,15 @@ function EWalletSection({ user }) {
 
           {/* Seller Verification */}
           <div className="mt-6 border-t pt-4">
-            <h3 className="text-lg font-semibold mb-2">Become an eBook Seller</h3>
+            <h3 className="text-lg font-semibold mb-2">Become a Verified Seller</h3>
             {user?.seller_verified ? (
               <p className="text-sm text-green-700">
-                ✓ Your account is verified for selling eBooks.
+                ✓ Your account is verified for selling (eBooks and Auctions).
               </p>
             ) : (
               <>
                 <p className="text-sm text-[hsl(var(--muted-foreground))] mb-3">
-                  Pay a small one-time verification fee to enable eBook selling. After verification, you can be selected as a seller for eBooks.
+                  Pay a small one-time verification fee to enable seller features. After verification, you can sell eBooks and create auctions.
                 </p>
                 <Button
                   variant="default"
@@ -6234,13 +6622,17 @@ function ListedItemsSection({ user }) {
   const [locationData, setLocationData] = useState({ provinces: [] });
   const [selectedCategoryName, setSelectedCategoryName] = useState('');
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState('');
+  const [selectedItemCategoryId, setSelectedItemCategoryId] = useState('');
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState(new Set());
+  const [expandedSubcategories, setExpandedSubcategories] = useState(new Set());
   const [selectedLocations, setSelectedLocations] = useState(new Set());
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [expandedProvinces, setExpandedProvinces] = useState(new Set());
   const [expandedDistricts, setExpandedDistricts] = useState(new Set());
   const [expandedLocalLevels, setExpandedLocalLevels] = useState(new Set());
   const [editingImages, setEditingImages] = useState([null, null, null, null]);
+  const categoryDropdownRef = useRef(null);
   const locationDropdownRef = useRef(null);
 
   useEffect(() => {
@@ -6249,6 +6641,9 @@ function ListedItemsSection({ user }) {
     fetchLocations();
     
     const handleClickOutside = (event) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
+        setShowCategoryDropdown(false);
+      }
       if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target)) {
         setShowLocationDropdown(false);
       }
@@ -6272,9 +6667,51 @@ function ListedItemsSection({ user }) {
   const fetchCategories = async () => {
     try {
       const response = await axios.get('/api/categories');
-      setCategories(response.data || []);
+      const categoriesData = response.data || [];
+      
+      // Transform 3-level structure (domain > field > item) to 2-level structure (category > subcategory)
+      // API returns: { id, name, domain_category, field_categories: [...], item_categories: [...] }
+      // Code expects: { id, name, subcategories: [...] }
+      const categoriesWithSubcategories = [];
+      
+      if (Array.isArray(categoriesData)) {
+        categoriesData.forEach((domainCategory) => {
+          const mainCategory = {
+            id: domainCategory.id,
+            name: domainCategory.domain_category || domainCategory.name,
+            subcategories: []
+          };
+          
+          if (domainCategory.field_categories && Array.isArray(domainCategory.field_categories)) {
+            domainCategory.field_categories.forEach((fieldCategory) => {
+              mainCategory.subcategories.push({
+                id: fieldCategory.id,
+                name: fieldCategory.field_category || fieldCategory.name,
+                item_categories: fieldCategory.item_categories || []
+              });
+            });
+          }
+          
+          if (domainCategory.item_categories && Array.isArray(domainCategory.item_categories) && domainCategory.item_categories.length > 0) {
+            if (mainCategory.subcategories.length === 0) {
+              mainCategory.subcategories.push({
+                id: domainCategory.item_categories[0].id,
+                name: domainCategory.domain_category || domainCategory.name,
+                item_categories: domainCategory.item_categories
+              });
+            }
+          }
+          
+          if (mainCategory.subcategories.length > 0 || domainCategory.item_categories?.length > 0) {
+            categoriesWithSubcategories.push(mainCategory);
+          }
+        });
+      }
+      
+      setCategories(categoriesWithSubcategories);
     } catch (err) {
       console.error('Error fetching categories:', err);
+      setCategories([]);
     }
   };
 
@@ -6297,16 +6734,54 @@ function ListedItemsSection({ user }) {
       location_id: ad.location_id,
     });
     
-    // Set category selection
-    const category = categories.find(c => c.id === ad.category_id || c.subcategories?.some(s => s.id === ad.category_id));
-    if (category) {
-      const subcategory = category.subcategories?.find(s => s.id === ad.category_id);
-      if (subcategory) {
-        setSelectedCategoryName(category.name);
-        setSelectedSubcategoryId(subcategory.id.toString());
+    // Set category selection - need to check all 3 levels (domain, field, item)
+    const categoryIdNum = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+    let foundCategory = null;
+    let foundSubcategory = null;
+    let foundItemCategory = null;
+    
+    for (const category of categories) {
+      const catIdNum = typeof category.id === 'string' ? parseInt(category.id, 10) : Number(category.id);
+      if (catIdNum === categoryIdNum) {
+        foundCategory = category;
+        break;
+      }
+      if (category.subcategories) {
+        for (const subcategory of category.subcategories) {
+          const subIdNum = typeof subcategory.id === 'string' ? parseInt(subcategory.id, 10) : Number(subcategory.id);
+          if (subIdNum === categoryIdNum) {
+            foundCategory = category;
+            foundSubcategory = subcategory;
+            break;
+          }
+          if (subcategory.item_categories && Array.isArray(subcategory.item_categories)) {
+            const itemCat = subcategory.item_categories.find(item => {
+              const itemIdNum = typeof item.id === 'string' ? parseInt(item.id, 10) : Number(item.id);
+              return itemIdNum === categoryIdNum;
+            });
+            if (itemCat) {
+              foundCategory = category;
+              foundSubcategory = subcategory;
+              foundItemCategory = itemCat;
+              break;
+            }
+          }
+        }
+        if (foundCategory) break;
+      }
+    }
+    
+    if (foundCategory) {
+      setSelectedCategoryName(foundCategory.name);
+      if (foundItemCategory) {
+        setSelectedSubcategoryId(foundSubcategory.id.toString());
+        setSelectedItemCategoryId(foundItemCategory.id.toString());
+      } else if (foundSubcategory) {
+        setSelectedSubcategoryId(foundSubcategory.id.toString());
+        setSelectedItemCategoryId('');
       } else {
-        setSelectedCategoryName(category.name);
         setSelectedSubcategoryId('');
+        setSelectedItemCategoryId('');
       }
     }
     
@@ -6341,6 +6816,9 @@ function ListedItemsSection({ user }) {
     setEditingAdData(null);
     setSelectedCategoryName('');
     setSelectedSubcategoryId('');
+    setSelectedItemCategoryId('');
+    setExpandedCategories(new Set());
+    setExpandedSubcategories(new Set());
     setSelectedLocations(new Set());
     setEditingImages([null, null, null, null]);
   };
@@ -6429,28 +6907,85 @@ function ListedItemsSection({ user }) {
     return categories.find(c => c.name === selectedCategoryName);
   };
 
-  const handleCategorySelect = (categoryName) => {
-    setSelectedCategoryName(categoryName);
+  const toggleCategory = (categoryName) => {
+    const trimmedName = (categoryName || '').trim();
+    if (!trimmedName) return;
+    
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(trimmedName)) {
+        newSet.delete(trimmedName);
+      } else {
+        newSet.add(trimmedName);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSubcategory = (subcategoryName) => {
+    const trimmedName = (subcategoryName || '').trim();
+    if (!trimmedName) return;
+    
+    setExpandedSubcategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(trimmedName)) {
+        newSet.delete(trimmedName);
+      } else {
+        newSet.add(trimmedName);
+      }
+      return newSet;
+    });
+  };
+
+  const handleCategorySelect = (categoryId, categoryName, hasSubcategories = false) => {
+    const trimmedCategoryName = (categoryName || '').trim();
+    
+    setSelectedCategoryName(trimmedCategoryName);
     setSelectedSubcategoryId('');
-    const category = categories.find(c => c.name === categoryName);
-    if (category) {
-      setEditingAdData({ ...editingAdData, category_id: category.id.toString() });
+    setSelectedItemCategoryId('');
+    setEditingAdData(prev => ({ ...prev, category_id: categoryId.toString() }));
+    
+    if (!hasSubcategories) {
+      setShowCategoryDropdown(false);
     }
   };
 
-  const handleSubcategorySelect = (subcategoryId) => {
-    setSelectedSubcategoryId(subcategoryId);
+  const handleSubcategorySelect = (subcategoryId, subcategoryName, hasItemCategories = false) => {
     const category = getSelectedCategory();
     if (category) {
-      const subcategory = category.subcategories?.find(s => s.id === parseInt(subcategoryId));
-      if (subcategory) {
-        setEditingAdData({ ...editingAdData, category_id: subcategory.id.toString() });
+      setSelectedSubcategoryId(subcategoryId.toString());
+      setSelectedItemCategoryId('');
+      setEditingAdData(prev => ({ ...prev, category_id: subcategoryId.toString() }));
+      
+      if (!hasItemCategories) {
         setShowCategoryDropdown(false);
       }
     }
   };
 
+  const handleItemCategorySelect = (itemCategoryId, categoryName, subcategoryId) => {
+    const itemIdStr = itemCategoryId.toString();
+    if (categoryName) setSelectedCategoryName(categoryName);
+    if (subcategoryId) setSelectedSubcategoryId(subcategoryId.toString());
+    setSelectedItemCategoryId(itemIdStr);
+    setEditingAdData(prev => ({ ...prev, category_id: itemIdStr}));
+    setShowCategoryDropdown(false);
+  };
+
   const buildCategoryString = () => {
+    if (selectedItemCategoryId) {
+      const category = getSelectedCategory();
+      if (category && selectedSubcategoryId) {
+        const subcategory = category.subcategories?.find(s => s.id === parseInt(selectedSubcategoryId));
+        if (subcategory && subcategory.item_categories) {
+          const itemCategory = subcategory.item_categories.find(item => item.id === parseInt(selectedItemCategoryId));
+          if (itemCategory) {
+            const itemName = itemCategory.item_category || itemCategory.name;
+            return `${category.name} > ${subcategory.name} > ${itemName}`;
+          }
+        }
+      }
+    }
     if (selectedSubcategoryId) {
       const category = getSelectedCategory();
       const subcategory = category?.subcategories?.find(s => s.id === parseInt(selectedSubcategoryId));
@@ -6629,18 +7164,82 @@ function ListedItemsSection({ user }) {
           {(() => {
             const categoryBreakdown = {};
             ads.forEach(ad => {
-              const categoryName = ad.category?.category || 'Uncategorized';
-              const subcategoryName = ad.category?.sub_category || null;
-              const key = subcategoryName ? `${categoryName} > ${subcategoryName}` : categoryName;
+              // Use category_path if available (new 3-level structure: domain > field > item)
+              // Fallback to old structure for backward compatibility
+              let categoryKey = 'Uncategorized';
               
-              if (!categoryBreakdown[key]) {
-                categoryBreakdown[key] = {
-                  category: categoryName,
-                  subcategory: subcategoryName,
+              if (ad.category_path) {
+                // Use the full category path from backend (domain > field > item)
+                categoryKey = ad.category_path;
+              } else if (ad.category) {
+                // Fallback: build from old structure
+                const categoryName = ad.category.category || ad.category.domain_category || 'Uncategorized';
+                const subcategoryName = ad.category.sub_category || ad.category.field_category || null;
+                const itemCategoryName = ad.category.item_category || null;
+                
+                if (itemCategoryName) {
+                  categoryKey = subcategoryName 
+                    ? `${categoryName} > ${subcategoryName} > ${itemCategoryName}`
+                    : `${categoryName} > ${itemCategoryName}`;
+                } else if (subcategoryName) {
+                  categoryKey = `${categoryName} > ${subcategoryName}`;
+                } else {
+                  categoryKey = categoryName;
+                }
+              } else if (ad.category_id && categories.length > 0) {
+                // Last resort: look up category by ID from categories list
+                const categoryIdNum = typeof ad.category_id === 'string' ? parseInt(ad.category_id, 10) : Number(ad.category_id);
+                let foundCategory = null;
+                let foundSubcategory = null;
+                let foundItemCategory = null;
+                
+                for (const cat of categories) {
+                  const catIdNum = typeof cat.id === 'string' ? parseInt(cat.id, 10) : Number(cat.id);
+                  if (catIdNum === categoryIdNum) {
+                    foundCategory = cat;
+                    break;
+                  }
+                  if (cat.subcategories) {
+                    for (const subcat of cat.subcategories) {
+                      const subIdNum = typeof subcat.id === 'string' ? parseInt(subcat.id, 10) : Number(subcat.id);
+                      if (subIdNum === categoryIdNum) {
+                        foundCategory = cat;
+                        foundSubcategory = subcat;
+                        break;
+                      }
+                      if (subcat.item_categories) {
+                        const itemCat = subcat.item_categories.find(item => {
+                          const itemIdNum = typeof item.id === 'string' ? parseInt(item.id, 10) : Number(item.id);
+                          return itemIdNum === categoryIdNum;
+                        });
+                        if (itemCat) {
+                          foundCategory = cat;
+                          foundSubcategory = subcat;
+                          foundItemCategory = itemCat;
+                          break;
+                        }
+                      }
+                    }
+                    if (foundCategory) break;
+                  }
+                }
+                
+                if (foundItemCategory) {
+                  categoryKey = `${foundCategory.name} > ${foundSubcategory.name} > ${foundItemCategory.item_category || foundItemCategory.name}`;
+                } else if (foundSubcategory) {
+                  categoryKey = `${foundCategory.name} > ${foundSubcategory.name}`;
+                } else if (foundCategory) {
+                  categoryKey = foundCategory.name;
+                }
+              }
+              
+              if (!categoryBreakdown[categoryKey]) {
+                categoryBreakdown[categoryKey] = {
+                  path: categoryKey,
                   count: 0,
                 };
               }
-              categoryBreakdown[key].count++;
+              categoryBreakdown[categoryKey].count++;
             });
 
             const breakdownEntries = Object.entries(categoryBreakdown).sort((a, b) => b[1].count - a[1].count);
@@ -6727,10 +7326,23 @@ function ListedItemsSection({ user }) {
                         </div>
                         {ad.category && (
                           <div className="text-xs text-[hsl(var(--muted-foreground))]">
-                            Category: <span className="font-semibold">{ad.category.category}</span>
-                            {ad.category.sub_category && (
-                              <span> &gt; <span className="font-semibold">{ad.category.sub_category}</span></span>
-                            )}
+                            Category: <span className="font-semibold">
+                              {(() => {
+                                // Build category path from 3-level structure
+                                const parts = [];
+                                if (ad.category.domain_category) parts.push(ad.category.domain_category);
+                                if (ad.category.field_category) parts.push(ad.category.field_category);
+                                if (ad.category.item_category) parts.push(ad.category.item_category);
+                                
+                                // Fallback to old structure if new fields don't exist
+                                if (parts.length === 0) {
+                                  if (ad.category.category) parts.push(ad.category.category);
+                                  if (ad.category.sub_category) parts.push(ad.category.sub_category);
+                                }
+                                
+                                return parts.length > 0 ? parts.join(' > ') : 'Uncategorized';
+                              })()}
+                            </span>
                           </div>
                         )}
                         {ad.location && (
@@ -8120,6 +8732,16 @@ function MyEbooksSection({ user }) {
   const [ebookCoverImage, setEbookCoverImage] = useState(null);
   const [salesReport, setSalesReport] = useState(null);
   const [showSalesReport, setShowSalesReport] = useState(false);
+  // Category selection state
+  const [selectedCategoryName, setSelectedCategoryName] = useState('');
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState('');
+  const [selectedItemCategoryId, setSelectedItemCategoryId] = useState('');
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState(new Set());
+  const [expandedSubcategories, setExpandedSubcategories] = useState(new Set());
+  const categoryDropdownRef = useRef(null);
+  const [cropImageIndex, setCropImageIndex] = useState(null);
+  const [cropImageFile, setCropImageFile] = useState(null);
 
   const [ebookFormData, setEbookFormData] = useState({
     category_id: '',
@@ -8151,19 +8773,67 @@ function MyEbooksSection({ user }) {
   const fetchCategories = async () => {
     try {
       const response = await axios.get('/api/categories');
-      const flattenCategories = (cats, parentName = '') => {
-        let result = [];
-        cats.forEach(cat => {
-          result.push({ id: cat.id, name: parentName ? `${parentName} > ${cat.name}` : cat.name });
-          if (cat.subcategories && cat.subcategories.length > 0) {
-            result = result.concat(flattenCategories(cat.subcategories, parentName ? `${parentName} > ${cat.name}` : cat.name));
+      const categoriesData = response.data || [];
+      
+      // Transform 3-level structure (domain > field > item) to 2-level structure (category > subcategory)
+      // API returns: { id, name, domain_category, field_categories: [...], item_categories: [...] }
+      // Code expects: { id, name, subcategories: [...] }
+      const categoriesWithSubcategories = [];
+      
+      if (Array.isArray(categoriesData)) {
+        categoriesData.forEach((domainCategory) => {
+          // Domain category becomes main category
+          const mainCategory = {
+            id: domainCategory.id,
+            name: domainCategory.domain_category || domainCategory.name,
+            subcategories: []
+          };
+          
+          // Field categories become subcategories
+          if (domainCategory.field_categories && Array.isArray(domainCategory.field_categories)) {
+            domainCategory.field_categories.forEach((fieldCategory) => {
+              mainCategory.subcategories.push({
+                id: fieldCategory.id,
+                name: fieldCategory.field_category || fieldCategory.name,
+                // Store item categories for flattening
+                item_categories: fieldCategory.item_categories || []
+              });
+            });
+          }
+          
+          // If domain has direct item categories (no field categories), add them as subcategories
+          if (domainCategory.item_categories && Array.isArray(domainCategory.item_categories) && domainCategory.item_categories.length > 0) {
+            if (mainCategory.subcategories.length === 0) {
+              // If no field categories, add direct item categories as subcategories
+              domainCategory.item_categories.forEach(itemCat => {
+                mainCategory.subcategories.push({
+                  id: itemCat.id,
+                  name: itemCat.item_category || itemCat.name,
+                  item_categories: [itemCat] // Store as array for consistency
+                });
+              });
+            } else {
+              // If field categories exist, also add direct item categories
+              domainCategory.item_categories.forEach(itemCat => {
+                mainCategory.subcategories.push({
+                  id: itemCat.id,
+                  name: itemCat.item_category || itemCat.name,
+                  item_categories: [itemCat]
+                });
+              });
+            }
+          }
+          
+          if (mainCategory.subcategories.length > 0) {
+            categoriesWithSubcategories.push(mainCategory);
           }
         });
-        return result;
-      };
-      setCategories(flattenCategories(response.data || []));
+      }
+      
+      setCategories(categoriesWithSubcategories);
     } catch (err) {
       console.error('Error fetching categories:', err);
+      setCategories([]);
     }
   };
 
@@ -8187,6 +8857,194 @@ function MyEbooksSection({ user }) {
     } catch (err) {
       console.error('Error fetching sales report:', err);
     }
+  };
+
+  // Category selection helper functions (similar to MyAuctionsSection)
+  const getSelectedCategory = () => {
+    if (!selectedCategoryName) return null;
+    return categories.find(c => c.name === selectedCategoryName);
+  };
+
+  const toggleCategory = (categoryName) => {
+    const trimmedName = (categoryName || '').trim();
+    if (!trimmedName) return;
+    
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(trimmedName)) {
+        newSet.delete(trimmedName);
+      } else {
+        newSet.add(trimmedName);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSubcategory = (subcategoryName) => {
+    const trimmedName = (subcategoryName || '').trim();
+    if (!trimmedName) return;
+    
+    setExpandedSubcategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(trimmedName)) {
+        newSet.delete(trimmedName);
+      } else {
+        newSet.add(trimmedName);
+      }
+      return newSet;
+    });
+  };
+
+  const handleCategorySelect = (categoryId, categoryName, hasSubcategories = false) => {
+    const trimmedCategoryName = (categoryName || '').trim();
+    
+    setSelectedCategoryName(trimmedCategoryName);
+    setSelectedSubcategoryId('');
+    setSelectedItemCategoryId('');
+    setEbookFormData(prev => ({...prev, category_id: categoryId.toString()}));
+    
+    if (!hasSubcategories) {
+      setShowCategoryDropdown(false);
+    }
+  };
+
+  const handleSubcategorySelect = (subcategoryId, subcategoryName, hasItemCategories = false) => {
+    const category = getSelectedCategory();
+    if (category) {
+      setSelectedSubcategoryId(subcategoryId.toString());
+      setSelectedItemCategoryId('');
+      setEbookFormData(prev => ({...prev, category_id: subcategoryId.toString()}));
+      
+      if (!hasItemCategories) {
+        setShowCategoryDropdown(false);
+      }
+    }
+  };
+
+  const handleItemCategorySelect = (itemCategoryId, categoryName, subcategoryId) => {
+    const itemIdStr = itemCategoryId.toString();
+    if (categoryName) setSelectedCategoryName(categoryName);
+    if (subcategoryId) setSelectedSubcategoryId(subcategoryId.toString());
+    setSelectedItemCategoryId(itemIdStr);
+    setEbookFormData(prev => ({...prev, category_id: itemIdStr}));
+    setShowCategoryDropdown(false);
+  };
+
+  const buildCategoryString = () => {
+    if (selectedItemCategoryId) {
+      const category = getSelectedCategory();
+      if (category && selectedSubcategoryId) {
+        const subcategory = category.subcategories?.find(s => s.id === parseInt(selectedSubcategoryId));
+        if (subcategory && subcategory.item_categories) {
+          const itemCategory = subcategory.item_categories.find(item => item.id === parseInt(selectedItemCategoryId));
+          if (itemCategory) {
+            const itemName = itemCategory.item_category || itemCategory.name;
+            return `${category.name} > ${subcategory.name} > ${itemName}`;
+          }
+        }
+      }
+    }
+    if (selectedSubcategoryId) {
+      const category = getSelectedCategory();
+      const subcategory = category?.subcategories?.find(s => s.id === parseInt(selectedSubcategoryId));
+      if (category && subcategory) {
+        return `${category.name} > ${subcategory.name}`;
+      }
+    }
+    if (selectedCategoryName) {
+      return selectedCategoryName;
+    }
+    return '';
+  };
+
+  // Image compression utility
+  const compressImage = (file, maxWidth = 1920, maxHeight = 1920, quality = 0.8) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = (width * maxHeight) / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('Compression failed'));
+                return;
+              }
+              const compressedFile = new File([blob], file.name, {
+                type: file.type,
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            file.type,
+            quality
+          );
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+    });
+  };
+
+  // Image handling with crop for eBook cover
+  const handleCropComplete = async (croppedFile) => {
+    if (cropImageIndex !== 'ebook-cover') return;
+    
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(croppedFile);
+    img.onload = async () => {
+      URL.revokeObjectURL(objectUrl);
+      if (img.width !== 400 || img.height !== 400) {
+        alert('Image must be exactly 400x400 pixels. Please crop again.');
+        return;
+      }
+      
+      let processedFile = croppedFile;
+      if (croppedFile.size > 1024 * 1024) {
+        try {
+          processedFile = await compressImage(croppedFile);
+        } catch (err) {
+          console.error('Error compressing image:', err);
+        }
+      }
+      
+      setEbookCoverImage(processedFile);
+      setCropImageIndex(null);
+      setCropImageFile(null);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      alert('Error processing image. Please try again.');
+    };
+    img.src = objectUrl;
+  };
+
+  const handleCropCancel = () => {
+    setCropImageIndex(null);
+    setCropImageFile(null);
   };
 
   const handleAddEbook = async (e) => {
@@ -8359,17 +9217,149 @@ function MyEbooksSection({ user }) {
             <form onSubmit={handleAddEbook} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Category</Label>
-                  <select
-                    value={ebookFormData.category_id}
-                    onChange={(e) => setEbookFormData({...ebookFormData, category_id: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-md"
-                  >
-                    <option value="">Select Category</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
+                  <Label>Category *</Label>
+                  <div className="relative" ref={categoryDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                      className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                    >
+                      <span>{buildCategoryString() || 'Select Category'}</span>
+                      <span className="ml-2">{showCategoryDropdown ? '▼' : '▶'}</span>
+                    </button>
+                    
+                    {showCategoryDropdown && (
+                      <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[325px] max-h-[500px] overflow-y-auto">
+                        <div className="p-3">
+                          <div className="space-y-1">
+                            {categories.map((category) => {
+                              const subcategories = category.subcategories || [];
+                              const hasSubcategories = subcategories.length > 0;
+                              const categoryName = (category.name || '').trim();
+                              const isCategoryExpanded = categoryName ? expandedCategories.has(categoryName) : false;
+                              const isCategorySelected = selectedCategoryName === categoryName && !selectedSubcategoryId && !selectedItemCategoryId;
+                              
+                              return (
+                                <div key={category.id} className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-2 flex-1">
+                                      {hasSubcategories ? (
+                                        <div className="flex items-center space-x-2 flex-1">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              toggleCategory(categoryName);
+                                            }}
+                                            className="px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] rounded"
+                                          >
+                                            {isCategoryExpanded ? '▼' : '▶'}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleCategorySelect(category.id, categoryName, hasSubcategories)}
+                                            className={`flex-1 text-left px-2 py-2 hover:bg-[hsl(var(--accent))] rounded ${
+                                              isCategorySelected ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                                            }`}
+                                          >
+                                            {category.name}
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCategorySelect(category.id, categoryName, false)}
+                                          className={`flex-1 text-left px-2 py-2 hover:bg-[hsl(var(--accent))] rounded ${
+                                            isCategorySelected ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                                          }`}
+                                        >
+                                          {category.name}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {isCategoryExpanded && hasSubcategories && (
+                                    <div className="pl-6 space-y-1">
+                                      {subcategories.map((subcategory) => {
+                                        const itemCategories = subcategory.item_categories || [];
+                                        const hasItemCategories = itemCategories.length > 0;
+                                        const subcategoryKey = `${categoryName}-${subcategory.name}`;
+                                        const isSubExpanded = expandedSubcategories.has(subcategoryKey);
+                                        const isSubSelected = selectedSubcategoryId === subcategory.id.toString() && !selectedItemCategoryId;
+                                        
+                                        return (
+                                          <div key={subcategory.id} className="space-y-1">
+                                            <div className="flex items-center space-x-2">
+                                              {hasItemCategories ? (
+                                                <div className="flex items-center space-x-2 flex-1">
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      toggleSubcategory(subcategoryKey);
+                                                    }}
+                                                    className="px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] rounded"
+                                                  >
+                                                    {isSubExpanded ? '▼' : '▶'}
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleSubcategorySelect(subcategory.id, subcategory.name, hasItemCategories)}
+                                                    className={`flex-1 text-left px-2 py-2 hover:bg-[hsl(var(--accent))] rounded ${
+                                                      isSubSelected ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                                                    }`}
+                                                  >
+                                                    {subcategory.name}
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleSubcategorySelect(subcategory.id, subcategory.name, false)}
+                                                  className={`flex-1 text-left px-2 py-2 hover:bg-[hsl(var(--accent))] rounded ${
+                                                    isSubSelected ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                                                  }`}
+                                                >
+                                                  {subcategory.name}
+                                                </button>
+                                              )}
+                                            </div>
+                                            {isSubExpanded && hasItemCategories && (
+                                              <div className="pl-6 space-y-1">
+                                                {itemCategories.map((itemCategory) => {
+                                                  const itemIdStr = itemCategory.id.toString();
+                                                  const isItemSelected = selectedItemCategoryId === itemIdStr;
+                                                  const itemName = itemCategory.item_category || itemCategory.name;
+                                                  
+                                                  return (
+                                                    <div key={itemCategory.id}>
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => handleItemCategorySelect(itemCategory.id, categoryName, subcategory.id)}
+                                                        className={`w-full text-left px-2 py-2 hover:bg-[hsl(var(--accent))] rounded ${
+                                                          isItemSelected ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
+                                                        }`}
+                                                      >
+                                                        {itemName}
+                                                      </button>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <Label>Book Type *</Label>
@@ -8859,6 +9849,19 @@ function MyEbooksSection({ user }) {
           ))}
         </div>
       )}
+
+      {/* Photo Crop Modal for eBook Cover */}
+      {cropImageFile && cropImageIndex === 'ebook-cover' && (
+        <PhotoCropModal
+          imageFile={cropImageFile}
+          onCropComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+          aspectRatio={1}
+          minWidth={400}
+          minHeight={400}
+          fixedSize={{ width: 400, height: 400 }}
+        />
+      )}
     </div>
   );
 }
@@ -8867,11 +9870,99 @@ function MyEbooksSection({ user }) {
 function MyAuctionsSection({ user }) {
   const [auctions, setAuctions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingAuction, setEditingAuction] = useState(null);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const navigate = useNavigate();
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    category_id: '',
+    location_id: '',
+    title: '',
+    description: '',
+    starting_price: '',
+    reserve_price: '',
+    buy_now_price: '',
+    bid_increment: '1.00',
+    start_time: '',
+    end_time: '',
+    self_pickup: false,
+    seller_delivery: false,
+    financing_available: false,
+  });
+  const [images, setImages] = useState([null, null, null, null]);
+  
+  // Categories and locations
+  const [categories, setCategories] = useState([]);
+  const [locationData, setLocationData] = useState({ provinces: [] });
+  
+  // Category dropdown state
+  const [selectedCategoryName, setSelectedCategoryName] = useState('');
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState('');
+  const [selectedItemCategoryId, setSelectedItemCategoryId] = useState('');
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState(new Set());
+  const [expandedSubcategories, setExpandedSubcategories] = useState(new Set());
+  const categoryDropdownRef = useRef(null);
+  
+  // Location dropdown state
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [expandedProvinces, setExpandedProvinces] = useState(new Set());
+  const [expandedDistricts, setExpandedDistricts] = useState(new Set());
+  const [expandedLocalLevels, setExpandedLocalLevels] = useState(new Set());
+  const [expandedWards, setExpandedWards] = useState(new Set());
+  const [selectedLocationId, setSelectedLocationId] = useState('');
+  const locationDropdownRef = useRef(null);
+  
+  // Real-time status updates
+  const [statusUpdateInterval, setStatusUpdateInterval] = useState(10);
 
   useEffect(() => {
     fetchAuctions();
+    fetchCategories();
+    fetchLocations();
   }, []);
+
+  // Real-time status updates
+  useEffect(() => {
+    if (auctions.length > 0 && !showCreateForm && !editingAuction) {
+      const activeAuctionIds = auctions
+        .filter(auction => auction.status === 'pending' || auction.status === 'active')
+        .map(auction => auction.id);
+      
+      if (activeAuctionIds.length > 0) {
+        const updateStatuses = async () => {
+          try {
+            const response = await publicAuctionAPI.getAuctionStatuses(activeAuctionIds);
+            const statuses = response.data.statuses || {};
+            const recommendedInterval = response.data.recommended_interval || 10;
+            
+            if (recommendedInterval !== statusUpdateInterval) {
+              setStatusUpdateInterval(recommendedInterval);
+            }
+            
+            setAuctions(prevAuctions =>
+              prevAuctions.map(auction => {
+                const newStatus = statuses[auction.id];
+                if (newStatus && newStatus !== auction.status) {
+                  return { ...auction, status: newStatus };
+                }
+                return auction;
+              })
+            );
+          } catch (err) {
+            console.warn('Failed to update auction statuses:', err);
+          }
+        };
+        
+        updateStatuses();
+        const interval = setInterval(updateStatuses, statusUpdateInterval * 1000);
+        return () => clearInterval(interval);
+      }
+    }
+  }, [auctions.length, statusUpdateInterval, showCreateForm, editingAuction]);
 
   const fetchAuctions = async () => {
     try {
@@ -8880,8 +9971,273 @@ function MyAuctionsSection({ user }) {
       setAuctions(response.data || []);
     } catch (error) {
       console.error('Error fetching auctions:', error);
+      setError('Failed to fetch auctions');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await axios.get('/api/categories');
+      const categoriesData = response.data || [];
+      
+      // Transform 3-level structure (domain > field > item) to 2-level structure (category > subcategory)
+      // API returns: { id, name, domain_category, field_categories: [...], item_categories: [...] }
+      // Code expects: { id, name, subcategories: [...] }
+      const categoriesWithSubcategories = [];
+      
+      if (Array.isArray(categoriesData)) {
+        categoriesData.forEach((domainCategory) => {
+          // Domain category becomes main category
+          const mainCategory = {
+            id: domainCategory.id,
+            name: domainCategory.domain_category || domainCategory.name,
+            subcategories: []
+          };
+          
+          // Field categories become subcategories
+          if (domainCategory.field_categories && Array.isArray(domainCategory.field_categories)) {
+            domainCategory.field_categories.forEach((fieldCategory) => {
+              mainCategory.subcategories.push({
+                id: fieldCategory.id,
+                name: fieldCategory.field_category || fieldCategory.name,
+                // Store item categories for selection
+                item_categories: fieldCategory.item_categories || []
+              });
+            });
+          }
+          
+          // If domain has direct item categories (no field categories), create a subcategory for them
+          if (domainCategory.item_categories && Array.isArray(domainCategory.item_categories) && domainCategory.item_categories.length > 0) {
+            if (mainCategory.subcategories.length === 0) {
+              // If no field categories, create a single subcategory for direct item categories
+              mainCategory.subcategories.push({
+                id: domainCategory.item_categories[0].id, // Use first item category ID
+                name: domainCategory.domain_category || domainCategory.name, // Use domain name as subcategory name
+                item_categories: domainCategory.item_categories
+              });
+            }
+          }
+          
+          if (mainCategory.subcategories.length > 0 || domainCategory.item_categories?.length > 0) {
+            categoriesWithSubcategories.push(mainCategory);
+          }
+        });
+      }
+      
+      setCategories(categoriesWithSubcategories);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      setCategories([]);
+    }
+  };
+
+  const fetchLocations = async () => {
+    try {
+      const response = await axios.get('/api/locations');
+      setLocationData(response.data || { provinces: [] });
+    } catch (err) {
+      console.error('Error fetching locations:', err);
+    }
+  };
+
+  const handleCreateAuction = () => {
+    // Check if user is verified seller
+    if (!user?.seller_verified) {
+      setError('You must be a verified seller to create auctions. Please complete seller verification first.');
+      setTimeout(() => setError(null), 8000);
+      return;
+    }
+    
+    setShowCreateForm(true);
+    setEditingAuction(null);
+    resetForm();
+  };
+
+  const handleEditAuction = (auction) => {
+    if (auction.status !== 'pending') {
+      setError('Auction can only be edited when status is pending');
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+    
+    setEditingAuction(auction);
+    setShowCreateForm(true);
+    
+    // Populate form with auction data
+    setFormData({
+      category_id: auction.category_id || '',
+      location_id: auction.location_id || '',
+      title: auction.title || '',
+      description: auction.description || '',
+      starting_price: auction.starting_price || '',
+      reserve_price: auction.reserve_price || '',
+      buy_now_price: auction.buy_now_price || '',
+      bid_increment: auction.bid_increment || '1.00',
+      start_time: auction.start_time ? new Date(auction.start_time).toISOString().slice(0, 16) : '',
+      end_time: auction.end_time ? new Date(auction.end_time).toISOString().slice(0, 16) : '',
+      self_pickup: auction.self_pickup || false,
+      seller_delivery: auction.seller_delivery || false,
+      financing_available: auction.financing_available || false,
+    });
+    
+    // Set images (would need to load existing images)
+    setImages([null, null, null, null]);
+    
+    // Initialize category selection (similar to AdminPanel logic)
+    // This is simplified - you'd need full category initialization logic here
+  };
+
+  const handleDeleteAuction = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this auction? This cannot be undone.')) return;
+    
+    try {
+      await userAuctionAPI.deleteAuction(id);
+      setSuccess('Auction deleted successfully');
+      fetchAuctions();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError('Failed to delete auction: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleEndAuction = async (id) => {
+    if (!window.confirm('Are you sure you want to end this auction? The winner will be determined automatically.')) return;
+    
+    try {
+      await userAuctionAPI.endAuction(id);
+      setSuccess('Auction ended successfully');
+      fetchAuctions();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError('Failed to end auction: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      category_id: '',
+      location_id: '',
+      title: '',
+      description: '',
+      starting_price: '',
+      reserve_price: '',
+      buy_now_price: '',
+      bid_increment: '1.00',
+      start_time: '',
+      end_time: '',
+      self_pickup: false,
+      seller_delivery: false,
+      financing_available: false,
+    });
+    setImages([null, null, null, null]);
+    setSelectedCategoryName('');
+    setSelectedSubcategoryId('');
+    setSelectedItemCategoryId('');
+  };
+
+  const handleSubmitAuction = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    
+    // Check if user is verified seller (double-check on frontend)
+    if (!user?.seller_verified) {
+      setError('You must be a verified seller to create auctions. Please complete seller verification first.');
+      setTimeout(() => {
+        setError(null);
+        navigate('/user_dashboard/e-wallet');
+      }, 5000);
+      return;
+    }
+    
+    // Validate category_id (handlers should set formData.category_id, matching AdminPanel pattern)
+    // Use formData.category_id directly like AdminPanel does, with fallback to selectedItemCategoryId/selectedSubcategoryId
+    const finalCategoryId = formData.category_id || selectedItemCategoryId || selectedSubcategoryId;
+    
+    // Debug logging
+    console.log('Form submission - category_id check:', {
+      'formData.category_id': formData.category_id,
+      'selectedItemCategoryId': selectedItemCategoryId,
+      'selectedSubcategoryId': selectedSubcategoryId,
+      'finalCategoryId': finalCategoryId
+    });
+    
+    if (!finalCategoryId || finalCategoryId.toString().trim() === '') {
+      setError('Please select a category');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    try {
+      // Build data object (userAuctionAPI.createAuction expects a plain object, not FormData)
+      const categoryIdValue = finalCategoryId.toString().trim();
+      
+      if (!categoryIdValue) {
+        setError('Category ID is invalid. Please select a category again.');
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+      
+      // Convert datetime-local to UTC ISO string for proper timezone handling
+      // datetime-local gives us local time without timezone, we need to convert to UTC
+      const startTimeUTC = localDateTimeToUTC(formData.start_time);
+      const endTimeUTC = localDateTimeToUTC(formData.end_time);
+      
+      if (!startTimeUTC || !endTimeUTC) {
+        setError('Start time and end time are required');
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+
+      const dataToSubmit = {
+        category_id: categoryIdValue,
+        title: formData.title,
+        description: formData.description,
+        starting_price: formData.starting_price,
+        start_time: startTimeUTC,
+        end_time: endTimeUTC,
+        self_pickup: formData.self_pickup ? '1' : '0',
+        seller_delivery: formData.seller_delivery ? '1' : '0',
+        financing_available: formData.financing_available ? '1' : '0',
+      };
+      
+      // Optional fields
+      if (formData.location_id) dataToSubmit.location_id = formData.location_id;
+      if (formData.reserve_price) dataToSubmit.reserve_price = formData.reserve_price;
+      if (formData.buy_now_price) dataToSubmit.buy_now_price = formData.buy_now_price;
+      if (formData.bid_increment) dataToSubmit.bid_increment = formData.bid_increment;
+      
+      // Add images array
+      const imageFiles = images.filter(img => img !== null);
+      if (imageFiles.length > 0) {
+        dataToSubmit.images = imageFiles;
+      }
+      
+      // Debug: Log what we're sending
+      console.log('Submitting data with category_id:', categoryIdValue);
+      console.log('Full data object:', dataToSubmit);
+      
+      if (editingAuction) {
+        await userAuctionAPI.updateAuction(editingAuction.id, dataToSubmit);
+        setSuccess('Auction updated successfully');
+      } else {
+        await userAuctionAPI.createAuction(dataToSubmit);
+        setSuccess('Auction created successfully');
+      }
+      
+      setShowCreateForm(false);
+      setEditingAuction(null);
+      resetForm();
+      fetchAuctions();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message;
+      setError('Failed to ' + (editingAuction ? 'update' : 'create') + ' auction: ' + errorMsg);
+      setTimeout(() => setError(null), 8000);
     }
   };
 
@@ -8889,10 +10245,657 @@ function MyAuctionsSection({ user }) {
     navigate(`/auctions/${auction.slug || auction.id}`);
   };
 
+  // Crop modal state
+  const [cropImageIndex, setCropImageIndex] = useState(null);
+  const [cropImageFile, setCropImageFile] = useState(null);
+
+  // Category selection helper functions (similar to AdminPanel)
+  const getSelectedCategory = () => {
+    if (!selectedCategoryName) return null;
+    return categories.find(c => c.name === selectedCategoryName);
+  };
+
+  const toggleCategory = (categoryName) => {
+    const trimmedName = (categoryName || '').trim();
+    if (!trimmedName) return;
+    
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(trimmedName)) {
+        newSet.delete(trimmedName);
+      } else {
+        newSet.add(trimmedName);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSubcategory = (subcategoryName) => {
+    const trimmedName = (subcategoryName || '').trim();
+    if (!trimmedName) return;
+    
+    setExpandedSubcategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(trimmedName)) {
+        newSet.delete(trimmedName);
+      } else {
+        newSet.add(trimmedName);
+      }
+      return newSet;
+    });
+  };
+
+  const handleCategorySelect = (categoryId, categoryName, hasSubcategories = false) => {
+    const trimmedCategoryName = (categoryName || '').trim();
+    
+    // Update selection state
+    setSelectedCategoryName(trimmedCategoryName);
+    setSelectedSubcategoryId('');
+    setSelectedItemCategoryId('');
+    setFormData(prev => ({...prev, category_id: categoryId.toString()}));
+    
+    // Only close dropdown if category has no subcategories (leaf node)
+    // Expansion is handled explicitly in onClick handler
+    if (!hasSubcategories) {
+      setShowCategoryDropdown(false);
+    }
+  };
+
+  const handleSubcategorySelect = (subcategoryId, subcategoryName, hasItemCategories = false) => {
+    const category = getSelectedCategory();
+    if (category) {
+      // Update selection state
+      setSelectedSubcategoryId(subcategoryId.toString());
+      setSelectedItemCategoryId('');
+      setFormData(prev => ({...prev, category_id: subcategoryId.toString()}));
+      
+      // Only close dropdown if subcategory has no item categories (leaf node)
+      // Expansion is handled explicitly in onClick handler
+      if (!hasItemCategories) {
+        setShowCategoryDropdown(false);
+      }
+    }
+  };
+
+  const handleItemCategorySelect = (itemCategoryId, categoryName, subcategoryId) => {
+    const itemIdStr = itemCategoryId.toString();
+    console.log('handleItemCategorySelect called:', { itemCategoryId, itemIdStr, categoryName, subcategoryId });
+    if (categoryName) setSelectedCategoryName(categoryName);
+    if (subcategoryId) setSelectedSubcategoryId(subcategoryId.toString());
+    setSelectedItemCategoryId(itemIdStr);
+    setFormData(prev => {
+      const updated = {...prev, category_id: itemIdStr};
+      console.log('Updated formData.category_id to:', itemIdStr, 'Full formData:', updated);
+      return updated;
+    });
+    // Item categories are always leaf nodes, so close dropdown
+    setShowCategoryDropdown(false);
+  };
+
+  const buildCategoryString = () => {
+    if (selectedItemCategoryId) {
+      const category = getSelectedCategory();
+      if (category && selectedSubcategoryId) {
+        const subcategory = category.subcategories?.find(s => s.id === parseInt(selectedSubcategoryId));
+        if (subcategory && subcategory.item_categories) {
+          const itemCategory = subcategory.item_categories.find(item => item.id === parseInt(selectedItemCategoryId));
+          if (itemCategory) {
+            const itemName = itemCategory.item_category || itemCategory.name;
+            return `${category.name} > ${subcategory.name} > ${itemName}`;
+          }
+        }
+      }
+    }
+    if (selectedSubcategoryId) {
+      const category = getSelectedCategory();
+      const subcategory = category?.subcategories?.find(s => s.id === parseInt(selectedSubcategoryId));
+      if (category && subcategory) {
+        return `${category.name} > ${subcategory.name}`;
+      }
+    }
+    if (selectedCategoryName) {
+      const category = getSelectedCategory();
+      if (category) {
+        return category.name;
+      }
+    }
+    return '';
+  };
+
+  // Image handling with crop
+  const handleImageChange = (index, file) => {
+    if (file && file.type.startsWith('image/')) {
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Image size must be less than 10MB');
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+      setCropImageIndex(index);
+      setCropImageFile(file);
+    } else {
+      setError('Please select a valid image file');
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
+  const compressImage = (file, maxWidth = 1920, maxHeight = 1920, quality = 0.8) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = (width * maxHeight) / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('Compression failed'));
+                return;
+              }
+              const compressedFile = new File([blob], file.name, {
+                type: file.type,
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            file.type,
+            quality
+          );
+        };
+        img.onerror = () => reject(new Error('Failed to load image'));
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+    });
+  };
+
+  const handleCropComplete = async (croppedFile) => {
+    if (cropImageIndex === null) return;
+    
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(croppedFile);
+    img.onload = async () => {
+      URL.revokeObjectURL(objectUrl);
+      if (img.width !== 400 || img.height !== 400) {
+        alert('Image must be exactly 400x400 pixels. Please crop again.');
+        return;
+      }
+      
+      let processedFile = croppedFile;
+      if (croppedFile.size > 1024 * 1024) {
+        try {
+          processedFile = await compressImage(croppedFile);
+        } catch (err) {
+          console.error('Error compressing image:', err);
+        }
+      }
+      
+      const newImages = [...images];
+      newImages[cropImageIndex] = processedFile;
+      setImages(newImages);
+      
+      setCropImageIndex(null);
+      setCropImageFile(null);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      alert('Error processing image. Please try again.');
+    };
+    img.src = objectUrl;
+  };
+
+  const handleCropCancel = () => {
+    setCropImageIndex(null);
+    setCropImageFile(null);
+  };
+
+  // Location handling (simplified - can expand later)
+  const buildLocationString = () => {
+    if (!selectedLocationId) return '';
+    // Would need to traverse location hierarchy - simplified for now
+    return selectedLocationId;
+  };
+
+  // Click outside handlers
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) {
+        setShowCategoryDropdown(false);
+      }
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target)) {
+        setShowLocationDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
     <div className="p-6">
-      <h1 className="text-3xl font-bold mb-6">My Auctions</h1>
-      
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">My Auctions</h1>
+        {user?.seller_verified ? (
+          <Button onClick={handleCreateAuction}>Create Auction</Button>
+        ) : (
+          <div className="flex items-center gap-4">
+            <Card className="border-yellow-500 bg-yellow-50">
+              <CardContent className="p-3">
+                <p className="text-sm text-yellow-800">
+                  Seller verification required to create auctions
+                </p>
+              </CardContent>
+            </Card>
+            <Button onClick={() => navigate('/user_dashboard/e-wallet')}>
+              Verify Now
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {error && (
+        <Card className="mb-4 border-red-500">
+          <CardContent className="p-4 bg-red-50 text-red-800">
+            {error}
+          </CardContent>
+        </Card>
+      )}
+
+      {success && (
+        <Card className="mb-4 border-green-500">
+          <CardContent className="p-4 bg-green-50 text-green-800">
+            {success}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Create/Edit Auction Form */}
+      {showCreateForm && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>{editingAuction ? 'Edit Auction' : 'Create New Auction'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmitAuction} className="space-y-4">
+              {/* Category Selection */}
+              <div>
+                <Label>Category *</Label>
+                <div className="relative" ref={categoryDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                    className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                  >
+                    <span>{buildCategoryString() || 'Select Category'}</span>
+                    <span className="ml-2">{showCategoryDropdown ? '▼' : '▶'}</span>
+                  </button>
+                  
+                  {showCategoryDropdown && (
+                    <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[325px] max-h-[500px] overflow-y-auto">
+                      <div className="p-3">
+                        <div className="space-y-1">
+                          {categories.map((category) => {
+                            const subcategories = category.subcategories || [];
+                            const hasSubcategories = subcategories.length > 0;
+                            const categoryName = (category.name || '').trim();
+                            const isCategoryExpanded = categoryName ? expandedCategories.has(categoryName) : false;
+                            const isCategorySelected = selectedCategoryName === categoryName && !selectedSubcategoryId && !selectedItemCategoryId;
+                            
+                            return (
+                              <div key={category.id} className="space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-2 flex-1">
+                                    {hasSubcategories ? (
+                                      <div className="flex items-center space-x-2 flex-1">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleCategory(categoryName);
+                                          }}
+                                          className="text-xs text-[hsl(var(--muted-foreground))] px-1"
+                                        >
+                                          {isCategoryExpanded ? '▼' : '▶'}
+                                        </button>
+                                        <div className="flex items-center space-x-2 flex-1">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              // Expand first, then select
+                                              if (hasSubcategories && !isCategoryExpanded) {
+                                                toggleCategory(categoryName);
+                                              }
+                                              handleCategorySelect(category.id, categoryName, hasSubcategories);
+                                            }}
+                                            className={`flex-1 text-left text-sm ${
+                                              isCategorySelected
+                                                ? 'text-[hsl(var(--primary))] font-medium'
+                                                : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
+                                            }`}
+                                          >
+                                            {category.name}
+                                          </button>
+                                          {isCategorySelected && (
+                                            <span className="text-xs text-[hsl(var(--primary))]">✓</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleCategorySelect(category.id, categoryName, false);
+                                        }}
+                                        className={`flex-1 text-left text-sm ${
+                                          isCategorySelected
+                                            ? 'text-[hsl(var(--primary))] font-medium'
+                                            : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
+                                        }`}
+                                      >
+                                        {category.name}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                {hasSubcategories && isCategoryExpanded && (
+                                  <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
+                                    {subcategories.map((subcategory) => {
+                                      const itemCategories = subcategory.item_categories || [];
+                                      const hasItemCategories = itemCategories.length > 0;
+                                      const subcategoryName = (subcategory.name || '').trim();
+                                      const isSubcategoryExpanded = subcategoryName ? expandedSubcategories.has(subcategoryName) : false;
+                                      const subcategoryIdStr = subcategory.id.toString();
+                                      const isSubcategorySelected = selectedSubcategoryId === subcategoryIdStr && !selectedItemCategoryId;
+                                      
+                                      return (
+                                        <div key={subcategory.id} className="space-y-1">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center space-x-2 flex-1">
+                                              {hasItemCategories ? (
+                                                <div className="flex items-center space-x-2 flex-1">
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      toggleSubcategory(subcategoryName);
+                                                    }}
+                                                    className="text-xs text-[hsl(var(--muted-foreground))] px-1"
+                                                  >
+                                                    {isSubcategoryExpanded ? '▼' : '▶'}
+                                                  </button>
+                                                  <div className="flex items-center space-x-2 flex-1">
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        // Expand first, then select
+                                                        if (hasItemCategories && !isSubcategoryExpanded) {
+                                                          toggleSubcategory(subcategoryName);
+                                                        }
+                                                        handleSubcategorySelect(subcategory.id, subcategoryName, hasItemCategories);
+                                                      }}
+                                                      className={`flex-1 text-left text-sm ${
+                                                        isSubcategorySelected
+                                                          ? 'text-[hsl(var(--primary))] font-medium'
+                                                          : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
+                                                      }`}
+                                                    >
+                                                      {subcategory.name}
+                                                    </button>
+                                                    {isSubcategorySelected && (
+                                                      <span className="text-xs text-[hsl(var(--primary))]">✓</span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleSubcategorySelect(subcategory.id, subcategoryName, false);
+                                                  }}
+                                                  className={`flex-1 text-left text-sm ${
+                                                    isSubcategorySelected
+                                                      ? 'text-[hsl(var(--primary))] font-medium'
+                                                      : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
+                                                  }`}
+                                                >
+                                                  {subcategory.name}
+                                                </button>
+                                              )}
+                                            </div>
+                                          </div>
+                                          
+                                          {hasItemCategories && isSubcategoryExpanded && (
+                                            <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
+                                              {itemCategories.map((itemCategory) => {
+                                                const itemCategoryIdStr = itemCategory.id.toString();
+                                                const isItemCategorySelected = selectedItemCategoryId === itemCategoryIdStr;
+                                                const itemName = itemCategory.item_category || itemCategory.name;
+                                                
+                                                return (
+                                                  <div key={itemCategory.id} className="flex items-center space-x-2">
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleItemCategorySelect(itemCategory.id, categoryName, subcategory.id);
+                                                      }}
+                                                      className={`flex-1 text-left text-sm px-2 py-1 rounded ${
+                                                        isItemCategorySelected
+                                                          ? 'text-[hsl(var(--primary))] font-medium bg-[hsl(var(--primary))]/10'
+                                                          : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] hover:bg-[hsl(var(--accent))]'
+                                                      }`}
+                                                    >
+                                                      {itemName}
+                                                    </button>
+                                                    {isItemCategorySelected && (
+                                                      <span className="text-xs text-[hsl(var(--primary))]">✓</span>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <Label>Title *</Label>
+                <Input
+                  value={formData.title}
+                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  required
+                  maxLength={90}
+                />
+              </div>
+              
+              <div>
+                <Label>Description *</Label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  required
+                  className="w-full px-3 py-2 border rounded-md min-h-[100px]"
+                  maxLength={2000}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Starting Price *</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.starting_price}
+                    onChange={(e) => setFormData({...formData, starting_price: e.target.value})}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label>Bid Increment</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={formData.bid_increment}
+                    onChange={(e) => setFormData({...formData, bid_increment: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Reserve Price (Optional)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.reserve_price}
+                    onChange={(e) => setFormData({...formData, reserve_price: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label>Buy Now Price (Optional)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.buy_now_price}
+                    onChange={(e) => setFormData({...formData, buy_now_price: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Start Time *</Label>
+                  <Input
+                    type="datetime-local"
+                    value={formData.start_time}
+                    onChange={(e) => setFormData({...formData, start_time: e.target.value})}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label>End Time *</Label>
+                  <Input
+                    type="datetime-local"
+                    value={formData.end_time}
+                    onChange={(e) => setFormData({...formData, end_time: e.target.value})}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>Images (up to 4) *</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {images.map((img, index) => (
+                    <div key={index} className="space-y-2">
+                      {img ? (
+                        <div className="relative">
+                          <img
+                            src={URL.createObjectURL(img)}
+                            alt={`Preview ${index + 1}`}
+                            className="w-full h-24 object-cover rounded border"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute top-1 right-1"
+                            onClick={() => {
+                              const newImages = [...images];
+                              newImages[index] = null;
+                              setImages(newImages);
+                            }}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      ) : (
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              handleImageChange(index, file);
+                            }
+                            e.target.value = '';
+                          }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                  Images will be cropped to 400x400 pixels. Max size: 10MB per image.
+                </p>
+              </div>
+
+              <div className="flex gap-4">
+                <Button type="submit">{editingAuction ? 'Update Auction' : 'Create Auction'}</Button>
+                <Button type="button" variant="outline" onClick={() => {
+                  setShowCreateForm(false);
+                  setEditingAuction(null);
+                  resetForm();
+                }}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Photo Crop Modal */}
+      {cropImageFile && (
+        <PhotoCropModal
+          imageFile={cropImageFile}
+          onCropComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+          aspectRatio={1}
+          fixedSize={{ width: 400, height: 400 }}
+        />
+      )}
+
       {loading ? (
         <Card>
           <CardContent className="p-8 text-center">
@@ -8902,38 +10905,117 @@ function MyAuctionsSection({ user }) {
       ) : auctions.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
-            <p className="text-gray-600">You haven't created any auctions yet.</p>
+            <p className="text-gray-600 mb-4">You haven't created any auctions yet.</p>
+            {user?.seller_verified ? (
+              <Button className="mt-4" onClick={handleCreateAuction}>Create Your First Auction</Button>
+            ) : (
+              <div className="space-y-4">
+                <Card className="border-yellow-500 bg-yellow-50 mx-auto max-w-md">
+                  <CardContent className="p-4">
+                    <p className="text-yellow-800 mb-3">
+                      You need to be a verified seller to create auctions. Complete seller verification to get started.
+                    </p>
+                    <Button onClick={() => navigate('/user_dashboard/e-wallet')}>
+                      Complete Verification
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {auctions.map(auction => (
-            <Card
-              key={auction.id}
-              className="cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => handleAuctionClick(auction)}
-            >
+            <Card key={auction.id} className="hover:shadow-lg transition-shadow">
               <CardContent className="p-0">
                 <img
                   src={auction.image || 'https://via.placeholder.com/300x300?text=No+Image'}
                   alt={auction.title}
-                  className="w-full h-48 object-cover rounded-t-lg"
+                  className="w-full h-48 object-cover rounded-t-lg cursor-pointer"
+                  onClick={() => handleAuctionClick(auction)}
                 />
                 <div className="p-4">
-                  <h3 className="font-semibold text-lg mb-2 line-clamp-2">{auction.title}</h3>
+                  <h3 
+                    className="font-semibold text-lg mb-2 line-clamp-2 cursor-pointer hover:text-blue-600"
+                    onClick={() => handleAuctionClick(auction)}
+                  >
+                    {auction.title}
+                  </h3>
                   <p className="text-xl font-bold text-blue-600 mb-2">
                     Rs. {auction.current_bid_price?.toLocaleString() || auction.starting_price?.toLocaleString()}
                   </p>
                   <p className="text-sm text-gray-600 mb-2">
                     {auction.bid_count || 0} bid{auction.bid_count !== 1 ? 's' : ''}
                   </p>
-                  <div className="flex items-center justify-between">
+                  
+                  {auction.winner && (
+                    <div className="mb-2 p-2 bg-green-50 rounded">
+                      <p className="text-sm font-semibold text-green-800">
+                        Winner: {auction.winner.name}
+                      </p>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center justify-between mb-3">
                     <span className={`px-2 py-1 rounded text-xs ${
-                      auction.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                      auction.status === 'active' ? 'bg-green-100 text-green-800' :
+                      auction.status === 'ended' ? 'bg-gray-100 text-gray-800' :
+                      auction.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-blue-100 text-blue-800'
                     }`}>
                       {auction.status}
                     </span>
-                    <p className="text-sm text-gray-500">{auction.time_remaining}</p>
+                    <p className="text-sm text-gray-500">{auction.time_remaining || 'N/A'}</p>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2">
+                    {auction.status === 'pending' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditAuction(auction);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    )}
+                    {auction.status === 'pending' && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteAuction(auction.id);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    )}
+                    {(auction.status === 'active' || auction.status === 'pending') && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEndAuction(auction.id);
+                        }}
+                      >
+                        End Auction
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAuctionClick(auction);
+                      }}
+                    >
+                      View
+                    </Button>
                   </div>
                 </div>
               </CardContent>

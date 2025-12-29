@@ -468,6 +468,51 @@ export const userAuctionAPI = {
   getMyAuctions: () => axios.get('/api/user/auctions/my-auctions'),
   getMyBids: () => axios.get('/api/user/auctions/my-bids'),
   getWonAuctions: () => axios.get('/api/user/auctions/won'),
+  createAuction: (data) => {
+    const formData = new FormData();
+    Object.keys(data).forEach(key => {
+      if (key === 'images' && Array.isArray(data[key])) {
+        data[key].forEach((image, index) => {
+          if (image) {
+            formData.append(`images[${index}]`, image);
+          }
+        });
+      } else if (key === 'payment_methods' || key === 'financing_terms') {
+        if (data[key]) {
+          formData.append(key, JSON.stringify(data[key]));
+        }
+      } else if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
+        formData.append(key, data[key]);
+      }
+    });
+    return axios.post('/api/user/auctions', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  updateAuction: (id, data) => {
+    const formData = new FormData();
+    Object.keys(data).forEach(key => {
+      if (key === 'images' && Array.isArray(data[key])) {
+        data[key].forEach((image, index) => {
+          if (image) {
+            formData.append(`images[${index}]`, image);
+          }
+        });
+      } else if (key === 'payment_methods' || key === 'financing_terms') {
+        if (data[key]) {
+          formData.append(key, JSON.stringify(data[key]));
+        }
+      } else if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
+        formData.append(key, data[key]);
+      }
+    });
+    return axios.put(`/api/user/auctions/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  deleteAuction: (id) => axios.delete(`/api/user/auctions/${id}`),
+  endAuction: (id) => axios.post(`/api/user/auctions/${id}/end`),
+  getBidHistory: (id) => axios.get(`/api/user/auctions/${id}/bid-history`),
 };
 
 // Helper function to generate SEO-friendly ad URL with category

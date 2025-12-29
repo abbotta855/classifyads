@@ -2715,10 +2715,10 @@ function AdminPanel() {
           for (const subcategory of category.subcategories) {
             const subIdNum = typeof subcategory.id === 'string' ? parseInt(subcategory.id, 10) : Number(subcategory.id);
             if (subIdNum === categoryIdNum) {
-              foundCategory = category;
-              foundSubcategory = subcategory;
-              break;
-            }
+            foundCategory = category;
+            foundSubcategory = subcategory;
+            break;
+          }
             // Check item categories
             if (subcategory.item_categories && Array.isArray(subcategory.item_categories)) {
               const itemCat = subcategory.item_categories.find(item => {
@@ -4975,7 +4975,7 @@ function AdminPanel() {
             subcategoryFound = true;
           break;
         }
-        }
+      }
       }
     }
     
@@ -5860,8 +5860,8 @@ function AdminPanel() {
       setEditingAdSelectedSubcategoryId(subcategoryId.toString());
       setEditingAdSelectedItemCategoryId('');
       setEditingAdData({...editingAdData, category_id: subcategoryId.toString()});
-      setEditingAdShowCategoryDropdown(false);
-    }
+        setEditingAdShowCategoryDropdown(false);
+      }
   };
 
   // Handle selection of item category (single selection - closes dropdown)
@@ -6191,8 +6191,8 @@ function AdminPanel() {
       setPostAdSelectedSubcategoryId(subcategoryId.toString());
       setPostAdSelectedItemCategoryId('');
       setPostAdFormData({...postAdFormData, category_id: subcategoryId.toString()});
-      setPostAdShowCategoryDropdown(false);
-    }
+        setPostAdShowCategoryDropdown(false);
+      }
   };
 
   // Handle selection of item category (single selection - closes dropdown)
@@ -8370,8 +8370,8 @@ function AdminPanel() {
                                                 <div className="flex items-center space-x-2 flex-1">
                                                   {hasSubcategories ? (
                                                     <div className="flex items-center space-x-2 flex-1">
-                                                      <button
-                                                        type="button"
+                                        <button
+                                          type="button"
                                                         onClick={(e) => {
                                                           e.stopPropagation();
                                                           togglePostAdCategory(categoryName);
@@ -8385,35 +8385,35 @@ function AdminPanel() {
                                                         onClick={(e) => {
                                                           e.stopPropagation();
                                                           handlePostAdCategorySelect(category.id, categoryName);
-                                                        }}
+                                          }}
                                                         className={`flex-1 text-left text-sm ${
                                                           isCategorySelected
                                                             ? 'text-[hsl(var(--primary))] font-medium'
                                                             : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
-                                                        }`}
-                                                      >
+                                          }`}
+                                        >
                                                         {category.name}
-                                                      </button>
+                                        </button>
                                                     </div>
                                                   ) : (
-                                                    <button
-                                                      type="button"
+                                          <button
+                                            type="button"
                                                       onClick={(e) => {
                                                         e.stopPropagation();
                                                         handlePostAdCategorySelect(category.id, categoryName);
-                                                      }}
+                                            }}
                                                       className={`flex-1 text-left text-sm ${
                                                         isCategorySelected
                                                           ? 'text-[hsl(var(--primary))] font-medium'
                                                           : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
-                                                      }`}
-                                                    >
+                                            }`}
+                                          >
                                                       {category.name}
-                                                    </button>
+                                          </button>
                                                   )}
-                                                </div>
-                                              </div>
-                                              
+                                      </div>
+                                    </div>
+                                    
                                               {/* Show subcategories when expanded */}
                                               {hasSubcategories && isCategoryExpanded && (
                                                 <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
@@ -8433,8 +8433,8 @@ function AdminPanel() {
                                                           <div className="flex items-center space-x-2 flex-1">
                                                             {hasItemCategories ? (
                                                               <div className="flex items-center space-x-2 flex-1">
-                                                                <button
-                                                                  type="button"
+                                          <button
+                                            type="button"
                                                                   onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     togglePostAdSubcategory(subcategoryName);
@@ -8448,19 +8448,19 @@ function AdminPanel() {
                                                                   onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     handlePostAdSubcategorySelect(subcategory.id, subcategoryName);
-                                                                  }}
+                                            }}
                                                                   className={`flex-1 text-left text-sm ${
                                                                     isSubcategorySelected
                                                                       ? 'text-[hsl(var(--primary))] font-medium'
                                                                       : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
-                                                                  }`}
-                                                                >
+                                            }`}
+                                          >
                                                                   {subcategory.name}
-                                                                </button>
+                                          </button>
                                                               </div>
                                                             ) : (
-                                                              <button
-                                                                type="button"
+                                            <button
+                                              type="button"
                                                                 onClick={(e) => {
                                                                   e.stopPropagation();
                                                                   handlePostAdSubcategorySelect(subcategory.id, subcategoryName);
@@ -8469,12 +8469,12 @@ function AdminPanel() {
                                                                   isSubcategorySelected
                                                                     ? 'text-[hsl(var(--primary))] font-medium'
                                                                     : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
-                                                                }`}
-                                                              >
-                                                                {subcategory.name}
-                                                              </button>
+                                              }`}
+                                            >
+                                              {subcategory.name}
+                                            </button>
                                                             )}
-                                                          </div>
+                                        </div>
                                                         </div>
                                                         
                                                         {/* Show item categories when subcategory is expanded */}
@@ -8504,8 +8504,8 @@ function AdminPanel() {
                                                                 </div>
                                                               );
                                                             })}
-                                                          </div>
-                                                        )}
+                                      </div>
+                                    )}
                                                       </div>
                                                     );
                                                   })}
@@ -9446,18 +9446,18 @@ function AdminPanel() {
                                                 <div className="flex items-center space-x-2 flex-1">
                                                   {hasSubcategories ? (
                                                     <div className="flex items-center space-x-2 flex-1">
-                                                      <button
-                                                        type="button"
+                                      <button
+                                        type="button"
                                                         onClick={(e) => {
                                                           e.stopPropagation();
                                                           toggleEditingAdCategory(categoryName);
                                                         }}
                                                         className="text-xs text-[hsl(var(--muted-foreground))] px-1"
-                                                      >
+                                      >
                                                         {isCategoryExpanded ? '▼' : '▶'}
-                                                      </button>
-                                                      <button
-                                                        type="button"
+                                      </button>
+                                        <button
+                                          type="button"
                                                         onClick={(e) => {
                                                           e.stopPropagation();
                                                           handleEditingAdCategorySelect(category.id, categoryName);
@@ -9466,11 +9466,11 @@ function AdminPanel() {
                                                           isCategorySelected
                                                             ? 'text-[hsl(var(--primary))] font-medium'
                                                             : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
-                                                        }`}
-                                                      >
+                                          }`}
+                                        >
                                                         {category.name}
-                                                      </button>
-                                                    </div>
+                                        </button>
+                                    </div>
                                                   ) : (
                                                     <button
                                                       type="button"
@@ -9487,7 +9487,7 @@ function AdminPanel() {
                                                       {category.name}
                                                     </button>
                                                   )}
-                                                </div>
+                                  </div>
                                               </div>
                                               
                                               {/* Show subcategories when expanded */}
@@ -9509,18 +9509,18 @@ function AdminPanel() {
                                                           <div className="flex items-center space-x-2 flex-1">
                                                             {hasItemCategories ? (
                                                               <div className="flex items-center space-x-2 flex-1">
-                                                                <button
-                                                                  type="button"
+                                        <button
+                                          type="button"
                                                                   onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     toggleEditingAdSubcategory(subcategoryName);
-                                                                  }}
+                                          }}
                                                                   className="text-xs text-[hsl(var(--muted-foreground))] px-1"
-                                                                >
+                                        >
                                                                   {isSubcategoryExpanded ? '▼' : '▶'}
-                                                                </button>
-                                                                <button
-                                                                  type="button"
+                                        </button>
+                                          <button
+                                            type="button"
                                                                   onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     handleEditingAdSubcategorySelect(subcategory.id, subcategoryName);
@@ -9529,11 +9529,11 @@ function AdminPanel() {
                                                                     isSubcategorySelected
                                                                       ? 'text-[hsl(var(--primary))] font-medium'
                                                                       : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
-                                                                  }`}
-                                                                >
-                                                                  {subcategory.name}
-                                                                </button>
-                                                              </div>
+                                            }`}
+                                          >
+                                            {subcategory.name}
+                                          </button>
+                                      </div>
                                                             ) : (
                                                               <button
                                                                 type="button"
@@ -9580,8 +9580,8 @@ function AdminPanel() {
                                                                 </div>
                                                               );
                                                             })}
-                                                          </div>
-                                                        )}
+                                    </div>
+                                  )}
                                                       </div>
                                                     );
                                                   })}
@@ -9592,8 +9592,8 @@ function AdminPanel() {
                                         })}
                                       </div>
                                     </div>
-                                  </div>
-                                )}
+                                </div>
+                              )}
                             </div>
                           </div>
                           <div>
@@ -13046,7 +13046,7 @@ function AdminPanel() {
                                 type="button"
                                 onClick={() => setAuctionShowCategoryDropdown(!auctionShowCategoryDropdown)}
                                 className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
-                              >
+                            >
                                 <span>{buildAuctionCategoryString() || 'Select Category'}</span>
                                 <span className="ml-2">{auctionShowCategoryDropdown ? '▼' : '▶'}</span>
                               </button>
@@ -13094,7 +13094,7 @@ function AdminPanel() {
                                                           : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
                                                       }`}
                                                     >
-                                                      {category.name}
+                                  {category.name}
                                                     </button>
                                                   </div>
                                                 ) : (
@@ -13647,7 +13647,7 @@ function AdminPanel() {
                                 type="button"
                                 onClick={() => setAuctionShowCategoryDropdown(!auctionShowCategoryDropdown)}
                                 className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
-                              >
+                            >
                                 <span>{buildAuctionCategoryString() || 'Select Category'}</span>
                                 <span className="ml-2">{auctionShowCategoryDropdown ? '▼' : '▶'}</span>
                               </button>
@@ -13695,7 +13695,7 @@ function AdminPanel() {
                                                           : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
                                                       }`}
                                                     >
-                                                      {category.name}
+                                  {category.name}
                                                     </button>
                                                   </div>
                                                 ) : (

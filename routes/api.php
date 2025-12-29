@@ -109,6 +109,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('auctions/my-auctions', [App\Http\Controllers\UserAuctionController::class, 'myAuctions']);
     Route::get('auctions/my-bids', [App\Http\Controllers\UserAuctionController::class, 'myBids']);
     Route::get('auctions/won', [App\Http\Controllers\UserAuctionController::class, 'wonAuctions']);
+    Route::post('auctions', [App\Http\Controllers\UserAuctionController::class, 'store']);
+    Route::put('auctions/{id}', [App\Http\Controllers\UserAuctionController::class, 'update']);
+    Route::delete('auctions/{id}', [App\Http\Controllers\UserAuctionController::class, 'destroy']);
+    Route::post('auctions/{id}/end', [App\Http\Controllers\UserAuctionController::class, 'endAuction']);
+    Route::get('auctions/{id}/bid-history', [App\Http\Controllers\UserAuctionController::class, 'getBidHistory']);
   });
 
   // Increment ad view count (public but authenticated)

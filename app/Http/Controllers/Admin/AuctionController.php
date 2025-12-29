@@ -292,6 +292,18 @@ class AuctionController extends Controller
       ], 422);
     }
 
+    // Check if user is verified seller (admins should also verify sellers before creating auctions)
+    $selectedUser = User::findOrFail($validated['user_id']);
+    if (!$selectedUser->seller_verified) {
+      return response()->json([
+        'error' => 'Validation failed',
+        'message' => 'The selected user must be a verified seller to create auctions. Please verify the seller first.',
+        'errors' => [
+          'user_id' => ['User must be a verified seller'],
+        ],
+      ], 422);
+    }
+
     try {
       // Handle image uploads (reuse ad image pattern)
       $imageUrls = [null, null, null, null];
