@@ -4062,10 +4062,10 @@ function AdPostSection({ user }) {
                     const isExpanded = expandedCategories.has(category.name);
                     
                     return (
-                      <div key={category.id}>
+                    <div key={category.id}>
                         <div className="flex items-center">
-                          <button
-                            type="button"
+                      <button
+                        type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               toggleCategory(category.name);
@@ -4080,10 +4080,10 @@ function AdPostSection({ user }) {
                             className={`flex-1 text-left px-2 py-2 hover:bg-[hsl(var(--accent))] ${
                               selectedCategoryName === category.name && !selectedSubcategoryId && !selectedItemCategoryId 
                                 ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
-                            }`}
-                          >
-                            {category.name}
-                          </button>
+                        }`}
+                      >
+                        {category.name}
+                      </button>
                         </div>
                         {isExpanded && hasSubcategories && (
                           <div className="pl-6">
@@ -4095,8 +4095,8 @@ function AdPostSection({ user }) {
                               return (
                                 <div key={subcategory.id}>
                                   <div className="flex items-center">
-                                    <button
-                                      type="button"
+                            <button
+                              type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         toggleSubcategory(subcategoryKey);
@@ -4129,11 +4129,11 @@ function AdPostSection({ user }) {
                                           }`}
                                         >
                                           {itemCategory.item_category || itemCategory.name}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                               );
                             })}
                           </div>
@@ -4537,7 +4537,7 @@ function CategoriesSection({ user }) {
       const newSet = new Set(prev);
       if (newSet.has(trimmedName)) {
         newSet.delete(trimmedName);
-      } else {
+    } else {
         newSet.add(trimmedName);
       }
       return newSet;
@@ -4553,7 +4553,7 @@ function CategoriesSection({ user }) {
     setFormData(prev => ({...prev, category_id: categoryId.toString()}));
     
     if (!hasSubcategories) {
-      setShowCategoryDropdown(false);
+    setShowCategoryDropdown(false);
     }
   };
 
@@ -4597,9 +4597,9 @@ function CategoriesSection({ user }) {
       const category = getSelectedCategory();
       const subcategory = category?.subcategories?.find(s => s.id === parseInt(selectedSubcategoryId));
       if (category && subcategory) {
-        return `${category.name} > ${subcategory.name}`;
+          return `${category.name} > ${subcategory.name}`;
+        }
       }
-    }
     if (selectedCategoryName) {
       return selectedCategoryName;
     }
@@ -4755,8 +4755,8 @@ function CategoriesSection({ user }) {
                       <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[325px] max-h-[500px] overflow-y-auto">
                         <div className="p-3">
                           <div className="space-y-1">
-                            <button
-                              type="button"
+                          <button
+                            type="button"
                               onClick={() => {
                                 setFormData(prev => ({...prev, category_id: ''}));
                                 setSelectedCategoryName('');
@@ -4764,10 +4764,10 @@ function CategoriesSection({ user }) {
                                 setSelectedItemCategoryId('');
                                 setShowCategoryDropdown(false);
                               }}
-                              className="w-full text-left px-3 py-2 hover:bg-[hsl(var(--accent))] rounded text-sm"
-                            >
-                              All Categories
-                            </button>
+                            className="w-full text-left px-3 py-2 hover:bg-[hsl(var(--accent))] rounded text-sm"
+                          >
+                            All Categories
+                          </button>
                             {categories.map((category) => {
                               const subcategories = category.subcategories || [];
                               const hasSubcategories = subcategories.length > 0;
@@ -4781,19 +4781,19 @@ function CategoriesSection({ user }) {
                                     <div className="flex items-center space-x-2 flex-1">
                                       {hasSubcategories ? (
                                         <div className="flex items-center space-x-2 flex-1">
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                               toggleCategory(categoryName);
-                                            }}
+                                  }}
                                             className="text-xs text-[hsl(var(--muted-foreground))] px-1"
-                                          >
+                                >
                                             {isCategoryExpanded ? '▼' : '▶'}
-                                          </button>
+                                </button>
                                           <div className="flex items-center space-x-2 flex-1">
-                                            <button
-                                              type="button"
+                                <button
+                                  type="button"
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (hasSubcategories && !isCategoryExpanded) {
@@ -4805,18 +4805,18 @@ function CategoriesSection({ user }) {
                                                 isCategorySelected
                                                   ? 'text-[hsl(var(--primary))] font-medium'
                                                   : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
-                                              }`}
-                                            >
-                                              {category.name}
-                                            </button>
+                                  }`}
+                                >
+                                  {category.name}
+                                </button>
                                             {isCategorySelected && (
                                               <span className="text-xs text-[hsl(var(--primary))]">✓</span>
                                             )}
-                                          </div>
+                              </div>
                                         </div>
                                       ) : (
-                                        <button
-                                          type="button"
+                                    <button
+                                      type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             handleCategorySelect(category.id, categoryName, false);
@@ -4873,14 +4873,14 @@ function CategoriesSection({ user }) {
                                                           isSubcategorySelected
                                                             ? 'text-[hsl(var(--primary))] font-medium'
                                                             : 'text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))]'
-                                                        }`}
-                                                      >
-                                                        {subcategory.name}
-                                                      </button>
+                                      }`}
+                                    >
+                                      {subcategory.name}
+                                    </button>
                                                       {isSubcategorySelected && (
                                                         <span className="text-xs text-[hsl(var(--primary))]">✓</span>
                                                       )}
-                                                    </div>
+                                </div>
                                                   </div>
                                                 ) : (
                                                   <button
@@ -4897,9 +4897,9 @@ function CategoriesSection({ user }) {
                                                   >
                                                     {subcategory.name}
                                                   </button>
-                                                )}
-                                              </div>
-                                            </div>
+                              )}
+                            </div>
+                        </div>
                                             
                                             {hasItemCategories && isSubcategoryExpanded && (
                                               <div className="ml-5 pl-2 border-l-2 border-[hsl(var(--border))] space-y-1 mt-1">
@@ -5359,54 +5359,56 @@ function EWalletSection({ user }) {
             </Button>
           </div>
 
-          {/* Seller Verification */}
-          <div className="mt-6 border-t pt-4">
-            <h3 className="text-lg font-semibold mb-2">Become a Verified Seller</h3>
-            {user?.seller_verified ? (
-              <p className="text-sm text-green-700">
-                ✓ Your account is verified for selling (eBooks and Auctions).
-              </p>
-            ) : (
-              <>
-                <p className="text-sm text-[hsl(var(--muted-foreground))] mb-3">
-                  Pay a small one-time verification fee to enable seller features. After verification, you can sell eBooks and create auctions.
+          {/* Seller Verification - Hide for super admins */}
+          {user?.role !== 'super_admin' && (
+            <div className="mt-6 border-t pt-4">
+              <h3 className="text-lg font-semibold mb-2">Become a Verified Seller</h3>
+              {user?.seller_verified ? (
+                <p className="text-sm text-green-700">
+                  ✓ Your account is verified for selling (eBooks and Auctions).
                 </p>
-                <Button
-                  variant="default"
-                  disabled={initiatingVerification}
-                  onClick={async () => {
-                    try {
-                      setInitiatingVerification(true);
-                      setVerificationMessage(null);
-                      const response = await sellerVerificationAPI.initiatePayment();
-                      const approvalUrl = response.data.approval_url;
-                      if (approvalUrl) {
-                        window.location.href = approvalUrl;
-                      } else {
-                        setVerificationMessage({
-                          type: 'error',
-                          text: 'Failed to start verification payment.',
-                        });
+              ) : (
+                <>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))] mb-3">
+                    Pay a small one-time verification fee to enable seller features. After verification, you can sell eBooks and create auctions.
+                  </p>
+                  <Button
+                    variant="default"
+                    disabled={initiatingVerification}
+                    onClick={async () => {
+                      try {
+                        setInitiatingVerification(true);
+                        setVerificationMessage(null);
+                        const response = await sellerVerificationAPI.initiatePayment();
+                        const approvalUrl = response.data.approval_url;
+                        if (approvalUrl) {
+                          window.location.href = approvalUrl;
+                        } else {
+                          setVerificationMessage({
+                            type: 'error',
+                            text: 'Failed to start verification payment.',
+                          });
+                        }
+                      } catch (err) {
+                        console.error('Error initiating seller verification payment:', err);
+                        const msg =
+                          err.response?.data?.error || err.message || 'Failed to start verification payment.';
+                        setVerificationMessage({ type: 'error', text: msg });
+                      } finally {
+                        setInitiatingVerification(false);
                       }
-                    } catch (err) {
-                      console.error('Error initiating seller verification payment:', err);
-                      const msg =
-                        err.response?.data?.error || err.message || 'Failed to start verification payment.';
-                      setVerificationMessage({ type: 'error', text: msg });
-                    } finally {
-                      setInitiatingVerification(false);
-                    }
-                  }}
-                >
-                  {initiatingVerification ? 'Processing...' : 'Pay Verification Fee with PayPal'}
-                </Button>
-                <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
-                  Note: PayPal sandbox/client credentials must be configured on the server for this payment to
-                  work.
-                </p>
-              </>
-            )}
-          </div>
+                    }}
+                  >
+                    {initiatingVerification ? 'Processing...' : 'Pay Verification Fee with PayPal'}
+                  </Button>
+                  <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
+                    Note: PayPal sandbox/client credentials must be configured on the server for this payment to
+                    work.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -10895,7 +10897,7 @@ function MyAuctionsSection({ user }) {
           fixedSize={{ width: 400, height: 400 }}
         />
       )}
-
+      
       {loading ? (
         <Card>
           <CardContent className="p-8 text-center">

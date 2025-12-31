@@ -123,6 +123,14 @@ function AdminPanel() {
   const [auctionExpandedCategories, setAuctionExpandedCategories] = useState(new Set()); // Expanded categories for Auction (using name as key)
   const [auctionExpandedSubcategories, setAuctionExpandedSubcategories] = useState(new Set()); // Expanded subcategories for Auction (using name as key)
   const auctionCategoryDropdownRef = useRef(null);
+  // Auction location dropdown state (hierarchical tree like Post Ad)
+  const [auctionSelectedLocations, setAuctionSelectedLocations] = useState(new Set()); // Selected locations for Auction form (single selection)
+  const [auctionShowLocationDropdown, setAuctionShowLocationDropdown] = useState(false); // Location dropdown for Auction form
+  const [auctionExpandedProvinces, setAuctionExpandedProvinces] = useState(new Set()); // For Auction location dropdown
+  const [auctionExpandedDistricts, setAuctionExpandedDistricts] = useState(new Set()); // For Auction location dropdown
+  const [auctionExpandedLocalLevels, setAuctionExpandedLocalLevels] = useState(new Set()); // For Auction location dropdown
+  const auctionLocationDropdownRef = useRef(null);
+  const isAuctionParentToggleInProgress = useRef(false); // Flag to prevent useEffect sync during parent toggle
   // Crop modal state for ads
   const [cropImageIndex, setCropImageIndex] = useState(null);
   const [cropImageFile, setCropImageFile] = useState(null);
@@ -509,6 +517,64 @@ function AdminPanel() {
       fetchUsers();
     }
   }, [activeSection, activeSubsection]);
+
+  // Sync auctionSelectedLocations with auctionFormData.location_id when locationData is available
+  // Skip sync if we're in the middle of a parent toggle to prevent resetting the selection
+  useEffect(() => {
+    // Skip sync if parent toggle is in progress
+    if (isAuctionParentToggleInProgress.current) {
+      return;
+    }
+    
+    if (auctionFormData.location_id && locationData?.provinces && locationData.provinces.length > 0) {
+      const locationIdStr = auctionFormData.location_id.toString();
+      const selectedLocationIds = new Set();
+      let foundWard = false;
+      
+      // Find the ward with this location_id and populate selectedLocationIds with ward + all local addresses
+      for (const province of locationData.provinces) {
+        for (const district of province.districts || []) {
+          for (const localLevel of district.localLevels || []) {
+            for (const ward of localLevel.wards || []) {
+              if (ward.id.toString() === locationIdStr) {
+                // Found the ward - add ward ID and all local addresses
+                foundWard = true;
+                selectedLocationIds.add(ward.id.toString());
+                if (ward.local_addresses && ward.local_addresses.length > 0) {
+                  ward.local_addresses.forEach((_, idx) => {
+                    selectedLocationIds.add(`${ward.id}-${idx}`);
+                  });
+                }
+                // Expand the hierarchy so user can see the selected location
+                setAuctionExpandedProvinces(prev => new Set([...prev, province.id]));
+                setAuctionExpandedDistricts(prev => new Set([...prev, `${province.id}-${district.id}`]));
+                setAuctionExpandedLocalLevels(prev => new Set([...prev, `${province.id}-${district.id}-${localLevel.id}`]));
+                break;
+              }
+            }
+            if (foundWard) break;
+          }
+          if (foundWard) break;
+        }
+        if (foundWard) break;
+      }
+      
+      // Only update if we found the ward and the selection is different
+      if (foundWard) {
+        const currentIds = Array.from(auctionSelectedLocations).sort().join(',');
+        const newIds = Array.from(selectedLocationIds).sort().join(',');
+        if (currentIds !== newIds) {
+          setAuctionSelectedLocations(selectedLocationIds);
+        }
+      }
+    } else if (!auctionFormData.location_id) {
+      // Clear selection if location_id is cleared (but not if parent toggle is in progress)
+      if (auctionSelectedLocations.size > 0) {
+        setAuctionSelectedLocations(new Set());
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auctionFormData.location_id, locationData]);
 
   // Fetch users and categories for auction form
   useEffect(() => {
@@ -3247,6 +3313,11 @@ function AdminPanel() {
       setAuctionSelectedCategoryName('');
       setAuctionSelectedSubcategoryId('');
       setAuctionSelectedItemCategoryId('');
+      // Reset auction location selection state
+      setAuctionSelectedLocations(new Set());
+      setAuctionExpandedProvinces(new Set());
+      setAuctionExpandedDistricts(new Set());
+      setAuctionExpandedLocalLevels(new Set());
       setAuctionFormData({
         user_id: '',
         category_id: '',
@@ -3377,6 +3448,40 @@ function AdminPanel() {
       setAuctionSelectedCategoryName('');
       setAuctionSelectedSubcategoryId('');
       setAuctionSelectedItemCategoryId('');
+    }
+    
+    // Initialize location selection (similar to Edit Ad logic, but with cascading for ward + local addresses)
+    if (auction.location_id && locationData?.provinces) {
+      const locationIdStr = auction.location_id.toString();
+      const selectedLocationIds = new Set();
+      
+      // Find the ward with this location_id and populate selectedLocationIds with ward + all local addresses
+      for (const province of locationData.provinces) {
+        for (const district of province.districts || []) {
+          for (const localLevel of district.localLevels || []) {
+            for (const ward of localLevel.wards || []) {
+              if (ward.id.toString() === locationIdStr) {
+                // Found the ward - add ward ID and all local addresses
+                selectedLocationIds.add(ward.id.toString());
+                if (ward.local_addresses && ward.local_addresses.length > 0) {
+                  ward.local_addresses.forEach((_, idx) => {
+                    selectedLocationIds.add(`${ward.id}-${idx}`);
+                  });
+                }
+                // Expand the hierarchy so user can see the selected location
+                setAuctionExpandedProvinces(prev => new Set([...prev, province.id]));
+                setAuctionExpandedDistricts(prev => new Set([...prev, `${province.id}-${district.id}`]));
+                setAuctionExpandedLocalLevels(prev => new Set([...prev, `${province.id}-${district.id}-${localLevel.id}`]));
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      setAuctionSelectedLocations(selectedLocationIds);
+    } else {
+      setAuctionSelectedLocations(new Set());
     }
     
     setShowEditAuctionModal(true);
@@ -5701,16 +5806,19 @@ function AdminPanel() {
       if (editingUserLocationDropdownRef.current && !editingUserLocationDropdownRef.current.contains(event.target)) {
         setEditingUserShowLocationDropdown(false);
       }
+      if (auctionLocationDropdownRef.current && !auctionLocationDropdownRef.current.contains(event.target)) {
+        setAuctionShowLocationDropdown(false);
+      }
     };
 
-    if (showLocationDropdown || postAdShowLocationDropdown || editingAdShowLocationDropdown || editingUserShowLocationDropdown) {
+    if (showLocationDropdown || postAdShowLocationDropdown || editingAdShowLocationDropdown || editingUserShowLocationDropdown || auctionShowLocationDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showLocationDropdown, postAdShowLocationDropdown, editingAdShowLocationDropdown, editingUserShowLocationDropdown]);
+  }, [showLocationDropdown, postAdShowLocationDropdown, editingAdShowLocationDropdown, editingUserShowLocationDropdown, auctionShowLocationDropdown]);
 
   // Handle click outside category dropdown
   useEffect(() => {
@@ -6449,12 +6557,14 @@ function AdminPanel() {
 
   // Helper functions for Post Ad form location selection
   const handlePostAdLocationToggle = (locationId) => {
+    // Ensure locationId is converted to string for consistent comparison
+    const locationIdStr = locationId.toString();
     setPostAdSelectedLocations(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(locationId)) {
-        newSet.delete(locationId);
+      if (newSet.has(locationIdStr)) {
+        newSet.delete(locationIdStr);
       } else {
-        newSet.add(locationId);
+        newSet.add(locationIdStr);
       }
       return newSet;
     });
@@ -6500,6 +6610,247 @@ function AdminPanel() {
 
   const togglePostAdLocalLevel = (localLevelKey) => {
     setPostAdExpandedLocalLevels(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(localLevelKey)) {
+        newSet.delete(localLevelKey);
+      } else {
+        newSet.add(localLevelKey);
+      }
+      return newSet;
+    });
+  };
+
+  // Helper functions for Auction form location selection (single selection)
+  // Note: This is used for local address checkboxes. For ward checkboxes, use handleAuctionWardToggle.
+  // When a local address is clicked, we need to find the ward and select the entire ward (ward + all local addresses)
+  const handleAuctionLocationToggle = (locationId) => {
+    // Convert locationId to string for consistent comparison
+    const locationIdStr = locationId.toString();
+    
+    // Extract ward ID from locationId (handle both ward.id and `${ward.id}-${idx}` format)
+    // For local addresses (format: `${ward.id}-${idx}`), extract just the ward.id part
+    let wardId = locationId;
+    if (typeof locationId === 'string' && locationId.includes('-')) {
+      wardId = locationId.split('-')[0];
+    }
+    const wardIdStr = wardId.toString();
+    
+    // Find the ward object from locationData to get all its local addresses
+    let targetWard = null;
+    if (locationData?.provinces) {
+      for (const province of locationData.provinces) {
+        for (const district of province.districts || []) {
+          for (const localLevel of district.localLevels || []) {
+            for (const ward of localLevel.wards || []) {
+              if (ward.id.toString() === wardIdStr) {
+                targetWard = ward;
+                break;
+              }
+            }
+            if (targetWard) break;
+          }
+          if (targetWard) break;
+        }
+        if (targetWard) break;
+      }
+    }
+    
+    if (!targetWard) {
+      // Fallback: if ward not found, just select the locationId (shouldn't happen normally)
+      if (auctionSelectedLocations.has(locationIdStr)) {
+        setAuctionSelectedLocations(new Set());
+        setAuctionFormData(prev => ({...prev, location_id: ''}));
+      } else {
+        setAuctionSelectedLocations(new Set([locationIdStr]));
+        setAuctionFormData(prev => ({...prev, location_id: wardIdStr}));
+      }
+      return;
+    }
+    
+    // Collect all IDs: ward.id and all local_addresses IDs (all as strings)
+    const allIds = [targetWard.id.toString()];
+    if (targetWard.local_addresses && targetWard.local_addresses.length > 0) {
+      targetWard.local_addresses.forEach((_, idx) => {
+        allIds.push(`${targetWard.id}-${idx}`);
+      });
+    }
+    
+    // Check if all are selected (ensure consistent string comparison)
+    const allSelected = allIds.every(id => {
+      const idStr = id.toString();
+      return auctionSelectedLocations.has(idStr);
+    });
+    
+    if (allSelected) {
+      // Deselect all
+      setAuctionSelectedLocations(new Set());
+      setAuctionFormData(prev => ({...prev, location_id: ''}));
+    } else {
+      // Select all (ward + all local addresses) - same behavior as clicking ward checkbox
+      setAuctionSelectedLocations(new Set(allIds.map(id => id.toString())));
+      setAuctionFormData(prev => ({...prev, location_id: wardIdStr}));
+    }
+  };
+
+  // Helper function to handle ward checkbox click (selects ward + all local addresses)
+  const handleAuctionWardToggle = (ward) => {
+    // Collect all IDs: ward.id and all local_addresses IDs (all as strings)
+    const allIds = [ward.id.toString()];
+    if (ward.local_addresses && ward.local_addresses.length > 0) {
+      ward.local_addresses.forEach((_, idx) => {
+        allIds.push(`${ward.id}-${idx}`);
+      });
+    }
+    
+    // Check if all are selected (ensure consistent string comparison)
+    const allSelected = allIds.every(id => {
+      const idStr = id.toString();
+      return auctionSelectedLocations.has(idStr);
+    });
+    
+    if (allSelected) {
+      // Deselect all
+      setAuctionSelectedLocations(new Set());
+      setAuctionFormData(prev => ({...prev, location_id: ''}));
+    } else {
+      // Select all (ward + all local addresses)
+      setAuctionSelectedLocations(new Set(allIds));
+      // Save ward ID to location_id
+      setAuctionFormData(prev => ({...prev, location_id: ward.id.toString()}));
+    }
+  };
+
+  const handleAuctionSelectAllLocations = () => {
+    setAuctionSelectedLocations(new Set());
+    setAuctionFormData(prev => ({...prev, location_id: ''}));
+  };
+
+  // Helper function to handle parent checkbox click (province, district, local level)
+  // For single selection: selects ALL children (all wards and all their local addresses)
+  // Note: We don't update location_id here to avoid triggering resets - it will be set on form submit
+  const handleAuctionParentToggle = (allLocationIds) => {
+    if (allLocationIds.length === 0) return;
+    
+    // Set flag to prevent useEffect from resetting selection
+    isAuctionParentToggleInProgress.current = true;
+    
+    // Convert all IDs to strings for consistent comparison
+    const allLocationIdsStr = allLocationIds.map(id => id.toString());
+    
+    // Check if ALL children are already selected
+    const allSelected = allLocationIdsStr.length > 0 && allLocationIdsStr.every(idStr => {
+      return auctionSelectedLocations.has(idStr);
+    });
+    
+    if (allSelected) {
+      // Deselect all
+      setAuctionSelectedLocations(new Set());
+      setAuctionFormData(prev => ({...prev, location_id: ''}));
+      // Reset flag after state updates
+      setTimeout(() => {
+        isAuctionParentToggleInProgress.current = false;
+      }, 100);
+    } else {
+      // Select ALL children (all wards + all local addresses)
+      // Don't update location_id here - it will be extracted from selection on form submit
+      const selectedIds = new Set(allLocationIdsStr);
+      setAuctionSelectedLocations(selectedIds);
+      // Reset flag after state update completes
+      setTimeout(() => {
+        isAuctionParentToggleInProgress.current = false;
+      }, 100);
+    }
+  };
+
+  const buildAuctionLocationString = () => {
+    if (auctionSelectedLocations.size === 0) {
+      return 'Select Location';
+    }
+    
+    // Count only addresses (leaf level) - addresses are stored as "wardId-index" format (string with hyphen)
+    // Also count wards that don't have addresses (numeric IDs without corresponding addresses)
+    const selectedIds = Array.from(auctionSelectedLocations);
+    const addressIds = selectedIds.filter(id => {
+      const idStr = id.toString();
+      return idStr.includes('-');
+    });
+    
+    // Count wards without addresses (numeric IDs that don't have corresponding addresses selected)
+    const wardIdsWithoutAddresses = selectedIds.filter(id => {
+      const idStr = id.toString();
+      if (!idStr.includes('-')) {
+        // Check if this ward has any addresses selected
+        const wardId = idStr;
+        const hasAddresses = selectedIds.some(selectedId => {
+          const selectedIdStr = selectedId.toString();
+          return selectedIdStr.startsWith(`${wardId}-`);
+        });
+        return !hasAddresses;
+      }
+      return false;
+    });
+    
+    const totalCount = addressIds.length + wardIdsWithoutAddresses.length;
+    
+    // If only one location is selected, show the full path
+    if (totalCount === 1) {
+      const locationId = selectedIds[0];
+      // Find the location path from locationData
+      if (locationData?.provinces) {
+        for (const province of locationData.provinces) {
+          for (const district of province.districts || []) {
+            for (const localLevel of district.localLevels || []) {
+              for (const ward of localLevel.wards || []) {
+                if (ward.id.toString() === locationId.toString()) {
+                  return `${province.name} > ${district.name} > ${localLevel.name} > Ward ${ward.ward_number}`;
+                }
+                // Check local addresses
+                if (ward.local_addresses) {
+                  for (let idx = 0; idx < ward.local_addresses.length; idx++) {
+                    const addressId = `${ward.id}-${idx}`;
+                    if (addressId === locationId.toString()) {
+                      return `${province.name} > ${district.name} > ${localLevel.name} > Ward ${ward.ward_number} > ${ward.local_addresses[idx]}`;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      return '1 location selected';
+    }
+    
+    // Multiple locations selected - show count
+    return `${totalCount} locations selected`;
+  };
+
+  const toggleAuctionProvince = (provinceId) => {
+    setAuctionExpandedProvinces(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(provinceId)) {
+        newSet.delete(provinceId);
+      } else {
+        newSet.add(provinceId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleAuctionDistrict = (districtKey) => {
+    setAuctionExpandedDistricts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(districtKey)) {
+        newSet.delete(districtKey);
+      } else {
+        newSet.add(districtKey);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleAuctionLocalLevel = (localLevelKey) => {
+    setAuctionExpandedLocalLevels(prev => {
       const newSet = new Set(prev);
       if (newSet.has(localLevelKey)) {
         newSet.delete(localLevelKey);
@@ -7773,8 +8124,8 @@ function AdminPanel() {
                                                 d.localLevels.forEach(ll => {
                                                   if (ll.wards) {
                                                     ll.wards.forEach(w => {
-                                                      allLocationIds.push(w.id);
-                                                      if (w.local_addresses) {
+                                                      allLocationIds.push(w.id.toString());
+                                                      if (w.local_addresses && w.local_addresses.length > 0) {
                                                         w.local_addresses.forEach((_, idx) => {
                                                           allLocationIds.push(`${w.id}-${idx}`);
                                                         });
@@ -7783,7 +8134,11 @@ function AdminPanel() {
                                                   }
                                                 });
                                               });
-                                              return allLocationIds.length > 0 && allLocationIds.every(id => postAdSelectedLocations.has(id));
+                                              // Ensure all IDs are strings for consistent comparison
+                                              return allLocationIds.length > 0 && allLocationIds.every(id => {
+                                                const idStr = id.toString();
+                                                return postAdSelectedLocations.has(idStr);
+                                              });
                                             })()}
                                             onChange={() => {
                                               const allLocationIds = [];
@@ -7791,8 +8146,8 @@ function AdminPanel() {
                                                 d.localLevels.forEach(ll => {
                                                   if (ll.wards) {
                                                     ll.wards.forEach(w => {
-                                                      allLocationIds.push(w.id);
-                                                      if (w.local_addresses) {
+                                                      allLocationIds.push(w.id.toString());
+                                                      if (w.local_addresses && w.local_addresses.length > 0) {
                                                         w.local_addresses.forEach((_, idx) => {
                                                           allLocationIds.push(`${w.id}-${idx}`);
                                                         });
@@ -7803,12 +8158,17 @@ function AdminPanel() {
                                               });
                                               setPostAdSelectedLocations(prev => {
                                                 const newSet = new Set(prev);
-                                                const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                // Ensure all IDs are strings for consistent comparison
+                                                const allSelected = allLocationIds.every(id => {
+                                                  const idStr = id.toString();
+                                                  return newSet.has(idStr);
+                                                });
                                                 allLocationIds.forEach(id => {
+                                                  const idStr = id.toString();
                                                   if (allSelected) {
-                                                    newSet.delete(id);
+                                                    newSet.delete(idStr);
                                                   } else {
-                                                    newSet.add(id);
+                                                    newSet.add(idStr);
                                                   }
                                                 });
                                                 return newSet;
@@ -7837,8 +8197,8 @@ function AdminPanel() {
                                                   district.localLevels.forEach(ll => {
                                                     if (ll.wards) {
                                                       ll.wards.forEach(w => {
-                                                        allLocationIds.push(w.id);
-                                                        if (w.local_addresses) {
+                                                        allLocationIds.push(w.id.toString());
+                                                        if (w.local_addresses && w.local_addresses.length > 0) {
                                                           w.local_addresses.forEach((_, idx) => {
                                                             allLocationIds.push(`${w.id}-${idx}`);
                                                           });
@@ -7846,15 +8206,19 @@ function AdminPanel() {
                                                       });
                                                     }
                                                   });
-                                                  return allLocationIds.length > 0 && allLocationIds.every(id => postAdSelectedLocations.has(id));
+                                                  // Ensure all IDs are strings for consistent comparison
+                                                  return allLocationIds.length > 0 && allLocationIds.every(id => {
+                                                    const idStr = id.toString();
+                                                    return postAdSelectedLocations.has(idStr);
+                                                  });
                                                 })()}
                                                 onChange={() => {
                                                   const allLocationIds = [];
                                                   district.localLevels.forEach(ll => {
                                                     if (ll.wards) {
                                                       ll.wards.forEach(w => {
-                                                        allLocationIds.push(w.id);
-                                                        if (w.local_addresses) {
+                                                        allLocationIds.push(w.id.toString());
+                                                        if (w.local_addresses && w.local_addresses.length > 0) {
                                                           w.local_addresses.forEach((_, idx) => {
                                                             allLocationIds.push(`${w.id}-${idx}`);
                                                           });
@@ -7864,12 +8228,17 @@ function AdminPanel() {
                                                   });
                                                   setPostAdSelectedLocations(prev => {
                                                     const newSet = new Set(prev);
-                                                    const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                    // Ensure all IDs are strings for consistent comparison
+                                                    const allSelected = allLocationIds.every(id => {
+                                                      const idStr = id.toString();
+                                                      return newSet.has(idStr);
+                                                    });
                                                     allLocationIds.forEach(id => {
+                                                      const idStr = id.toString();
                                                       if (allSelected) {
-                                                        newSet.delete(id);
+                                                        newSet.delete(idStr);
                                                       } else {
-                                                        newSet.add(id);
+                                                        newSet.add(idStr);
                                                       }
                                                     });
                                                     return newSet;
@@ -7897,21 +8266,25 @@ function AdminPanel() {
                                                       if (!localLevel.wards) return false;
                                                       const allLocationIds = [];
                                                       localLevel.wards.forEach(w => {
-                                                        allLocationIds.push(w.id);
-                                                        if (w.local_addresses) {
+                                                        allLocationIds.push(w.id.toString());
+                                                        if (w.local_addresses && w.local_addresses.length > 0) {
                                                           w.local_addresses.forEach((_, idx) => {
                                                             allLocationIds.push(`${w.id}-${idx}`);
                                                           });
                                                         }
                                                       });
-                                                      return allLocationIds.length > 0 && allLocationIds.every(id => postAdSelectedLocations.has(id));
+                                                      // Ensure all IDs are strings for consistent comparison
+                                                      return allLocationIds.length > 0 && allLocationIds.every(id => {
+                                                        const idStr = id.toString();
+                                                        return postAdSelectedLocations.has(idStr);
+                                                      });
                                                     })()}
                                                     onChange={() => {
                                                       if (localLevel.wards) {
                                                         const allLocationIds = [];
                                                         localLevel.wards.forEach(w => {
-                                                          allLocationIds.push(w.id);
-                                                          if (w.local_addresses) {
+                                                          allLocationIds.push(w.id.toString());
+                                                          if (w.local_addresses && w.local_addresses.length > 0) {
                                                             w.local_addresses.forEach((_, idx) => {
                                                               allLocationIds.push(`${w.id}-${idx}`);
                                                             });
@@ -7919,12 +8292,17 @@ function AdminPanel() {
                                                         });
                                                         setPostAdSelectedLocations(prev => {
                                                           const newSet = new Set(prev);
-                                                          const allSelected = allLocationIds.every(id => newSet.has(id));
+                                                          // Ensure all IDs are strings for consistent comparison
+                                                          const allSelected = allLocationIds.every(id => {
+                                                            const idStr = id.toString();
+                                                            return newSet.has(idStr);
+                                                          });
                                                           allLocationIds.forEach(id => {
+                                                            const idStr = id.toString();
                                                             if (allSelected) {
-                                                              newSet.delete(id);
+                                                              newSet.delete(idStr);
                                                             } else {
-                                                              newSet.add(id);
+                                                              newSet.add(idStr);
                                                             }
                                                           });
                                                           return newSet;
@@ -7945,29 +8323,38 @@ function AdminPanel() {
                                                         type="checkbox"
                                                         className="mr-2"
                                                         checked={(() => {
-                                                          const allIds = [ward.id];
-                                                          if (ward.local_addresses) {
+                                                          const allIds = [ward.id.toString()];
+                                                          if (ward.local_addresses && ward.local_addresses.length > 0) {
                                                             ward.local_addresses.forEach((_, idx) => {
                                                               allIds.push(`${ward.id}-${idx}`);
                                                             });
                                                           }
-                                                          return allIds.every(id => postAdSelectedLocations.has(id));
+                                                          // Ensure all IDs are strings for consistent comparison
+                                                          return allIds.every(id => {
+                                                            const idStr = id.toString();
+                                                            return postAdSelectedLocations.has(idStr);
+                                                          });
                                                         })()}
                                                         onChange={() => {
-                                                          const allIds = [ward.id];
-                                                          if (ward.local_addresses) {
+                                                          const allIds = [ward.id.toString()];
+                                                          if (ward.local_addresses && ward.local_addresses.length > 0) {
                                                             ward.local_addresses.forEach((_, idx) => {
                                                               allIds.push(`${ward.id}-${idx}`);
                                                             });
                                                           }
-                                                          const allSelected = allIds.every(id => postAdSelectedLocations.has(id));
+                                                          // Ensure all IDs are strings for consistent comparison
+                                                          const allSelected = allIds.every(id => {
+                                                            const idStr = id.toString();
+                                                            return postAdSelectedLocations.has(idStr);
+                                                          });
                                                           setPostAdSelectedLocations(prev => {
                                                             const newSet = new Set(prev);
                                                             allIds.forEach(id => {
+                                                              const idStr = id.toString();
                                                               if (allSelected) {
-                                                                newSet.delete(id);
+                                                                newSet.delete(idStr);
                                                               } else {
-                                                                newSet.add(id);
+                                                                newSet.add(idStr);
                                                               }
                                                             });
                                                             return newSet;
@@ -7989,7 +8376,7 @@ function AdminPanel() {
                                                               <input
                                                                 type="checkbox"
                                                                 className="mr-2"
-                                                                checked={postAdSelectedLocations.has(addressId)}
+                                                                checked={postAdSelectedLocations.has(addressId.toString())}
                                                                 onChange={() => handlePostAdLocationToggle(addressId)}
                                                               />
                                                               <span className="text-xs text-[hsl(var(--muted-foreground))]">{address}</span>
@@ -8654,7 +9041,7 @@ function AdminPanel() {
                                                       if (ll.wards) {
                                                         ll.wards.forEach(w => {
                                                           allLocationIds.push(w.id);
-                                                          if (w.local_addresses) {
+                                                          if (w.local_addresses && w.local_addresses.length > 0) {
                                                             w.local_addresses.forEach((_, idx) => {
                                                               allLocationIds.push(`${w.id}-${idx}`);
                                                             });
@@ -8670,7 +9057,7 @@ function AdminPanel() {
                                                       if (ll.wards) {
                                                         ll.wards.forEach(w => {
                                                           allLocationIds.push(w.id);
-                                                          if (w.local_addresses) {
+                                                          if (w.local_addresses && w.local_addresses.length > 0) {
                                                             w.local_addresses.forEach((_, idx) => {
                                                               allLocationIds.push(`${w.id}-${idx}`);
                                                             });
@@ -8714,7 +9101,7 @@ function AdminPanel() {
                                                         const allLocationIds = [];
                                                         localLevel.wards.forEach(w => {
                                                           allLocationIds.push(w.id);
-                                                          if (w.local_addresses) {
+                                                          if (w.local_addresses && w.local_addresses.length > 0) {
                                                             w.local_addresses.forEach((_, idx) => {
                                                               allLocationIds.push(`${w.id}-${idx}`);
                                                             });
@@ -8726,8 +9113,8 @@ function AdminPanel() {
                                                         if (localLevel.wards) {
                                                           const allLocationIds = [];
                                                           localLevel.wards.forEach(w => {
-                                                            allLocationIds.push(w.id);
-                                                            if (w.local_addresses) {
+                                                            allLocationIds.push(w.id.toString());
+                                                            if (w.local_addresses && w.local_addresses.length > 0) {
                                                               w.local_addresses.forEach((_, idx) => {
                                                                 allLocationIds.push(`${w.id}-${idx}`);
                                                               });
@@ -8805,7 +9192,7 @@ function AdminPanel() {
                                                                 <input
                                                                   type="checkbox"
                                                                   className="mr-2"
-                                                                  checked={postAdSelectedLocations.has(addressId)}
+                                                                  checked={postAdSelectedLocations.has(addressId.toString())}
                                                                   onChange={() => handlePostAdLocationToggle(addressId)}
                                                                 />
                                                                 <span className="text-xs text-[hsl(var(--muted-foreground))]">{address}</span>
@@ -13224,24 +13611,270 @@ function AdminPanel() {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Location (Optional)</label>
-                            <select
-                              value={auctionFormData.location_id}
-                              onChange={(e) => setAuctionFormData(prev => ({...prev, location_id: e.target.value}))}
-                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                            >
-                              <option value="">Select Location</option>
-                              {locationData.provinces?.flatMap(province => 
-                                province.districts?.flatMap(district =>
-                                  district.localLevels?.flatMap(localLevel =>
-                                    localLevel.wards?.map(ward => (
-                                      <option key={ward.id} value={ward.id}>
-                                        {province.name} &gt; {district.name} &gt; {localLevel.name} &gt; Ward {ward.ward_number}
-                                      </option>
-                                    ))
-                                  )
-                                )
+                            <div className="relative" ref={auctionLocationDropdownRef}>
+                              <button
+                                type="button"
+                                onClick={() => setAuctionShowLocationDropdown(!auctionShowLocationDropdown)}
+                                className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                              >
+                                <span>{buildAuctionLocationString()}</span>
+                                <span className="ml-2">{auctionShowLocationDropdown ? '▼' : '▶'}</span>
+                              </button>
+                              
+                              {/* Hierarchical Checkbox Menu - Same design as Post Ad */}
+                              {auctionShowLocationDropdown && (
+                                <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[600px] max-h-[500px] overflow-y-auto">
+                                  <div className="p-3">
+                                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
+                                      <span className="font-semibold text-sm text-[hsl(var(--foreground))]">Select Location</span>
+                                      <button
+                                        type="button"
+                                        onClick={handleAuctionSelectAllLocations}
+                                        className="text-xs text-[hsl(var(--primary))] hover:underline"
+                                      >
+                                        {auctionSelectedLocations.size > 0 ? 'Clear All' : 'Select All'}
+                                      </button>
+                                    </div>
+                                    
+                                    {/* Hierarchical Location Tree */}
+                                    <div className="space-y-1">
+                                      {locationData?.provinces && locationData.provinces.length > 0 ? (
+                                        locationData.provinces.map((province) => (
+                                        <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
+                                          {/* Province Level */}
+                                          <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleAuctionProvince(province.id)}
+                                              className="mr-2 text-xs"
+                                            >
+                                              {auctionExpandedProvinces.has(province.id) ? '▼' : '▶'}
+                                            </button>
+                                            <input
+                                              type="checkbox"
+                                              className="mr-2"
+                                              checked={(() => {
+                                                const allLocationIds = [];
+                                                province.districts.forEach(d => {
+                                                  d.localLevels.forEach(ll => {
+                                                    if (ll.wards) {
+                                                      ll.wards.forEach(w => {
+                                                        allLocationIds.push(w.id.toString());
+                                                        if (w.local_addresses && w.local_addresses.length > 0) {
+                                                          w.local_addresses.forEach((_, idx) => {
+                                                            allLocationIds.push(`${w.id}-${idx}`);
+                                                          });
+                                                        }
+                                                      });
+                                                    }
+                                                  });
+                                                });
+                                                // For single selection: parent is checked only if ALL children are selected
+                                                // Ensure all IDs are strings for consistent comparison
+                                                return allLocationIds.length > 0 && allLocationIds.every(id => {
+                                                  const idStr = id.toString();
+                                                  return auctionSelectedLocations.has(idStr);
+                                                });
+                                              })()}
+                                              onChange={() => {
+                                                // Single selection: collect all location IDs and select first ward
+                                                const allLocationIds = [];
+                                                province.districts.forEach(d => {
+                                                  d.localLevels.forEach(ll => {
+                                                    if (ll.wards) {
+                                                      ll.wards.forEach(w => {
+                                                        allLocationIds.push(w.id.toString());
+                                                        if (w.local_addresses && w.local_addresses.length > 0) {
+                                                          w.local_addresses.forEach((_, idx) => {
+                                                            allLocationIds.push(`${w.id}-${idx}`);
+                                                          });
+                                                        }
+                                                      });
+                                                    }
+                                                  });
+                                                });
+                                                handleAuctionParentToggle(allLocationIds);
+                                              }}
+                                            />
+                                            <span className="text-sm font-medium text-[hsl(var(--foreground))]">{province.name}</span>
+                                          </div>
+                                          
+                                          {/* Districts */}
+                                          {auctionExpandedProvinces.has(province.id) && province.districts.map((district) => (
+                                            <div key={district.id} className="ml-6 mt-1">
+                                              <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => toggleAuctionDistrict(`${province.id}-${district.id}`)}
+                                                  className="mr-2 text-xs"
+                                                >
+                                                  {auctionExpandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
+                                                </button>
+                                                <input
+                                                  type="checkbox"
+                                                  className="mr-2"
+                                                  checked={(() => {
+                                                    const allLocationIds = [];
+                                                    district.localLevels.forEach(ll => {
+                                                      if (ll.wards) {
+                                                        ll.wards.forEach(w => {
+                                                          allLocationIds.push(w.id.toString());
+                                                          if (w.local_addresses && w.local_addresses.length > 0) {
+                                                            w.local_addresses.forEach((_, idx) => {
+                                                              allLocationIds.push(`${w.id}-${idx}`);
+                                                            });
+                                                          }
+                                                        });
+                                                      }
+                                                    });
+                                                    // For single selection: parent is checked only if ALL children are selected
+                                                // Ensure all IDs are strings for consistent comparison
+                                                return allLocationIds.length > 0 && allLocationIds.every(id => {
+                                                  const idStr = id.toString();
+                                                  return auctionSelectedLocations.has(idStr);
+                                                });
+                                                  })()}
+                                                  onChange={() => {
+                                                    // Single selection: collect all location IDs and select first ward
+                                                    const allLocationIds = [];
+                                                    district.localLevels.forEach(ll => {
+                                                      if (ll.wards) {
+                                                        ll.wards.forEach(w => {
+                                                          allLocationIds.push(w.id.toString());
+                                                          if (w.local_addresses && w.local_addresses.length > 0) {
+                                                            w.local_addresses.forEach((_, idx) => {
+                                                              allLocationIds.push(`${w.id}-${idx}`);
+                                                            });
+                                                          }
+                                                        });
+                                                      }
+                                                    });
+                                                    handleAuctionParentToggle(allLocationIds);
+                                                  }}
+                                                />
+                                                <span className="text-sm text-[hsl(var(--foreground))]">{district.name}</span>
+                                              </div>
+                                              
+                                              {/* Local Levels */}
+                                              {auctionExpandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
+                                                <div key={localLevel.id} className="ml-6 mt-1">
+                                                  <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => toggleAuctionLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
+                                                      className="mr-2 text-xs"
+                                                    >
+                                                      {auctionExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
+                                                    </button>
+                                                    <input
+                                                      type="checkbox"
+                                                      className="mr-2"
+                                                      checked={(() => {
+                                                        if (!localLevel.wards) return false;
+                                                        const allLocationIds = [];
+                                                        localLevel.wards.forEach(w => {
+                                                          allLocationIds.push(w.id.toString());
+                                                          if (w.local_addresses && w.local_addresses.length > 0) {
+                                                            w.local_addresses.forEach((_, idx) => {
+                                                              allLocationIds.push(`${w.id}-${idx}`);
+                                                            });
+                                                          }
+                                                        });
+                                                        // For single selection: parent is checked only if ALL children are selected
+                                                // Ensure all IDs are strings for consistent comparison
+                                                return allLocationIds.length > 0 && allLocationIds.every(id => {
+                                                  const idStr = id.toString();
+                                                  return auctionSelectedLocations.has(idStr);
+                                                });
+                                                      })()}
+                                                      onChange={() => {
+                                                        if (localLevel.wards) {
+                                                          // Single selection: collect all location IDs and select first ward
+                                                          const allLocationIds = [];
+                                                          localLevel.wards.forEach(w => {
+                                                            allLocationIds.push(w.id.toString());
+                                                            if (w.local_addresses && w.local_addresses.length > 0) {
+                                                              w.local_addresses.forEach((_, idx) => {
+                                                                allLocationIds.push(`${w.id}-${idx}`);
+                                                              });
+                                                            }
+                                                          });
+                                                          handleAuctionParentToggle(allLocationIds);
+                                                        }
+                                                      }}
+                                                    />
+                                                    <span className="text-sm text-[hsl(var(--foreground))]">
+                                                      {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
+                                                    </span>
+                                                  </div>
+                                                  
+                                                  {/* Wards and Local Addresses */}
+                                                  {auctionExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
+                                                    <div key={ward.id} className="ml-6 mt-1">
+                                                      <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                        <input
+                                                          type="checkbox"
+                                                          className="mr-2"
+                                                          checked={(() => {
+                                                            // Check if ward ID and ALL local addresses are selected
+                                                            const allIds = [ward.id.toString()];
+                                                            if (ward.local_addresses && ward.local_addresses.length > 0) {
+                                                              ward.local_addresses.forEach((_, idx) => {
+                                                                allIds.push(`${ward.id}-${idx}`);
+                                                              });
+                                                            }
+                                                            // Ensure all IDs are strings for consistent comparison
+                                                            return allIds.length > 0 && allIds.every(id => {
+                                                              const idStr = id.toString();
+                                                              return auctionSelectedLocations.has(idStr);
+                                                            });
+                                                          })()}
+                                                          onChange={() => {
+                                                            handleAuctionWardToggle(ward);
+                                                          }}
+                                                        />
+                                                        <span className="text-sm text-[hsl(var(--foreground))]">
+                                                          Ward {ward.ward_number}
+                                                        </span>
+                                                      </div>
+                                                      
+                                                      {/* Local Addresses */}
+                                                      {ward.local_addresses && ward.local_addresses.length > 0 && (
+                                                        <div className="ml-6 mt-1 space-y-1">
+                                                          {ward.local_addresses.map((address, idx) => {
+                                                            const addressId = `${ward.id}-${idx}`;
+                                                            return (
+                                                              <div key={addressId} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                                <input
+                                                                  type="checkbox"
+                                                                  className="mr-2"
+                                                                  checked={auctionSelectedLocations.has(addressId.toString())}
+                                                                  onChange={() => handleAuctionLocationToggle(addressId)}
+                                                                />
+                                                                <span className="text-xs text-[hsl(var(--muted-foreground))]">{address}</span>
+                                                              </div>
+                                                            );
+                                                          })}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ))
+                                      ) : (
+                                        <div className="p-4 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                                          No locations available. Please add locations first.
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
                               )}
-                            </select>
+                            </div>
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Reserve Price (Optional)</label>
@@ -13332,6 +13965,13 @@ function AdminPanel() {
                             onClick={() => {
                               setShowAuctionForm(false);
                               setEditingAuction(null);
+                              setAuctionSelectedCategoryName('');
+                              setAuctionSelectedSubcategoryId('');
+                              setAuctionSelectedItemCategoryId('');
+                              setAuctionSelectedLocations(new Set());
+                              setAuctionExpandedProvinces(new Set());
+                              setAuctionExpandedDistricts(new Set());
+                              setAuctionExpandedLocalLevels(new Set());
                               setAuctionFormData({
                                 user_id: '',
                                 category_id: '',
@@ -13825,24 +14465,270 @@ function AdminPanel() {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Location (Optional)</label>
-                            <select
-                              value={auctionFormData.location_id}
-                              onChange={(e) => setAuctionFormData(prev => ({...prev, location_id: e.target.value}))}
-                              className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
-                            >
-                              <option value="">Select Location</option>
-                              {locationData.provinces?.flatMap(province => 
-                                province.districts?.flatMap(district =>
-                                  district.localLevels?.flatMap(localLevel =>
-                                    localLevel.wards?.map(ward => (
-                                      <option key={ward.id} value={ward.id}>
-                                        {province.name} &gt; {district.name} &gt; {localLevel.name} &gt; Ward {ward.ward_number}
-                                      </option>
-                                    ))
-                                  )
-                                )
+                            <div className="relative" ref={auctionLocationDropdownRef}>
+                              <button
+                                type="button"
+                                onClick={() => setAuctionShowLocationDropdown(!auctionShowLocationDropdown)}
+                                className="w-full px-3 py-2 text-left border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center justify-between"
+                              >
+                                <span>{buildAuctionLocationString()}</span>
+                                <span className="ml-2">{auctionShowLocationDropdown ? '▼' : '▶'}</span>
+                              </button>
+                              
+                              {/* Hierarchical Checkbox Menu - Same design as Post Ad */}
+                              {auctionShowLocationDropdown && (
+                                <div className="absolute top-full left-0 mt-1 bg-[hsl(var(--background))] border border-[hsl(var(--border))] rounded-md shadow-lg z-50 w-[600px] max-h-[500px] overflow-y-auto">
+                                  <div className="p-3">
+                                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-[hsl(var(--border))]">
+                                      <span className="font-semibold text-sm text-[hsl(var(--foreground))]">Select Location</span>
+                                      <button
+                                        type="button"
+                                        onClick={handleAuctionSelectAllLocations}
+                                        className="text-xs text-[hsl(var(--primary))] hover:underline"
+                                      >
+                                        {auctionSelectedLocations.size > 0 ? 'Clear All' : 'Select All'}
+                                      </button>
+                                    </div>
+                                    
+                                    {/* Hierarchical Location Tree */}
+                                    <div className="space-y-1">
+                                      {locationData?.provinces && locationData.provinces.length > 0 ? (
+                                        locationData.provinces.map((province) => (
+                                        <div key={province.id} className="border-b border-[hsl(var(--border))] pb-1 mb-1">
+                                          {/* Province Level */}
+                                          <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleAuctionProvince(province.id)}
+                                              className="mr-2 text-xs"
+                                            >
+                                              {auctionExpandedProvinces.has(province.id) ? '▼' : '▶'}
+                                            </button>
+                                            <input
+                                              type="checkbox"
+                                              className="mr-2"
+                                              checked={(() => {
+                                                const allLocationIds = [];
+                                                province.districts.forEach(d => {
+                                                  d.localLevels.forEach(ll => {
+                                                    if (ll.wards) {
+                                                      ll.wards.forEach(w => {
+                                                        allLocationIds.push(w.id.toString());
+                                                        if (w.local_addresses && w.local_addresses.length > 0) {
+                                                          w.local_addresses.forEach((_, idx) => {
+                                                            allLocationIds.push(`${w.id}-${idx}`);
+                                                          });
+                                                        }
+                                                      });
+                                                    }
+                                                  });
+                                                });
+                                                // For single selection: parent is checked only if ALL children are selected
+                                                // Ensure all IDs are strings for consistent comparison
+                                                return allLocationIds.length > 0 && allLocationIds.every(id => {
+                                                  const idStr = id.toString();
+                                                  return auctionSelectedLocations.has(idStr);
+                                                });
+                                              })()}
+                                              onChange={() => {
+                                                // Single selection: collect all location IDs and select first ward
+                                                const allLocationIds = [];
+                                                province.districts.forEach(d => {
+                                                  d.localLevels.forEach(ll => {
+                                                    if (ll.wards) {
+                                                      ll.wards.forEach(w => {
+                                                        allLocationIds.push(w.id.toString());
+                                                        if (w.local_addresses && w.local_addresses.length > 0) {
+                                                          w.local_addresses.forEach((_, idx) => {
+                                                            allLocationIds.push(`${w.id}-${idx}`);
+                                                          });
+                                                        }
+                                                      });
+                                                    }
+                                                  });
+                                                });
+                                                handleAuctionParentToggle(allLocationIds);
+                                              }}
+                                            />
+                                            <span className="text-sm font-medium text-[hsl(var(--foreground))]">{province.name}</span>
+                                          </div>
+                                          
+                                          {/* Districts */}
+                                          {auctionExpandedProvinces.has(province.id) && province.districts.map((district) => (
+                                            <div key={district.id} className="ml-6 mt-1">
+                                              <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => toggleAuctionDistrict(`${province.id}-${district.id}`)}
+                                                  className="mr-2 text-xs"
+                                                >
+                                                  {auctionExpandedDistricts.has(`${province.id}-${district.id}`) ? '▼' : '▶'}
+                                                </button>
+                                                <input
+                                                  type="checkbox"
+                                                  className="mr-2"
+                                                  checked={(() => {
+                                                    const allLocationIds = [];
+                                                    district.localLevels.forEach(ll => {
+                                                      if (ll.wards) {
+                                                        ll.wards.forEach(w => {
+                                                          allLocationIds.push(w.id.toString());
+                                                          if (w.local_addresses && w.local_addresses.length > 0) {
+                                                            w.local_addresses.forEach((_, idx) => {
+                                                              allLocationIds.push(`${w.id}-${idx}`);
+                                                            });
+                                                          }
+                                                        });
+                                                      }
+                                                    });
+                                                    // For single selection: parent is checked only if ALL children are selected
+                                                // Ensure all IDs are strings for consistent comparison
+                                                return allLocationIds.length > 0 && allLocationIds.every(id => {
+                                                  const idStr = id.toString();
+                                                  return auctionSelectedLocations.has(idStr);
+                                                });
+                                                  })()}
+                                                  onChange={() => {
+                                                    // Single selection: collect all location IDs and select first ward
+                                                    const allLocationIds = [];
+                                                    district.localLevels.forEach(ll => {
+                                                      if (ll.wards) {
+                                                        ll.wards.forEach(w => {
+                                                          allLocationIds.push(w.id.toString());
+                                                          if (w.local_addresses && w.local_addresses.length > 0) {
+                                                            w.local_addresses.forEach((_, idx) => {
+                                                              allLocationIds.push(`${w.id}-${idx}`);
+                                                            });
+                                                          }
+                                                        });
+                                                      }
+                                                    });
+                                                    handleAuctionParentToggle(allLocationIds);
+                                                  }}
+                                                />
+                                                <span className="text-sm text-[hsl(var(--foreground))]">{district.name}</span>
+                                              </div>
+                                              
+                                              {/* Local Levels */}
+                                              {auctionExpandedDistricts.has(`${province.id}-${district.id}`) && district.localLevels.map((localLevel) => (
+                                                <div key={localLevel.id} className="ml-6 mt-1">
+                                                  <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => toggleAuctionLocalLevel(`${province.id}-${district.id}-${localLevel.id}`)}
+                                                      className="mr-2 text-xs"
+                                                    >
+                                                      {auctionExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) ? '▼' : '▶'}
+                                                    </button>
+                                                    <input
+                                                      type="checkbox"
+                                                      className="mr-2"
+                                                      checked={(() => {
+                                                        if (!localLevel.wards) return false;
+                                                        const allLocationIds = [];
+                                                        localLevel.wards.forEach(w => {
+                                                          allLocationIds.push(w.id.toString());
+                                                          if (w.local_addresses && w.local_addresses.length > 0) {
+                                                            w.local_addresses.forEach((_, idx) => {
+                                                              allLocationIds.push(`${w.id}-${idx}`);
+                                                            });
+                                                          }
+                                                        });
+                                                        // For single selection: parent is checked only if ALL children are selected
+                                                // Ensure all IDs are strings for consistent comparison
+                                                return allLocationIds.length > 0 && allLocationIds.every(id => {
+                                                  const idStr = id.toString();
+                                                  return auctionSelectedLocations.has(idStr);
+                                                });
+                                                      })()}
+                                                      onChange={() => {
+                                                        if (localLevel.wards) {
+                                                          // Single selection: collect all location IDs and select first ward
+                                                          const allLocationIds = [];
+                                                          localLevel.wards.forEach(w => {
+                                                            allLocationIds.push(w.id.toString());
+                                                            if (w.local_addresses && w.local_addresses.length > 0) {
+                                                              w.local_addresses.forEach((_, idx) => {
+                                                                allLocationIds.push(`${w.id}-${idx}`);
+                                                              });
+                                                            }
+                                                          });
+                                                          handleAuctionParentToggle(allLocationIds);
+                                                        }
+                                                      }}
+                                                    />
+                                                    <span className="text-sm text-[hsl(var(--foreground))]">
+                                                      {localLevel.name} ({localLevel.type === 'municipality' ? 'M' : 'RM'})
+                                                    </span>
+                                                  </div>
+                                                  
+                                                  {/* Wards and Local Addresses */}
+                                                  {auctionExpandedLocalLevels.has(`${province.id}-${district.id}-${localLevel.id}`) && localLevel.wards && localLevel.wards.map((ward) => (
+                                                    <div key={ward.id} className="ml-6 mt-1">
+                                                      <div className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                        <input
+                                                          type="checkbox"
+                                                          className="mr-2"
+                                                          checked={(() => {
+                                                            // Check if ward ID and ALL local addresses are selected
+                                                            const allIds = [ward.id.toString()];
+                                                            if (ward.local_addresses && ward.local_addresses.length > 0) {
+                                                              ward.local_addresses.forEach((_, idx) => {
+                                                                allIds.push(`${ward.id}-${idx}`);
+                                                              });
+                                                            }
+                                                            // Ensure all IDs are strings for consistent comparison
+                                                            return allIds.length > 0 && allIds.every(id => {
+                                                              const idStr = id.toString();
+                                                              return auctionSelectedLocations.has(idStr);
+                                                            });
+                                                          })()}
+                                                          onChange={() => {
+                                                            handleAuctionWardToggle(ward);
+                                                          }}
+                                                        />
+                                                        <span className="text-sm text-[hsl(var(--foreground))]">
+                                                          Ward {ward.ward_number}
+                                                        </span>
+                                                      </div>
+                                                      
+                                                      {/* Local Addresses */}
+                                                      {ward.local_addresses && ward.local_addresses.length > 0 && (
+                                                        <div className="ml-6 mt-1 space-y-1">
+                                                          {ward.local_addresses.map((address, idx) => {
+                                                            const addressId = `${ward.id}-${idx}`;
+                                                            return (
+                                                              <div key={addressId} className="flex items-center py-1 hover:bg-[hsl(var(--accent))] rounded px-2">
+                                                                <input
+                                                                  type="checkbox"
+                                                                  className="mr-2"
+                                                                  checked={auctionSelectedLocations.has(addressId.toString())}
+                                                                  onChange={() => handleAuctionLocationToggle(addressId)}
+                                                                />
+                                                                <span className="text-xs text-[hsl(var(--muted-foreground))]">{address}</span>
+                                                              </div>
+                                                            );
+                                                          })}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ))
+                                      ) : (
+                                        <div className="p-4 text-center text-sm text-[hsl(var(--muted-foreground))]">
+                                          No locations available. Please add locations first.
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
                               )}
-                            </select>
+                            </div>
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Reserve Price (Optional)</label>
