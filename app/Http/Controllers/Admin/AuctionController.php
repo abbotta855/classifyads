@@ -59,13 +59,13 @@ class AuctionController extends Controller
         $nextUpdateTime = null;
         $secondsUntilNextChange = null;
         
-        if ($auction->status === 'completed') {
-          $actualStatus = 'completed';
-          // No need to update completed auctions
+        // Respect explicit statuses first (manual overrides)
+        if (in_array($auction->status, ['completed', 'ended', 'cancelled'], true)) {
+          $actualStatus = $auction->status;
         } elseif ($auction->end_time <= $now) {
           $actualStatus = 'ended';
           // Update database if status changed
-          if ($auction->status !== 'ended' && $auction->status !== 'completed') {
+          if (!in_array($auction->status, ['ended', 'completed', 'cancelled'], true)) {
             $statusesToUpdate[$auction->id] = 'ended';
           }
         } elseif ($auction->start_time <= $now && $auction->end_time > $now) {
@@ -168,9 +168,9 @@ class AuctionController extends Controller
       $actualStatus = $auction->status;
       $now = now();
       
-      // Don't override 'completed' status (payment already done)
-      if ($auction->status === 'completed') {
-        $actualStatus = 'completed';
+      // Respect explicit statuses first (manual overrides)
+      if (in_array($auction->status, ['completed', 'ended', 'cancelled'], true)) {
+        $actualStatus = $auction->status;
       } elseif ($auction->end_time <= $now) {
         // Auction has already ended
         $actualStatus = 'ended';
@@ -633,9 +633,9 @@ class AuctionController extends Controller
     $now = now();
     $actualStatus = $auction->status;
     
-    // Calculate actual status based on times
-    if ($auction->status === 'completed') {
-      $actualStatus = 'completed';
+    // Calculate actual status while respecting manual overrides
+    if (in_array($auction->status, ['completed', 'ended', 'cancelled'], true)) {
+      $actualStatus = $auction->status;
     } elseif ($auction->end_time <= $now) {
       $actualStatus = 'ended';
     } elseif ($auction->start_time <= $now && $auction->end_time > $now) {

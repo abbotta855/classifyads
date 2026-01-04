@@ -12400,9 +12400,9 @@ function AdminPanel() {
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Transaction Management</h3>
                     {transactionManagementTab === 'ad-post' && (
-                      <Button variant="outline" onClick={() => setShowPostAdTransactionForm(!showPostAdTransactionForm)}>
-                        {showPostAdTransactionForm ? 'Close Form' : 'Post Ad'}
-                      </Button>
+                    <Button variant="outline" onClick={() => setShowPostAdTransactionForm(!showPostAdTransactionForm)}>
+                      {showPostAdTransactionForm ? 'Close Form' : 'Post Ad'}
+                    </Button>
                     )}
                   </div>
 
