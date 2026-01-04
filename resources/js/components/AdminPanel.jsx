@@ -131,6 +131,7 @@ function AdminPanel() {
   const [auctionExpandedLocalLevels, setAuctionExpandedLocalLevels] = useState(new Set()); // For Auction location dropdown
   const auctionLocationDropdownRef = useRef(null);
   const isAuctionParentToggleInProgress = useRef(false); // Flag to prevent useEffect sync during parent toggle
+  const isAuctionIndividualAddressToggle = useRef(false); // Flag to prevent useEffect sync during individual address selection
   // Crop modal state for ads
   const [cropImageIndex, setCropImageIndex] = useState(null);
   const [cropImageFile, setCropImageFile] = useState(null);
@@ -526,10 +527,10 @@ function AdminPanel() {
   }, [activeSection, activeSubsection]);
 
   // Sync auctionSelectedLocations with auctionFormData.location_id when locationData is available
-  // Skip sync if we're in the middle of a parent toggle to prevent resetting the selection
+  // Skip sync if we're in the middle of a parent toggle or individual address selection to prevent resetting the selection
   useEffect(() => {
-    // Skip sync if parent toggle is in progress
-    if (isAuctionParentToggleInProgress.current) {
+    // Skip sync if parent toggle or individual address selection is in progress
+    if (isAuctionParentToggleInProgress.current || isAuctionIndividualAddressToggle.current) {
       return;
     }
     
@@ -6660,8 +6661,11 @@ function AdminPanel() {
 
   // Helper functions for Auction form location selection (single selection)
   // Note: This is used for local address checkboxes. For ward checkboxes, use handleAuctionWardToggle.
-  // When a local address is clicked, we need to find the ward and select the entire ward (ward + all local addresses)
+  // When a local address is clicked, toggle just that individual address (not the entire ward)
   const handleAuctionLocationToggle = (locationId) => {
+    // Set flag to prevent useEffect from resetting selection
+    isAuctionIndividualAddressToggle.current = true;
+    
     // Convert locationId to string for consistent comparison
     const locationIdStr = locationId.toString();
     
@@ -6673,61 +6677,40 @@ function AdminPanel() {
     }
     const wardIdStr = wardId.toString();
     
-    // Find the ward object from locationData to get all its local addresses
-    let targetWard = null;
-    if (locationData?.provinces) {
-      for (const province of locationData.provinces) {
-        for (const district of province.districts || []) {
-          for (const localLevel of district.localLevels || []) {
-            for (const ward of localLevel.wards || []) {
-              if (ward.id.toString() === wardIdStr) {
-                targetWard = ward;
-                break;
-              }
-            }
-            if (targetWard) break;
-          }
-          if (targetWard) break;
-        }
-        if (targetWard) break;
-      }
-    }
-    
-    if (!targetWard) {
-      // Fallback: if ward not found, just select the locationId (shouldn't happen normally)
-      if (auctionSelectedLocations.has(locationIdStr)) {
-        setAuctionSelectedLocations(new Set());
-        setAuctionFormData(prev => ({...prev, location_id: ''}));
+    // Toggle just this individual address
+    setAuctionSelectedLocations(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(locationIdStr)) {
+        newSet.delete(locationIdStr);
       } else {
-        setAuctionSelectedLocations(new Set([locationIdStr]));
-        setAuctionFormData(prev => ({...prev, location_id: wardIdStr}));
+        newSet.add(locationIdStr);
       }
-      return;
-    }
-    
-    // Collect all IDs: ward.id and all local_addresses IDs (all as strings)
-    const allIds = [targetWard.id.toString()];
-    if (targetWard.local_addresses && targetWard.local_addresses.length > 0) {
-      targetWard.local_addresses.forEach((_, idx) => {
-        allIds.push(`${targetWard.id}-${idx}`);
+      
+      // Check if any addresses from this ward are selected after toggling
+      const hasAnyAddressFromWard = Array.from(newSet).some(id => {
+        const idStr = id.toString();
+        // Check if this ID belongs to the same ward (either the ward ID itself or an address with this ward prefix)
+        return idStr === wardIdStr || (idStr.includes('-') && idStr.startsWith(wardIdStr + '-'));
       });
-    }
-    
-    // Check if all are selected (ensure consistent string comparison)
-    const allSelected = allIds.every(id => {
-      const idStr = id.toString();
-      return auctionSelectedLocations.has(idStr);
+      
+      // Update location_id based on whether any addresses from this ward are selected
+      // Use setTimeout to update location_id after state update completes
+      setTimeout(() => {
+        if (hasAnyAddressFromWard) {
+          setAuctionFormData(prev => ({ ...prev, location_id: wardIdStr }));
+        } else if (newSet.size === 0) {
+          setAuctionFormData(prev => ({ ...prev, location_id: '' }));
+        }
+        // If newSet.size > 0 but no addresses from this ward, keep current location_id
+        
+        // Reset flag after state updates complete
+        setTimeout(() => {
+          isAuctionIndividualAddressToggle.current = false;
+        }, 100);
+      }, 0);
+      
+      return newSet;
     });
-    
-    if (allSelected) {
-      // Deselect all
-      setAuctionSelectedLocations(new Set());
-      setAuctionFormData(prev => ({...prev, location_id: ''}));
-    } else {
-      // Select all (ward + all local addresses) - same behavior as clicking ward checkbox
-      setAuctionSelectedLocations(new Set(allIds.map(id => id.toString())));
-      setAuctionFormData(prev => ({...prev, location_id: wardIdStr}));
-    }
   };
 
   // Helper function to handle ward checkbox click (selects ward + all local addresses)

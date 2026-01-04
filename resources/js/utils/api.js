@@ -203,7 +203,7 @@ export const adminAPI = {
   createTransactionItem: (data) => axios.post(`${API_BASE}/transaction-management`, data),
   updateTransactionItem: (id, data) => axios.put(`${API_BASE}/transaction-management/${id}`, data),
   deleteTransactionItem: (id) => axios.delete(`${API_BASE}/transaction-management/${id}`),
-  
+
   // Wallet Management (Withdrawals)
   getWalletTransactions: (type, status) => axios.get(`${API_BASE}/wallet/transactions`, { params: { type, status } }),
   getPendingWithdrawals: () => axios.get(`${API_BASE}/wallet/withdrawals/pending`),

@@ -4111,8 +4111,8 @@ function AdPostSection({ user }) {
                                       className={`flex-1 text-left px-2 py-2 hover:bg-[hsl(var(--accent))] ${
                                         selectedSubcategoryId === subcategory.id.toString() && !selectedItemCategoryId 
                                           ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]' : ''
-                                      }`}
-                                    >
+                              }`}
+                            >
                                       {subcategory.name}
                                     </button>
                                   </div>
@@ -4419,7 +4419,7 @@ function CategoriesSection({ user }) {
           
           if (mainCategory.subcategories.length > 0 || domainCategory.item_categories?.length > 0) {
             categoriesWithSubcategories.push(mainCategory);
-          }
+      }
         });
       }
       
@@ -5527,7 +5527,7 @@ function EWalletSection({ user }) {
                 }}
               >
                 Withdraw
-              </Button>
+            </Button>
               {!user?.seller_verified && (
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
                   Seller verification required for withdrawals
@@ -5657,25 +5657,25 @@ function EWalletSection({ user }) {
 
           {/* Seller Verification - Hide for super admins */}
           {user?.role !== 'super_admin' && (
-            <div className="mt-6 border-t pt-4">
+          <div className="mt-6 border-t pt-4">
               <h3 className="text-lg font-semibold mb-2">Become a Verified Seller</h3>
-              {user?.seller_verified ? (
-                <p className="text-sm text-green-700">
+            {user?.seller_verified ? (
+              <p className="text-sm text-green-700">
                   ✓ Your account is verified for selling (eBooks and Auctions).
-                </p>
-              ) : (
-                <>
-                  <p className="text-sm text-[hsl(var(--muted-foreground))] mb-3">
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-[hsl(var(--muted-foreground))] mb-3">
                     Pay a small one-time verification fee to enable seller features. After verification, you can sell eBooks and create auctions.
-                  </p>
-                  <Button
-                    variant="default"
-                    disabled={initiatingVerification}
-                    onClick={async () => {
-                      try {
-                        setInitiatingVerification(true);
-                        setVerificationMessage(null);
-                        const response = await sellerVerificationAPI.initiatePayment();
+                </p>
+                <Button
+                  variant="default"
+                  disabled={initiatingVerification}
+                  onClick={async () => {
+                    try {
+                      setInitiatingVerification(true);
+                      setVerificationMessage(null);
+                      const response = await sellerVerificationAPI.initiatePayment();
                         
                         // Check for demo mode
                         if (response.data.demo_mode) {
@@ -5692,34 +5692,34 @@ function EWalletSection({ user }) {
                           }, 1500);
                         } else {
                           // Normal PayPal flow
-                          const approvalUrl = response.data.approval_url;
-                          if (approvalUrl) {
-                            window.location.href = approvalUrl;
-                          } else {
-                            setVerificationMessage({
-                              type: 'error',
-                              text: 'Failed to start verification payment.',
-                            });
+                      const approvalUrl = response.data.approval_url;
+                      if (approvalUrl) {
+                        window.location.href = approvalUrl;
+                      } else {
+                        setVerificationMessage({
+                          type: 'error',
+                          text: 'Failed to start verification payment.',
+                        });
                           }
-                        }
-                      } catch (err) {
-                        console.error('Error initiating seller verification payment:', err);
-                        const msg =
-                          err.response?.data?.error || err.message || 'Failed to start verification payment.';
-                        setVerificationMessage({ type: 'error', text: msg });
-                      } finally {
-                        setInitiatingVerification(false);
                       }
-                    }}
-                  >
-                    {initiatingVerification ? 'Processing...' : 'Pay Verification Fee with PayPal'}
-                  </Button>
-                  <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
+                    } catch (err) {
+                      console.error('Error initiating seller verification payment:', err);
+                      const msg =
+                        err.response?.data?.error || err.message || 'Failed to start verification payment.';
+                      setVerificationMessage({ type: 'error', text: msg });
+                    } finally {
+                      setInitiatingVerification(false);
+                    }
+                  }}
+                >
+                  {initiatingVerification ? 'Processing...' : 'Pay Verification Fee with PayPal'}
+                </Button>
+                <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
                     Note: If demo mode is enabled, verification will complete instantly without PayPal. Otherwise, PayPal credentials must be configured on the server.
-                  </p>
-                </>
-              )}
-            </div>
+                </p>
+              </>
+            )}
+          </div>
           )}
         </CardContent>
       </Card>
@@ -9135,7 +9135,7 @@ function MyEbooksSection({ user }) {
                   item_categories: [itemCat]
                 });
               });
-            }
+          }
           }
           
           if (mainCategory.subcategories.length > 0) {
@@ -9566,7 +9566,7 @@ function MyEbooksSection({ user }) {
                                               toggleCategory(categoryName);
                                             }}
                                             className="px-2 py-1 text-xs hover:bg-[hsl(var(--accent))] rounded"
-                                          >
+                  >
                                             {isCategoryExpanded ? '▼' : '▶'}
                                           </button>
                                           <button

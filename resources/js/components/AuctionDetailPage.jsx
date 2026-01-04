@@ -1152,14 +1152,38 @@ function AuctionDetailPage() {
                   {/* Action Buttons */}
                   <div className="space-y-2 pt-4 border-t border-[hsl(var(--border))]">
                     {auction.seller && auction.seller.id ? (
-                      <Link
-                        to={`/profile/${auction.seller.id}`}
-                        className="block"
-                      >
-                        <Button variant="outline" className="w-full">
-                          View Seller Profile →
-                        </Button>
-                      </Link>
+                      <>
+                        <Link
+                          to={`/profile/${auction.seller.id}`}
+                          className="block"
+                        >
+                          <Button variant="outline" className="w-full">
+                            View Seller Profile →
+                          </Button>
+                        </Link>
+                        {/* Contact to Seller */}
+                        {user && user.id !== auction.user_id ? (
+                          <Button
+                            onClick={() => {
+                              navigate(`/user_dashboard/inbox?auction_id=${auction.id}`);
+                            }}
+                            className="w-full"
+                          >
+                            Contact Seller
+                          </Button>
+                        ) : !user ? (
+                          <Button
+                            onClick={() => navigate('/login')}
+                            className="w-full"
+                          >
+                            Login to Contact Seller
+                          </Button>
+                        ) : user.id === auction.user_id ? (
+                          <p className="text-sm text-[hsl(var(--muted-foreground))] text-center">
+                            You are the seller
+                          </p>
+                        ) : null}
+                      </>
                     ) : (
                       <p className="text-sm text-[hsl(var(--muted-foreground))] text-center">
                         Seller profile is no longer available
@@ -1176,35 +1200,6 @@ function AuctionDetailPage() {
                 <CardTitle>Transaction Options</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Contact to Seller */}
-                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <h3 className="font-semibold mb-2">Contact to Seller</h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    Buyer can send private text to seller and seller can receive it in email and user login dashboard (Notification & Inbox)
-                  </p>
-                  {user && user.id !== auction.user_id ? (
-                    <Button
-                      onClick={() => {
-                        if (!user) {
-                          navigate('/login');
-                          return;
-                        }
-                        // Navigate to inbox with auction context
-                        navigate(`/user_dashboard/inbox?auction_id=${auction.id}`);
-                      }}
-                      className="w-full"
-                    >
-                      Contact Seller
-                    </Button>
-                  ) : user && user.id === auction.user_id ? (
-                    <p className="text-sm text-gray-500">You are the seller</p>
-                  ) : (
-                    <Button onClick={() => navigate('/login')} className="w-full">
-                      Login to Contact Seller
-                    </Button>
-                  )}
-                </div>
-
                 {/* Pickup Options */}
                 <div>
                   <h3 className="font-semibold mb-2">Pick Up Option</h3>
@@ -1222,7 +1217,9 @@ function AuctionDetailPage() {
                       </div>
                     )}
                     {!auction.self_pickup && !auction.seller_delivery && (
-                      <p className="text-sm text-gray-500">No pickup options specified</p>
+                      <p className="text-sm text-gray-600">
+                        Buyer must pick from: {auction.location || 'ad posted address'}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -1239,7 +1236,10 @@ function AuctionDetailPage() {
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm text-gray-500">No payment methods specified</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-600">✓</span>
+                        <span>Bank Transfer</span>
+                      </div>
                     )}
                   </div>
                 </div>
