@@ -467,6 +467,13 @@ function AdminPanel() {
   const [showEditTransactionModal, setShowEditTransactionModal] = useState(false);
   const [showPostAdTransactionForm, setShowPostAdTransactionForm] = useState(false);
   
+  // Wallet Transactions data
+  const [walletTransactions, setWalletTransactions] = useState([]);
+  const [walletTransactionsLoading, setWalletTransactionsLoading] = useState(false);
+  const [walletTransactionTypeFilter, setWalletTransactionTypeFilter] = useState('all'); // all, deposit, withdraw, seller_verification
+  const [walletTransactionStatusFilter, setWalletTransactionStatusFilter] = useState('all'); // all, pending, completed, failed, cancelled
+  const [transactionManagementTab, setTransactionManagementTab] = useState('ad-post'); // 'ad-post' or 'wallet'
+  
   // Modal states for edit modals
   const [showEditAdModal, setShowEditAdModal] = useState(false);
   const [showEditJobApplicantModal, setShowEditJobApplicantModal] = useState(false);
@@ -641,6 +648,13 @@ function AdminPanel() {
       fetchCategories();
     }
   }, [activeSection]);
+
+  // Fetch wallet transactions when wallet tab is active
+  useEffect(() => {
+    if (activeSection === 'transaction-management' && transactionManagementTab === 'wallet') {
+      fetchWalletTransactions();
+    }
+  }, [activeSection, transactionManagementTab, walletTransactionTypeFilter, walletTransactionStatusFilter]);
 
   // Fetch user management data
   useEffect(() => {
@@ -1195,6 +1209,30 @@ function AdminPanel() {
       setTimeout(() => setError(null), 5000);
     } finally {
       setTransactionManagementLoading(false);
+    }
+  };
+
+  const fetchWalletTransactions = async () => {
+    setWalletTransactionsLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getWalletTransactions(
+        walletTransactionTypeFilter,
+        walletTransactionStatusFilter
+      );
+      console.log('Wallet transactions API response:', response);
+      console.log('Wallet transactions data:', response.data);
+      // The API returns the array directly as response.data
+      const transactions = Array.isArray(response.data) ? response.data : [];
+      console.log('Processed transactions:', transactions);
+      setWalletTransactions(transactions);
+    } catch (err) {
+      setError('Failed to fetch wallet transactions: ' + (err.response?.data?.message || err.message));
+      console.error('Error fetching wallet transactions:', err);
+      console.error('Error response:', err.response);
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setWalletTransactionsLoading(false);
     }
   };
 
@@ -12378,11 +12416,40 @@ function AdminPanel() {
                 <CardContent className="p-4 space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Transaction Management</h3>
-                    <Button variant="outline" onClick={() => setShowPostAdTransactionForm(!showPostAdTransactionForm)}>
-                      {showPostAdTransactionForm ? 'Close Form' : 'Post Ad'}
-                    </Button>
+                    {transactionManagementTab === 'ad-post' && (
+                      <Button variant="outline" onClick={() => setShowPostAdTransactionForm(!showPostAdTransactionForm)}>
+                        {showPostAdTransactionForm ? 'Close Form' : 'Post Ad'}
+                      </Button>
+                    )}
                   </div>
 
+                  {/* Tabs for Ad Post vs Wallet Transactions */}
+                  <div className="flex gap-2 border-b border-[hsl(var(--border))] mb-4">
+                    <button
+                      onClick={() => setTransactionManagementTab('ad-post')}
+                      className={`px-4 py-2 text-sm font-medium transition-colors ${
+                        transactionManagementTab === 'ad-post'
+                          ? 'border-b-2 border-[hsl(var(--primary))] text-[hsl(var(--primary))]'
+                          : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+                      }`}
+                    >
+                      Ad Post Transactions
+                    </button>
+                    <button
+                      onClick={() => setTransactionManagementTab('wallet')}
+                      className={`px-4 py-2 text-sm font-medium transition-colors ${
+                        transactionManagementTab === 'wallet'
+                          ? 'border-b-2 border-[hsl(var(--primary))] text-[hsl(var(--primary))]'
+                          : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+                      }`}
+                    >
+                      Wallet Transactions
+                    </button>
+                  </div>
+
+                  {/* Ad Post Transactions Tab */}
+                  {transactionManagementTab === 'ad-post' && (
+                    <>
                   {/* Post Ad Form */}
                   {showPostAdTransactionForm && (
                     <Card className="bg-[hsl(var(--accent))]/50">
@@ -12657,6 +12724,129 @@ function AdminPanel() {
                       </tbody>
                     </table>
                   </div>
+                    </>
+                  )}
+
+                  {/* Wallet Transactions Tab */}
+                  {transactionManagementTab === 'wallet' && (
+                    <>
+                      {/* Filters */}
+                      <div className="flex gap-4 mb-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Type</label>
+                          <select
+                            value={walletTransactionTypeFilter}
+                            onChange={(e) => setWalletTransactionTypeFilter(e.target.value)}
+                            className="px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                          >
+                            <option value="all">All Types</option>
+                            <option value="deposit">Deposits</option>
+                            <option value="withdraw">Withdrawals</option>
+                            <option value="seller_verification">Seller Verification</option>
+                            <option value="ebook_purchase">eBook Purchases</option>
+                            <option value="auction_deposit">Auction Deposits</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Status</label>
+                          <select
+                            value={walletTransactionStatusFilter}
+                            onChange={(e) => setWalletTransactionStatusFilter(e.target.value)}
+                            className="px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                          >
+                            <option value="all">All Statuses</option>
+                            <option value="pending">Pending</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Wallet Transactions Table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="border-b border-[hsl(var(--border))]">
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Type</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Amount</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Status</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Payment Method</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Payment ID</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">PayPal Email</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Description</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {walletTransactionsLoading ? (
+                              <tr>
+                                <td colSpan="10" className="p-4 text-center text-[hsl(var(--muted-foreground))]">Loading wallet transactions...</td>
+                              </tr>
+                            ) : walletTransactions.length === 0 ? (
+                              <tr>
+                                <td colSpan="10" className="p-4 text-center text-[hsl(var(--muted-foreground))]">No wallet transactions found.</td>
+                              </tr>
+                            ) : (
+                              walletTransactions.map((transaction, index) => (
+                                <tr key={transaction.id} className="border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))]">
+                                  <td className="p-3 text-sm">{index + 1}</td>
+                                  <td className="p-3 text-sm">
+                                    <div>
+                                      <div className="font-medium">{transaction.user_name || 'Unknown'}</div>
+                                      <div className="text-xs text-[hsl(var(--muted-foreground))]">{transaction.user_email || ''}</div>
+                                    </div>
+                                  </td>
+                                  <td className="p-3 text-sm">
+                                    <span className={`px-2 py-1 rounded text-xs ${
+                                      transaction.type === 'deposit' ? 'bg-green-100 text-green-800' :
+                                      transaction.type === 'withdraw' ? 'bg-red-100 text-red-800' :
+                                      transaction.type === 'seller_verification' ? 'bg-blue-100 text-blue-800' :
+                                      'bg-gray-100 text-gray-800'
+                                    }`}>
+                                      {transaction.type?.replace('_', ' ').toUpperCase() || 'N/A'}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-sm font-semibold">
+                                    {transaction.type === 'deposit' ? '+' : '-'}${Number(transaction.amount || 0).toFixed(2)}
+                                  </td>
+                                  <td className="p-3 text-sm">
+                                    <span className={`px-2 py-1 rounded text-xs ${
+                                      transaction.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                      transaction.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                      transaction.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                      'bg-gray-100 text-gray-800'
+                                    }`}>
+                                      {transaction.status?.toUpperCase() || 'N/A'}
+                                    </span>
+                                  </td>
+                                  <td className="p-3 text-sm">{transaction.payment_method || 'N/A'}</td>
+                                  <td className="p-3 text-sm">
+                                    <span className="text-xs font-mono">{transaction.payment_id || '-'}</span>
+                                  </td>
+                                  <td className="p-3 text-sm">
+                                    {transaction.paypal_email ? (
+                                      <span className="text-xs">{transaction.paypal_email}</span>
+                                    ) : (
+                                      <span className="text-[hsl(var(--muted-foreground))]">-</span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-sm">
+                                    <span className="text-xs">{transaction.description || '-'}</span>
+                                  </td>
+                                  <td className="p-3 text-sm">
+                                    {transaction.created_at ? new Date(transaction.created_at).toLocaleDateString() : '-'}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 

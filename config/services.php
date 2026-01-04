@@ -40,6 +40,14 @@ return [
         'client_secret' => env('PAYPAL_CLIENT_SECRET'),
         'mode' => env('PAYPAL_MODE', 'sandbox'), // 'sandbox' or 'live'
         'webhook_id' => env('PAYPAL_WEBHOOK_ID'),
+        'demo_mode' => env('WALLET_DEMO_MODE', false), // Enable demo mode (bypasses PayPal)
+    ],
+
+    'withdrawal' => [
+        'min_amount' => env('WITHDRAWAL_MIN_AMOUNT', 10.00), // Minimum withdrawal amount
+        'max_amount' => env('WITHDRAWAL_MAX_AMOUNT', 10000.00), // Maximum withdrawal per request
+        'daily_limit' => env('WITHDRAWAL_DAILY_LIMIT', 50000.00), // Maximum withdrawals per day
+        'daily_count_limit' => env('WITHDRAWAL_DAILY_COUNT_LIMIT', 3), // Maximum number of withdrawals per day
     ],
 
 ];

@@ -230,5 +230,77 @@ class PayPalService
             return null;
         }
     }
+
+    /**
+     * Create a PayPal payout (send money to PayPal account)
+     * @param string $paypalEmail PayPal email address of the recipient
+     * @param float $amount Amount to send
+     * @param string $currency Currency code (default: USD)
+     * @param string $note Optional note for the payout
+     * @return array|null Payout details or null on failure
+     */
+    public function createPayout(string $paypalEmail, float $amount, string $currency = 'USD', string $note = ''): ?array
+    {
+        $accessToken = $this->getAccessToken();
+        if (!$accessToken) {
+            Log::error('PayPal payout: No access token');
+            return null;
+        }
+
+        try {
+            // Generate a unique sender batch ID
+            $senderBatchId = 'WITHDRAWAL-' . time() . '-' . uniqid();
+
+            $payoutData = [
+                'sender_batch_header' => [
+                    'sender_batch_id' => $senderBatchId,
+                    'email_subject' => 'You have received a withdrawal payment',
+                    'email_message' => $note ?: "You have received a withdrawal payment of $" . number_format($amount, 2),
+                ],
+                'items' => [
+                    [
+                        'recipient_type' => 'EMAIL',
+                        'amount' => [
+                            'value' => number_format($amount, 2, '.', ''),
+                            'currency' => $currency,
+                        ],
+                        'receiver' => $paypalEmail,
+                        'note' => $note ?: "Withdrawal payment",
+                        'sender_item_id' => 'WITHDRAWAL-' . time(),
+                    ],
+                ],
+            ];
+
+            $response = Http::withToken($accessToken)
+                ->post("{$this->baseUrl}/v1/payments/payouts", $payoutData);
+
+            if ($response->successful()) {
+                $result = $response->json();
+                Log::info('PayPal payout created', [
+                    'batch_id' => $result['batch_header']['payout_batch_id'] ?? null,
+                    'sender_batch_id' => $senderBatchId,
+                    'amount' => $amount,
+                    'email' => $paypalEmail,
+                ]);
+                return $result;
+            }
+
+            Log::error('PayPal payout error', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+                'email' => $paypalEmail,
+                'amount' => $amount,
+            ]);
+
+            return null;
+        } catch (\Exception $e) {
+            Log::error('PayPal payout exception', [
+                'email' => $paypalEmail,
+                'amount' => $amount,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
 }
 

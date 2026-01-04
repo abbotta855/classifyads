@@ -14,6 +14,7 @@ class Transaction extends Model
         'status',
         'payment_method',
         'payment_id',
+        'paypal_email',
         'description',
         'related_ad_id',
         'ebook_id',

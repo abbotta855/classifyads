@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Ad;
 use App\Models\Transaction;
+use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -43,9 +44,9 @@ class DashboardStatsController extends Controller
         // Format last login
         $lastLogin = $this->formatLastLogin($user->last_login_at);
 
-        // Balance (for e-wallet - placeholder for now)
-        // TODO: Implement when e-wallet system is built
-        $balance = 0;
+        // Calculate wallet balance
+        $walletService = new WalletService();
+        $balance = $walletService->calculateBalance($user->id);
 
         return response()->json([
             'listed_items' => $listedItems,

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI, sellerOfferAPI, buyerSellerMessageAPI, sellerVerificationAPI, sellerEbookAPI, userAuctionAPI, getAdUrl } from '../utils/api';
+import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI, sellerOfferAPI, buyerSellerMessageAPI, sellerVerificationAPI, sellerEbookAPI, userAuctionAPI, walletAPI, getAdUrl } from '../utils/api';
 import { localDateTimeToUTC } from '../utils/timezone';
 import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import RatingModal from './RatingModal';
@@ -5199,15 +5199,50 @@ function CategoriesSection({ user }) {
 function EWalletSection({ user }) {
   const [transactions, setTransactions] = useState([]);
   const [balance, setBalance] = useState(0);
+  const [availableBalance, setAvailableBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [verificationMessage, setVerificationMessage] = useState(null);
   const [initiatingVerification, setInitiatingVerification] = useState(false);
+  const [showDepositForm, setShowDepositForm] = useState(false);
+  const [showWithdrawForm, setShowWithdrawForm] = useState(false);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [depositPaypalEmail, setDepositPaypalEmail] = useState('');
+  const [paypalEmail, setPaypalEmail] = useState('');
+  const [initiatingDeposit, setInitiatingDeposit] = useState(false);
+  const [requestingWithdrawal, setRequestingWithdrawal] = useState(false);
 
   useEffect(() => {
-    fetchTransactions();
-    // Check URL query for seller verification messages
+    fetchWalletData();
+    // Check URL query for wallet and seller verification messages
     const params = new URLSearchParams(window.location.search);
+    
+    // Wallet messages
+    const walletStatus = params.get('wallet');
+    const walletMessage = params.get('message');
+    if (walletStatus === 'success') {
+      setVerificationMessage({
+        type: 'success',
+        text: walletMessage || 'Wallet operation completed successfully.',
+      });
+      // Clear URL params
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (walletStatus === 'error') {
+      setVerificationMessage({
+        type: 'error',
+        text: walletMessage || 'Wallet operation failed. Please try again.',
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (walletStatus === 'cancelled') {
+      setVerificationMessage({
+        type: 'info',
+        text: walletMessage || 'Wallet operation was cancelled.',
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    
+    // Seller verification messages
     const verificationStatus = params.get('seller_verification');
     const message = params.get('message');
     if (verificationStatus === 'success') {
@@ -5215,51 +5250,169 @@ function EWalletSection({ user }) {
         type: 'success',
         text: 'Seller verification payment completed successfully. Your account will now be treated as a verified seller.',
       });
+      window.history.replaceState({}, '', window.location.pathname);
     } else if (verificationStatus === 'error') {
       setVerificationMessage({
         type: 'error',
         text: message || 'Seller verification payment failed. Please try again.',
       });
+      window.history.replaceState({}, '', window.location.pathname);
     } else if (verificationStatus === 'cancelled') {
       setVerificationMessage({
         type: 'info',
         text: 'Seller verification payment was cancelled.',
       });
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
 
-  const fetchTransactions = async () => {
+  const fetchWalletData = async () => {
     try {
       setLoading(true);
-      // Use admin transaction-management endpoint to derive wallet view
-      const response = await axios.get('/api/admin/transaction-management');
-      const data = response.data || {};
-      const allTransactions = Array.isArray(data)
-        ? data
-        : Array.isArray(data.transactions)
-        ? data.transactions
-        : [];
-      const userTransactions = allTransactions.filter((t) => t.user_id === user?.id);
+      setError(null);
       
-      // Calculate balance
-      const calculatedBalance = userTransactions
-        .filter(t => t.status === 'completed')
-        .reduce((sum, t) => {
-          if (['deposit', 'payment'].includes(t.type)) {
-            return sum + parseFloat(t.amount || 0);
-          } else if (['withdraw', 'refund'].includes(t.type)) {
-            return sum - parseFloat(t.amount || 0);
-          }
-          return sum;
-        }, 0);
+      // Fetch balance
+      const balanceResponse = await walletAPI.getBalance();
+      setBalance(balanceResponse.data.balance || 0);
+      setAvailableBalance(balanceResponse.data.available_balance || 0);
       
-      setBalance(calculatedBalance);
-      setTransactions(userTransactions.slice(0, 50)); // Last 50 transactions
+      // Fetch transactions
+      const transactionsResponse = await walletAPI.getTransactions();
+      setTransactions(transactionsResponse.data.data || transactionsResponse.data || []);
     } catch (err) {
       setError('Failed to load wallet data');
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeposit = async (e) => {
+    e.preventDefault();
+    const amount = parseFloat(depositAmount);
+    
+    if (!amount || amount < 1 || amount > 10000) {
+      setVerificationMessage({
+        type: 'error',
+        text: 'Please enter an amount between $1 and $10,000',
+      });
+      return;
+    }
+
+    // Validate PayPal email
+    if (!depositPaypalEmail || !/\S+@\S+\.\S+/.test(depositPaypalEmail)) {
+      setVerificationMessage({
+        type: 'error',
+        text: 'Please enter a valid PayPal email address',
+      });
+      return;
+    }
+
+    try {
+      setInitiatingDeposit(true);
+      setVerificationMessage(null);
+      const response = await walletAPI.initiateDeposit(amount, depositPaypalEmail);
+      
+      // Demo mode: Transaction completed immediately
+      if (response.data.demo_mode) {
+        setVerificationMessage({
+          type: 'success',
+          text: response.data.message || 'Deposit completed successfully (Demo Mode)',
+        });
+        setShowDepositForm(false);
+        setDepositAmount('');
+        setDepositPaypalEmail('');
+        fetchWalletData(); // Refresh balance and transactions
+        return;
+      }
+      
+      // Production mode: Redirect to PayPal
+      const approvalUrl = response.data.approval_url;
+      if (approvalUrl) {
+        window.location.href = approvalUrl;
+      } else {
+        setVerificationMessage({
+          type: 'error',
+          text: 'Failed to start deposit. Please try again.',
+        });
+      }
+    } catch (err) {
+      console.error('Error initiating deposit:', err);
+      const msg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to start deposit. Please try again.';
+      setVerificationMessage({ type: 'error', text: msg });
+    } finally {
+      setInitiatingDeposit(false);
+    }
+  };
+
+  const handleWithdraw = async (e) => {
+    e.preventDefault();
+    const amount = parseFloat(withdrawAmount);
+    
+    // Validate amount
+    if (!amount || amount < 10) {
+      setVerificationMessage({
+        type: 'error',
+        text: 'Please enter an amount of at least $10.00',
+      });
+      return;
+    }
+
+    // Validate PayPal email
+    if (!paypalEmail || !paypalEmail.includes('@')) {
+      setVerificationMessage({
+        type: 'error',
+        text: 'Please enter a valid PayPal email address',
+      });
+      return;
+    }
+
+    if (amount > availableBalance) {
+      setVerificationMessage({
+        type: 'error',
+        text: `Insufficient balance. Available balance: $${availableBalance.toFixed(2)}`,
+      });
+      return;
+    }
+
+    try {
+      setRequestingWithdrawal(true);
+      setVerificationMessage(null);
+      const response = await walletAPI.requestWithdrawal(amount, paypalEmail);
+      
+      // Handle demo mode or automatic processing
+      if (response.data.demo_mode) {
+        setVerificationMessage({
+          type: 'success',
+          text: response.data.message || 'Withdrawal processed successfully (Demo Mode). Funds have been sent to your PayPal account.',
+        });
+      } else if (response.data.status === 'completed') {
+        setVerificationMessage({
+          type: 'success',
+          text: response.data.message || 'Withdrawal processed successfully. Funds have been sent to your PayPal account.',
+        });
+      } else if (response.data.status === 'pending') {
+        setVerificationMessage({
+          type: 'success',
+          text: response.data.message || 'Withdrawal is being processed. You will receive the funds shortly.',
+        });
+      } else {
+        setVerificationMessage({
+          type: 'success',
+          text: response.data.message || 'Withdrawal request submitted successfully.',
+        });
+      }
+      
+      setShowWithdrawForm(false);
+      setWithdrawAmount('');
+      setPaypalEmail('');
+      fetchWalletData(); // Refresh balance and transactions
+    } catch (err) {
+      console.error('Error requesting withdrawal:', err);
+      const msg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to submit withdrawal request. Please try again.';
+      setVerificationMessage({ type: 'error', text: msg });
+    } finally {
+      setRequestingWithdrawal(false);
     }
   };
 
@@ -5336,7 +5489,7 @@ function EWalletSection({ user }) {
             <div>
               <p className="text-sm text-[hsl(var(--muted-foreground))] mb-1">Current Balance</p>
               <p className="text-4xl font-bold text-[hsl(var(--foreground))]">
-                Rs. {balance.toLocaleString()}
+                ${balance.toFixed(2)}
               </p>
             </div>
             <div className="text-6xl opacity-20">💳</div>
@@ -5351,13 +5504,156 @@ function EWalletSection({ user }) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button variant="outline" disabled>
-              Add Funds (Coming Soon)
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowDepositForm(!showDepositForm);
+                setShowWithdrawForm(false);
+                setVerificationMessage(null);
+              }}
+            >
+              Add Funds
             </Button>
-            <Button variant="outline" disabled>
-              Withdraw (Coming Soon)
-            </Button>
+            <div>
+              <Button 
+                variant="outline" 
+                disabled={!user?.seller_verified}
+                onClick={() => {
+                  if (user?.seller_verified) {
+                    setShowWithdrawForm(!showWithdrawForm);
+                    setShowDepositForm(false);
+                    setVerificationMessage(null);
+                  }
+                }}
+              >
+                Withdraw
+              </Button>
+              {!user?.seller_verified && (
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                  Seller verification required for withdrawals
+                </p>
+              )}
+            </div>
           </div>
+
+          {/* Deposit Form */}
+          {showDepositForm && (
+            <div className="mt-4 p-4 border rounded-lg bg-[hsl(var(--accent))]">
+              <h4 className="font-semibold mb-3">Add Funds to Wallet</h4>
+              <form onSubmit={handleDeposit}>
+                <div className="mb-3">
+                  <Label htmlFor="depositAmount">Amount (USD)</Label>
+                  <Input
+                    id="depositAmount"
+                    type="number"
+                    min="1"
+                    max="10000"
+                    step="0.01"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    placeholder="Enter amount (1-10,000)"
+                    required
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                    Minimum: $1.00 | Maximum: $10,000.00
+                  </p>
+                </div>
+                <div className="mb-3">
+                  <Label htmlFor="depositPaypalEmail">PayPal Email</Label>
+                  <Input
+                    id="depositPaypalEmail"
+                    type="email"
+                    value={depositPaypalEmail}
+                    onChange={(e) => setDepositPaypalEmail(e.target.value)}
+                    placeholder="Enter your PayPal email"
+                    required
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                    This is the email address of your PayPal account from which funds will be sent.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={initiatingDeposit}>
+                    {initiatingDeposit ? 'Processing...' : 'Add Funds'}
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowDepositForm(false);
+                      setDepositAmount('');
+                      setDepositPaypalEmail('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Withdraw Form */}
+          {showWithdrawForm && (
+            <div className="mt-4 p-4 border rounded-lg bg-[hsl(var(--accent))]">
+              <h4 className="font-semibold mb-3">Request Withdrawal</h4>
+              <p className="text-sm text-[hsl(var(--muted-foreground))] mb-3">
+                Available balance: <span className="font-semibold">${availableBalance.toFixed(2)}</span>
+              </p>
+              <form onSubmit={handleWithdraw}>
+                <div className="mb-3">
+                  <Label htmlFor="withdrawAmount">Amount (USD)</Label>
+                  <Input
+                    id="withdrawAmount"
+                    type="number"
+                    min="10"
+                    step="0.01"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    placeholder={`Enter amount (min: $10.00, max: $${availableBalance.toFixed(2)})`}
+                    max={availableBalance}
+                    required
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                    Minimum: $10.00 | Maximum: $10,000.00 per request | Withdrawal requests are subject to admin approval
+                  </p>
+                </div>
+                <div className="mb-3">
+                  <Label htmlFor="paypalEmail">PayPal Email Address</Label>
+                  <Input
+                    id="paypalEmail"
+                    type="email"
+                    value={paypalEmail}
+                    onChange={(e) => setPaypalEmail(e.target.value)}
+                    placeholder="Enter your PayPal email address"
+                    required
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                    Money will be sent to this PayPal email address
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={requestingWithdrawal || availableBalance < 10}>
+                    {requestingWithdrawal ? 'Submitting...' : 'Request Withdrawal'}
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowWithdrawForm(false);
+                      setWithdrawAmount('');
+                      setPaypalEmail('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
 
           {/* Seller Verification - Hide for super admins */}
           {user?.role !== 'super_admin' && (
@@ -5380,14 +5676,31 @@ function EWalletSection({ user }) {
                         setInitiatingVerification(true);
                         setVerificationMessage(null);
                         const response = await sellerVerificationAPI.initiatePayment();
-                        const approvalUrl = response.data.approval_url;
-                        if (approvalUrl) {
-                          window.location.href = approvalUrl;
-                        } else {
+                        
+                        // Check for demo mode
+                        if (response.data.demo_mode) {
                           setVerificationMessage({
-                            type: 'error',
-                            text: 'Failed to start verification payment.',
+                            type: 'success',
+                            text: response.data.message || 'Seller verification completed successfully (Demo Mode). You are now a verified seller!',
                           });
+                          // Refresh wallet data to show updated status and transaction
+                          await fetchWalletData();
+                          // Reload page to refresh user data (seller_verified status)
+                          // This ensures the UI updates immediately (e.g., withdraw button becomes enabled)
+                          setTimeout(() => {
+                            window.location.reload();
+                          }, 1500);
+                        } else {
+                          // Normal PayPal flow
+                          const approvalUrl = response.data.approval_url;
+                          if (approvalUrl) {
+                            window.location.href = approvalUrl;
+                          } else {
+                            setVerificationMessage({
+                              type: 'error',
+                              text: 'Failed to start verification payment.',
+                            });
+                          }
                         }
                       } catch (err) {
                         console.error('Error initiating seller verification payment:', err);
@@ -5402,8 +5715,7 @@ function EWalletSection({ user }) {
                     {initiatingVerification ? 'Processing...' : 'Pay Verification Fee with PayPal'}
                   </Button>
                   <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
-                    Note: PayPal sandbox/client credentials must be configured on the server for this payment to
-                    work.
+                    Note: If demo mode is enabled, verification will complete instantly without PayPal. Otherwise, PayPal credentials must be configured on the server.
                   </p>
                 </>
               )}

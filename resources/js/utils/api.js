@@ -203,6 +203,13 @@ export const adminAPI = {
   createTransactionItem: (data) => axios.post(`${API_BASE}/transaction-management`, data),
   updateTransactionItem: (id, data) => axios.put(`${API_BASE}/transaction-management/${id}`, data),
   deleteTransactionItem: (id) => axios.delete(`${API_BASE}/transaction-management/${id}`),
+  
+  // Wallet Management (Withdrawals)
+  getWalletTransactions: (type, status) => axios.get(`${API_BASE}/wallet/transactions`, { params: { type, status } }),
+  getPendingWithdrawals: () => axios.get(`${API_BASE}/wallet/withdrawals/pending`),
+  getAllWithdrawals: (status) => axios.get(`${API_BASE}/wallet/withdrawals`, { params: { status } }),
+  approveWithdrawal: (id, data) => axios.post(`${API_BASE}/wallet/withdrawals/${id}/approve`, data),
+  rejectWithdrawal: (id, reason) => axios.post(`${API_BASE}/wallet/withdrawals/${id}/reject`, { reason }),
 
   // eBook Management
   getEbooks: () => axios.get(`${API_BASE}/ebooks`),
@@ -555,6 +562,14 @@ export const sellerOfferAPI = {
   updateOffer: (id, data) => axios.put(`/api/seller/offers/${id}`, data),
   deleteOffer: (id) => axios.delete(`/api/seller/offers/${id}`),
   getAdOffers: (adId) => axios.get(`/api/seller/offers/ad/${adId}`),
+};
+
+// Wallet API
+export const walletAPI = {
+  getBalance: () => axios.get('/api/wallet/balance'),
+  initiateDeposit: (amount, paypalEmail) => axios.post('/api/wallet/deposit/initiate', { amount, paypal_email: paypalEmail }),
+  requestWithdrawal: (amount, paypalEmail) => axios.post('/api/wallet/withdraw', { amount, paypal_email: paypalEmail }),
+  getTransactions: () => axios.get('/api/wallet/transactions'),
 };
 
 // eBook API (public)

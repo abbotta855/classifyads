@@ -95,6 +95,14 @@ Route::middleware('auth:sanctum')->group(function () {
   // Dashboard statistics
   Route::get('/dashboard/stats', [App\Http\Controllers\DashboardStatsController::class, 'index']);
 
+  // Wallet routes
+  Route::get('/wallet/balance', [App\Http\Controllers\WalletController::class, 'getBalance']);
+  Route::post('/wallet/deposit/initiate', [App\Http\Controllers\WalletController::class, 'initiateDeposit']);
+  Route::get('/wallet/deposit/success', [App\Http\Controllers\WalletController::class, 'depositSuccess']);
+  Route::get('/wallet/deposit/cancel', [App\Http\Controllers\WalletController::class, 'depositCancel']);
+  Route::post('/wallet/withdraw', [App\Http\Controllers\WalletController::class, 'requestWithdrawal']);
+  Route::get('/wallet/transactions', [App\Http\Controllers\WalletController::class, 'getTransactions']);
+
   // Seller verification (eBook seller)
   Route::post('/seller-verification/payment/initiate', [SellerVerificationController::class, 'initiatePayment']);
   Route::get('/seller-verification/payment/success', [SellerVerificationController::class, 'paymentSuccess']);
@@ -298,6 +306,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Transaction Management
     Route::apiResource('transaction-management', TransactionManagementController::class);
+    
+    // Wallet Management (Withdrawals)
+    Route::get('wallet/transactions', [App\Http\Controllers\Admin\WalletController::class, 'getAllWalletTransactions']);
+    Route::get('wallet/withdrawals', [App\Http\Controllers\Admin\WalletController::class, 'getAllWithdrawals']);
+    Route::get('wallet/withdrawals/pending', [App\Http\Controllers\Admin\WalletController::class, 'getPendingWithdrawals']);
+    Route::post('wallet/withdrawals/{id}/approve', [App\Http\Controllers\Admin\WalletController::class, 'approveWithdrawal']);
+    Route::post('wallet/withdrawals/{id}/reject', [App\Http\Controllers\Admin\WalletController::class, 'rejectWithdrawal']);
 
     // eBook Management
     Route::apiResource('ebooks', EbookController::class);

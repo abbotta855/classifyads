@@ -36,6 +36,39 @@ class SellerVerificationController extends Controller
         // Verification fee in platform currency (mapped to USD for PayPal)
         $fee = (float) config('app.seller_verification_fee', 10.0);
 
+        // Check for demo mode
+        $demoMode = config('services.paypal.demo_mode', false);
+
+        // Demo mode: Skip PayPal and verify seller immediately
+        if ($demoMode) {
+            // Create completed transaction
+            $transaction = Transaction::create([
+                'user_id' => $user->id,
+                'type' => 'seller_verification',
+                'amount' => $fee,
+                'status' => 'completed',
+                'payment_method' => 'demo',
+                'payment_id' => 'DEMO-VERIFY-' . time() . '-' . $user->id,
+                'description' => 'Seller verification fee (Demo Mode)',
+            ]);
+
+            // Mark user as verified seller
+            $user->update([
+                'seller_verified' => true,
+                'seller_verification_fee_paid' => true,
+                'seller_verification_payment_id' => $transaction->payment_id,
+                'seller_verification_payment_method' => 'demo',
+                'seller_verified_at' => now(),
+            ]);
+
+            return response()->json([
+                'demo_mode' => true,
+                'message' => 'Seller verification completed successfully (Demo Mode). You are now a verified seller!',
+                'transaction_id' => $transaction->id,
+                'seller_verified' => true,
+            ]);
+        }
+
         $items = [
             [
                 'name' => 'Seller Verification Fee',
