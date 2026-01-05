@@ -16,6 +16,7 @@ import EbookListingPage from './EbookListingPage';
 import EbookDetailPage from './EbookDetailPage';
 import AuctionListingPage from './AuctionListingPage';
 import AuctionDetailPage from './AuctionDetailPage';
+import CartPage from './CartPage';
 import { Card, CardContent } from './ui/card';
 
 function LoadingCard() {
@@ -101,6 +102,14 @@ function AppRoutes() {
       <Route path="/auctions" element={<AuctionListingPage />} />
       <Route path="/auctions/:id" element={<AuctionDetailPage />} />
       <Route path="/profile/:userId" element={<PublicProfile />} />
+      <Route
+        path="/cart"
+        element={
+          <ProtectedRoute>
+            <CartPage />
+          </ProtectedRoute>
+        }
+      />
       {/* Category-based ad URLs - must be last to avoid conflicts with other routes */}
       <Route path="/:categorySlug/:adSlug" element={<AdDetailPage />} />
       <Route

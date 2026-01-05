@@ -9,6 +9,8 @@ class BiddingHistory extends Model
 {
   protected $table = 'bidding_history';
 
+  public $timestamps = false;
+
   protected $fillable = [
     'user_id',
     'auction_id',

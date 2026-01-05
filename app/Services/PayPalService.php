@@ -22,15 +22,23 @@ class PayPalService
             : 'https://api-m.sandbox.paypal.com';
     }
 
-    /**
-     * Get PayPal access token
-     */
-    public function getAccessToken(): ?string
-    {
-        if (!$this->clientId || !$this->clientSecret) {
-            Log::error('PayPal credentials not configured');
-            return null;
-        }
+  /**
+   * Check if credentials are configured.
+   */
+  public function hasCredentials(): bool
+  {
+    return !empty($this->clientId) && !empty($this->clientSecret);
+  }
+
+  /**
+   * Get PayPal access token
+   */
+  public function getAccessToken(): ?string
+  {
+    if (!$this->hasCredentials()) {
+      Log::error('PayPal credentials not configured');
+      return null;
+    }
 
         try {
             $response = Http::asForm()

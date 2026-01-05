@@ -5,7 +5,8 @@ import Layout from './Layout';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { ratingAPI, publicProfileAPI, favouriteAPI, watchlistAPI, userAdAPI, publicAdAPI, buyerSellerMessageAPI } from '../utils/api';
+import { ratingAPI, publicProfileAPI, favouriteAPI, watchlistAPI, userAdAPI, publicAdAPI, buyerSellerMessageAPI, orderAPI } from '../utils/api';
+import { showToast } from './ui/toast';
 import RatingModal from './RatingModal';
 import axios from 'axios';
 
@@ -288,22 +289,70 @@ function AdDetailPage() {
     });
   };
 
+  const getCart = () => {
+    try {
+      const raw = localStorage.getItem('demo_cart');
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const saveCart = (cart) => {
+    localStorage.setItem('demo_cart', JSON.stringify(cart));
+  };
+
   const handleAddToCart = () => {
     if (!user) {
       navigate('/login');
       return;
     }
-    // TODO: Implement cart functionality
-    alert('Add to Cart functionality coming soon!');
+    const price = parseFloat(ad?.price || 0);
+    if (!price) {
+      alert('Price not available');
+      return;
+    }
+    const cart = getCart();
+    const existingIdx = cart.findIndex((item) => item.ad_id === ad.id);
+    if (existingIdx >= 0) {
+      cart[existingIdx].quantity += quantity;
+      cart[existingIdx].total = cart[existingIdx].quantity * cart[existingIdx].price;
+    } else {
+      cart.push({
+        ad_id: ad.id,
+        title: ad.title,
+        price,
+        quantity,
+        total: price * quantity,
+        image: images?.[0] || '',
+      });
+    }
+    saveCart(cart);
+    showToast('Added to cart', 'success');
   };
 
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
     if (!user) {
       navigate('/login');
       return;
     }
-    // TODO: Implement buy now functionality
-    alert('Buy Now functionality coming soon!');
+    const price = parseFloat(ad?.price || 0);
+    if (!price) {
+      alert('Price not available');
+      return;
+    }
+    // Use the same checkout path (single-item) for demo
+    try {
+      const res = await orderAPI.checkout([{ ad_id: ad.id, quantity }]);
+      alert(res.data?.message || 'Buy Now completed (demo). Payment simulated.');
+    } catch (e) {
+      alert(
+        e.response?.data?.error ||
+          e.response?.data?.message ||
+          e.message ||
+          'Failed to process Buy Now.'
+      );
+    }
   };
 
   const handleShare = (platform) => {
@@ -829,6 +878,11 @@ function AdDetailPage() {
                   >
                     💳 Buy Now
                   </Button>
+                  <Link to="/cart" className="block w-full">
+                    <Button variant="outline" className="w-full h-11">
+                      View Cart
+                    </Button>
+                  </Link>
                 </div>
 
                 {/* Favourites & Watchlist */}

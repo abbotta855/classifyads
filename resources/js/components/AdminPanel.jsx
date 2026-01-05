@@ -366,6 +366,12 @@ function AdminPanel() {
   const [liveChats, setLiveChats] = useState([]);
   const [liveChatsLoading, setLiveChatsLoading] = useState(false);
   const [selectedLiveChat, setSelectedLiveChat] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
+  const [liveChatError, setLiveChatError] = useState(null);
+  const [openChatSelectedUserId, setOpenChatSelectedUserId] = useState('');
+  const [openChatQuery, setOpenChatQuery] = useState('');
+  const [newChatMessage, setNewChatMessage] = useState('');
 
   // Offers/Discounts data
   const [offers, setOffers] = useState([]);
@@ -498,9 +504,6 @@ function AdminPanel() {
   const [transactionShowCategoryDropdown, setTransactionShowCategoryDropdown] = useState(false); // Category dropdown for Transaction form
   const transactionCategoryDropdownRef = useRef(null);
   const [showCategoryWiseDropdown, setShowCategoryWiseDropdown] = useState(false);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
-  const [newChatMessage, setNewChatMessage] = useState('');
 
   // User Management data
   const [userManagementData, setUserManagementData] = useState([]);
@@ -693,6 +696,7 @@ function AdminPanel() {
   useEffect(() => {
     if (activeSection === 'live-chat') {
       fetchLiveChats();
+      fetchUsers();
     }
   }, [activeSection]);
 
@@ -2617,6 +2621,20 @@ function AdminPanel() {
       setTimeout(() => setError(null), 5000);
     } finally {
       setLiveChatsLoading(false);
+    }
+  };
+
+  const handleOpenLiveChat = async () => {
+    if (!openChatSelectedUserId) return;
+    try {
+      await adminAPI.openLiveChat(openChatSelectedUserId);
+      await fetchLiveChats();
+      setOpenChatSelectedUserId('');
+      setOpenChatQuery('');
+    } catch (err) {
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
+      setLiveChatError('Failed to open chat: ' + errorMessage);
+      setTimeout(() => setLiveChatError(null), 5000);
     }
   };
 
@@ -10821,13 +10839,33 @@ function AdminPanel() {
               <Card>
                 <CardContent className="p-4">
                   <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Live Chat</h2>
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
+                  <div className="flex flex-wrap items-center gap-2 mb-4">
+                    <select
+                      className="border rounded px-3 py-2 text-sm w-64"
+                      value={openChatSelectedUserId}
+                      onChange={(e) => setOpenChatSelectedUserId(e.target.value)}
+                    >
+                      <option value="">Select user…</option>
+                      {users.slice(0, 200).map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name || 'Unknown'} {u.email ? `(${u.email})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <Button variant="default" size="sm" onClick={handleOpenLiveChat} disabled={!openChatSelectedUserId}>
+                      Start Chat
+                    </Button>
+                    {liveChatError && (
+                      <span className="text-sm text-red-500">{liveChatError}</span>
+                    )}
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-4 min-h-[620px]">
+                    <div className="flex flex-col h-full">
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-md font-semibold text-[hsl(var(--foreground))]">Users</h3>
                         <Button variant="ghost" size="sm" onClick={fetchLiveChats}>Refresh</Button>
                       </div>
-                      <div className="border border-[hsl(var(--border))] rounded-md h-[420px] overflow-y-auto">
+                      <div className="border border-[hsl(var(--border))] rounded-md h-[560px] overflow-y-auto">
                         <table className="w-full">
                           <thead className="bg-[hsl(var(--secondary))]">
                             <tr>

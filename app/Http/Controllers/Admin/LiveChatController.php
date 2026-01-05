@@ -41,6 +41,26 @@ class LiveChatController extends Controller
     }
 
     /**
+     * Admin: get or create a chat for a specific user.
+     */
+    public function open(Request $request)
+    {
+        $validated = $request->validate([
+            'user_id' => 'required|exists:users,id',
+        ]);
+
+        $chat = LiveChat::firstOrCreate(
+            ['user_id' => $validated['user_id']],
+            [
+                'last_message_at' => now(),
+                'unread_admin_count' => 0,
+            ]
+        );
+
+        return response()->json($chat);
+    }
+
+    /**
      * Display the specified resource.
      */
     public function show(string $id)

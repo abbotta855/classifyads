@@ -9,6 +9,8 @@ class BiddingTracking extends Model
 {
   protected $table = 'bidding_tracking';
 
+  public $timestamps = false;
+
   protected $fillable = [
     'bid_winner_id',
     'bid_winner_name',

@@ -98,6 +98,15 @@ function AuctionDetailPage() {
     setStatusUpdateInterval(currentInterval);
 
     const updateAuctionStatus = async () => {
+      // Stop polling if auction already in terminal state
+      if (auction.status === 'ended' || auction.status === 'completed') {
+        if (statusUpdateTimer) {
+          clearInterval(statusUpdateTimer);
+          statusUpdateTimer = null;
+        }
+        return;
+      }
+
       try {
         const response = await publicAuctionAPI.getAuctionStatuses([auction.id]);
         const statuses = response.data.statuses || {};
@@ -118,9 +127,15 @@ function AuctionDetailPage() {
         // Update auction status if it changed
         const newStatus = statuses[auction.id];
         if (newStatus && newStatus !== auction.status) {
-          // Status changed! Reload full auction data immediately
-          console.log(`Auction status changed from ${auction.status} to ${newStatus} - reloading...`);
-          loadAuction();
+          // Update local state instead of reloading
+          console.log(`Auction status changed from ${auction.status} to ${newStatus} - updating local state...`);
+          setAuction(prev => ({ ...prev, status: newStatus }));
+          if (newStatus === 'ended' || newStatus === 'completed') {
+            if (statusUpdateTimer) {
+              clearInterval(statusUpdateTimer);
+              statusUpdateTimer = null;
+            }
+          }
         }
       } catch (error) {
         // Silently fail - don't break the UI
@@ -132,7 +147,9 @@ function AuctionDetailPage() {
     updateAuctionStatus();
     
     // Set up polling with calculated initial interval
-    statusUpdateTimer = setInterval(updateAuctionStatus, currentInterval * 1000);
+    if (currentInterval > 0) {
+      statusUpdateTimer = setInterval(updateAuctionStatus, currentInterval * 1000);
+    }
     
     return () => {
       if (statusUpdateTimer) {
@@ -321,6 +338,15 @@ function AuctionDetailPage() {
     }
   };
 
+  // Stop status polling when auction is ended/completed
+  useEffect(() => {
+    if (!auction) return;
+    const isTerminal = auction.status === 'ended' || auction.status === 'completed';
+    if (isTerminal) {
+      // No-op here because the status polling effect below is terminal-aware
+    }
+  }, [auction]);
+
   const handlePlaceBid = async (e) => {
     e.preventDefault();
     if (!user) {
@@ -420,16 +446,6 @@ function AuctionDetailPage() {
       setUseProxyBidding(false);
       setMaxBidAmount('');
       
-      // Show success message with proxy bid info if applicable
-      const successMessage = response.data?.is_proxy_bid
-        ? `Proxy bid placed! Maximum bid: Rs. ${response.data.max_bid_amount.toLocaleString()}. System will auto-bid on your behalf.`
-        : 'Bid placed successfully!';
-      
-      if (response.data?.proxy_bids_processed > 0) {
-        alert(`${successMessage}\n\nNote: ${response.data.proxy_bids_processed} proxy bid(s) were automatically processed.`);
-      } else {
-        alert(successMessage);
-      }
     } catch (err) {
       setBidError(err.response?.data?.error || 'Failed to place bid');
       if (err.response?.data?.minimum_bid) {
@@ -624,15 +640,40 @@ function AuctionDetailPage() {
 
       // Then initiate payment
       const paymentResponse = await publicAuctionAPI.initiatePayment(id, 'buy_now');
-      
-      if (paymentResponse.data && paymentResponse.data.approval_url) {
-        // Redirect to PayPal
-        window.location.href = paymentResponse.data.approval_url;
-      } else {
-        throw new Error('Failed to initiate payment');
+      const paymentData = paymentResponse?.data || {};
+
+      // Wallet-paid (no external redirect)
+      if (paymentData.wallet_paid) {
+        await loadAuction(); // refresh status to completed/paid
+        setPlacingBid(false);
+        return;
       }
+
+      // Demo mode: backend completes immediately, no redirect
+      if (paymentData.demo_mode) {
+        await loadAuction(); // refresh status to completed/paid
+        setPlacingBid(false);
+        return;
+      }
+
+      // Normal PayPal flow
+      if (paymentData.approval_url) {
+        window.location.href = paymentData.approval_url;
+        return;
+      }
+
+      throw new Error(paymentData.error || 'Failed to initiate payment');
     } catch (err) {
-      setBidError(err.response?.data?.error || 'Failed to process Buy Now');
+      if (err.response?.status === 402 && err.response?.data?.needs_top_up) {
+        const data = err.response.data;
+        setBidError(`Insufficient wallet balance. Needed: ${data.required}, Balance: ${data.balance}, Shortfall: ${data.shortfall}. Please add funds and try again.`);
+        // Redirect user to wallet/e-wallet page to add funds
+        setTimeout(() => {
+          navigate('/user_dashboard/e-wallet');
+        }, 500);
+      } else {
+        setBidError(err.response?.data?.error || 'Failed to process Buy Now');
+      }
       console.error('Error buying now:', err);
       setPlacingBid(false);
     }

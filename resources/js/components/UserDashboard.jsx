@@ -12,6 +12,7 @@ import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import RatingModal from './RatingModal';
 import PhotoCropModal from './PhotoCropModal';
 import axios from 'axios';
+import SupportChatWidget from './SupportChatWidget';
 
 function UserDashboard({ mode: propMode }) {
   const { user, loading } = useAuth();
@@ -115,16 +116,6 @@ function UserDashboard({ mode: propMode }) {
       
       // Fetch inbox unread count (support chats + buyer-seller messages)
       let totalInboxUnread = 0;
-      
-      try {
-        // Support chat unread count
-        const supportChatsResponse = await inboxAPI.getChats();
-        const supportChats = supportChatsResponse.data || [];
-        const supportUnread = supportChats.reduce((sum, chat) => sum + (chat.unread_count || 0), 0);
-        totalInboxUnread += supportUnread;
-      } catch (err) {
-        console.error('Error fetching support chats:', err);
-      }
       
       try {
         // Buyer-seller messages unread count
@@ -405,6 +396,7 @@ function UserDashboard({ mode: propMode }) {
           {renderSectionContent()}
         </div>
       </div>
+      <SupportChatWidget />
     </Layout>
   );
 }
@@ -5291,10 +5283,10 @@ function EWalletSection({ user }) {
     e.preventDefault();
     const amount = parseFloat(depositAmount);
     
-    if (!amount || amount < 1 || amount > 10000) {
+    if (!amount || amount < 1 || amount > 100000) {
       setVerificationMessage({
         type: 'error',
-        text: 'Please enter an amount between $1 and $10,000',
+        text: 'Please enter an amount between $1 and $100,000',
       });
       return;
     }
@@ -5547,16 +5539,16 @@ function EWalletSection({ user }) {
                     id="depositAmount"
                     type="number"
                     min="1"
-                    max="10000"
+                    max="100000"
                     step="0.01"
                     value={depositAmount}
                     onChange={(e) => setDepositAmount(e.target.value)}
-                    placeholder="Enter amount (1-10,000)"
+                    placeholder="Enter amount (1-100,000)"
                     required
                     className="mt-1"
                   />
                   <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                    Minimum: $1.00 | Maximum: $10,000.00
+                    Minimum: $1.00 | Maximum: $100,000.00
                   </p>
                 </div>
                 <div className="mb-3">

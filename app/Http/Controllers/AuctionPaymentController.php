@@ -9,8 +9,10 @@ use App\Models\User;
 use App\Mail\AuctionPaymentConfirmation;
 use App\Services\PayPalService;
 use App\Services\AuctionService;
+use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -18,11 +20,29 @@ class AuctionPaymentController extends Controller
 {
     protected PayPalService $paypalService;
     protected AuctionService $auctionService;
+    protected WalletService $walletService;
 
-    public function __construct(PayPalService $paypalService, AuctionService $auctionService)
+    public function __construct(PayPalService $paypalService, AuctionService $auctionService, WalletService $walletService)
     {
         $this->paypalService = $paypalService;
         $this->auctionService = $auctionService;
+        $this->walletService = $walletService;
+    }
+
+    /**
+     * Resolve auction by numeric id or slug.
+     */
+    private function findAuction(string $auctionId): Auction
+    {
+        // Avoid binding slug strings to numeric id column (Postgres will error)
+        if (ctype_digit($auctionId)) {
+            $auction = Auction::find($auctionId);
+            if ($auction) {
+                return $auction;
+            }
+        }
+
+        return Auction::where('slug', $auctionId)->firstOrFail();
     }
 
     /**
@@ -30,8 +50,9 @@ class AuctionPaymentController extends Controller
      */
     public function initiatePayment(Request $request, string $auctionId)
     {
-        $auction = Auction::findOrFail($auctionId);
+        $auction = $this->findAuction($auctionId);
         $paymentType = $request->input('type', 'buy_now'); // 'buy_now' or 'winning_bid'
+        $demoMode = config('services.paypal.demo_mode', false);
 
         // Check if user is authenticated
         if (!Auth::check()) {
@@ -67,6 +88,116 @@ class AuctionPaymentController extends Controller
             $description = "Winning Bid: {$auction->title}";
         }
 
+        /**
+         * Wallet-first flow: if wallet has enough balance, process immediately.
+         */
+        $balance = $this->walletService->getAvailableBalance(Auth::id());
+        if ($balance >= $amount) {
+            try {
+                DB::beginTransaction();
+
+                // Debit buyer wallet
+                Transaction::create([
+                    'user_id' => Auth::id(),
+                    'type' => 'withdraw',
+                    'amount' => $amount,
+                    'status' => 'completed',
+                    'payment_method' => 'wallet',
+                    'payment_id' => 'WALLET-DEBIT-' . now()->timestamp . '-' . Auth::id(),
+                    'description' => "{$description} (Wallet)",
+                    'auction_id' => $auction->id,
+                ]);
+
+                // Credit seller wallet
+                Transaction::create([
+                    'user_id' => $auction->user_id,
+                    'type' => 'deposit',
+                    'amount' => $amount,
+                    'status' => 'completed',
+                    'payment_method' => 'wallet',
+                    'payment_id' => 'WALLET-CREDIT-' . now()->timestamp . '-' . $auction->user_id,
+                    'description' => "Sale proceeds: {$description}",
+                    'auction_id' => $auction->id,
+                ]);
+
+                // Mark auction as paid/completed
+                $auction->update([
+                    'status' => 'completed',
+                    'payment_completed_at' => now(),
+                    'winner_id' => $paymentType === 'buy_now' ? Auth::id() : ($auction->winner_id ?? Auth::id()),
+                    'current_bid_price' => $paymentType === 'buy_now' ? $amount : ($auction->current_bid_price ?? $amount),
+                ]);
+
+                // Record winner/tracking for admin panels
+                $this->auctionService->recordWinnerTracking($auction->fresh(['winner']), $auction->winner_id ?? Auth::id());
+
+                DB::commit();
+
+                return response()->json([
+                    'wallet_paid' => true,
+                    'message' => 'Payment completed with wallet balance',
+                ]);
+            } catch (\Exception $e) {
+                DB::rollBack();
+                Log::error('Wallet buy now failed', [
+                    'auction_id' => $auction->id,
+                    'user_id' => Auth::id(),
+                    'error' => $e->getMessage(),
+                ]);
+
+                return response()->json([
+                    'error' => 'Failed to process wallet payment',
+                    'message' => $e->getMessage(),
+                ], 500);
+            }
+        }
+
+        // Not enough wallet balance – inform client to top up
+        $shortfall = max(0, $amount - $balance);
+        return response()->json([
+            'error' => 'Insufficient wallet balance',
+            'needs_top_up' => true,
+            'balance' => $balance,
+            'required' => $amount,
+            'shortfall' => $shortfall,
+        ], 402);
+
+        /**
+         * Demo mode: bypass PayPal and mark payment as completed immediately.
+         */
+        if ($demoMode) {
+            $transaction = Transaction::create([
+                'user_id' => Auth::id(),
+                'type' => 'payment', // use generic type allowed by enum
+                'amount' => $amount,
+                'status' => 'completed',
+                'payment_method' => 'demo',
+                'payment_id' => 'DEMO-' . time() . '-' . Auth::id(),
+                'paypal_email' => null,
+                'description' => "{$description} (Demo Mode)",
+                'auction_id' => $auction->id,
+                'metadata' => ['payment_type' => $paymentType, 'demo_mode' => true],
+            ]);
+
+            // Mark auction as paid/completed
+            $auction->update([
+                'status' => 'completed',
+                'payment_completed_at' => now(),
+                // For buy now ensure winner
+                'winner_id' => $paymentType === 'buy_now' ? Auth::id() : ($auction->winner_id ?? Auth::id()),
+                'current_bid_price' => $paymentType === 'buy_now' ? $amount : ($auction->current_bid_price ?? $amount),
+            ]);
+
+            $this->auctionService->recordWinnerTracking($auction->fresh(['winner']), $auction->winner_id ?? Auth::id());
+
+            return response()->json([
+                'demo_mode' => true,
+                'message' => 'Payment completed successfully (Demo Mode)',
+                'transaction_id' => $transaction->id,
+                'auction' => $auction->fresh(['winner']),
+            ]);
+        }
+
         // Create PayPal order
         $items = [
             [
@@ -86,13 +217,17 @@ class AuctionPaymentController extends Controller
         $order = $this->paypalService->createOrder($amount, 'USD', $items, $returnUrl, $cancelUrl);
 
         if (!$order) {
+            // Provide clearer error when credentials are missing
+            if (method_exists($this->paypalService, 'hasCredentials') && !$this->paypalService->hasCredentials()) {
+                return response()->json(['error' => 'PayPal credentials not configured'], 500);
+            }
             return response()->json(['error' => 'Failed to create PayPal order'], 500);
         }
 
         // Create pending transaction
         $transaction = Transaction::create([
             'user_id' => Auth::id(),
-            'type' => $paymentType === 'buy_now' ? 'auction_payment' : 'auction_payment',
+            'type' => 'payment', // use generic type allowed by enum
             'amount' => $amount,
             'status' => 'pending',
             'payment_method' => 'paypal',
@@ -156,7 +291,7 @@ class AuctionPaymentController extends Controller
             return redirect("/auctions/{$auctionId}?payment=error&message=" . urlencode('Transaction not found'));
         }
 
-        $auction = Auction::findOrFail($auctionId);
+        $auction = $this->findAuction($auctionId);
 
         // Update transaction
         $transaction->update([
@@ -172,6 +307,11 @@ class AuctionPaymentController extends Controller
             'status' => 'completed',
             'payment_completed_at' => now(),
         ]);
+
+        // Record winner/tracking for admin panels
+        if ($auction->winner_id) {
+            $this->auctionService->recordWinnerTracking($auction->fresh(['winner']), $auction->winner_id);
+        }
 
         // Send payment confirmation emails
         try {
@@ -206,7 +346,7 @@ class AuctionPaymentController extends Controller
             ]);
         }
 
-        return redirect("/auctions/{$auction->id}?payment=success");
+        return redirect("/auctions/{$auction->slug}?payment=success");
     }
 
     /**
@@ -214,7 +354,8 @@ class AuctionPaymentController extends Controller
      */
     public function paymentCancel(Request $request, string $auctionId)
     {
-        return redirect("/auctions/{$auctionId}?payment=cancelled");
+        $auction = $this->findAuction($auctionId);
+        return redirect("/auctions/{$auction->slug}?payment=cancelled");
     }
 
     /**
@@ -245,6 +386,11 @@ class AuctionPaymentController extends Controller
                             'status' => 'completed',
                             'payment_completed_at' => now(),
                         ]);
+
+                        // Record winner/tracking
+                        if ($auction->winner_id) {
+                            $this->auctionService->recordWinnerTracking($auction->fresh(['winner']), $auction->winner_id);
+                        }
                     }
                 }
             }

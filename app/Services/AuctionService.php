@@ -4,6 +4,9 @@ namespace App\Services;
 
 use App\Models\Auction;
 use App\Models\Bid;
+use App\Models\BiddingHistory;
+use App\Models\BidWinner;
+use App\Models\BiddingTracking;
 use App\Models\User;
 use App\Models\UserNotification;
 use App\Models\Transaction;
@@ -104,6 +107,24 @@ class AuctionService
                 'max_bid_amount' => $maxBidAmount,
                 'is_proxy_bid' => $isProxyBid,
                 'is_winning_bid' => true,
+            ]);
+
+            // Ensure bidding_history table is populated for admin tracking
+            $paymentMethod = 'N/A';
+            if (is_array($auction->payment_methods) && !empty($auction->payment_methods)) {
+                $paymentMethod = $auction->payment_methods[0];
+            } elseif (is_string($auction->payment_methods) && $auction->payment_methods !== '') {
+                $paymentMethod = $auction->payment_methods;
+            }
+
+            BiddingHistory::create([
+                'user_id' => $userId,
+                'auction_id' => $auctionId,
+                'item_name' => $auction->title ?? 'Auction Item',
+                'reserve_price' => $auction->reserve_price ?? 0,
+                'buy_now_price' => $auction->buy_now_price ?? 0,
+                'payment_method' => $paymentMethod,
+                'start_date_time' => $auction->start_time ?? now(),
             ]);
             
             Log::info('Bid created', [
@@ -625,6 +646,10 @@ class AuctionService
                         'auction_id' => $auctionId,
                         'winner_id' => $result['winner']->id ?? null,
                     ]);
+
+                if (!empty($result['winner']?->id)) {
+                    $this->createWinnerRecords($auction, $result['winner']->id);
+                }
                     
                     return [
                         'success' => true,
@@ -725,6 +750,9 @@ class AuctionService
             
             // Send seller notification
             $this->sendSellerNotification($auction->user_id, $auction);
+
+            // Track winner and bidding tracking
+            $this->createWinnerRecords($auction, $userId);
             
             DB::commit();
             
@@ -795,6 +823,62 @@ class AuctionService
     public function calculateNextMinimumBid(Auction $auction): float
     {
         return $auction->getNextMinimumBid();
+    }
+    
+    /**
+     * Record winner and tracking rows for admin reporting tables
+     */
+    /**
+     * Public entry to record winner/tracking for auctions
+     */
+    public function recordWinnerTracking(Auction $auction, int $winnerId): void
+    {
+        $this->createWinnerRecords($auction, $winnerId);
+    }
+
+    private function createWinnerRecords(Auction $auction, int $winnerId): void
+    {
+        try {
+            // Avoid duplicate records per auction
+            $existing = BidWinner::where('auction_id', $auction->id)->first();
+            if ($existing) {
+                return;
+            }
+
+            $winnerUser = User::find($winnerId);
+            $nowDate = now()->toDateString();
+            $startDate = $auction->start_time ? $auction->start_time->toDateString() : $nowDate;
+            $wonDate = $auction->end_time ? $auction->end_time->toDateString() : $nowDate;
+            $paymentDate = $nowDate;
+
+            $bidWinner = BidWinner::create([
+                'user_id' => $winnerId,
+                'auction_id' => $auction->id,
+                'bidding_item' => $auction->title ?? 'Auction Item',
+                'bid_start_date' => $startDate,
+                'bid_won_date' => $wonDate,
+                'payment_proceed_date' => $paymentDate,
+                'total_payment' => $auction->current_bid_price ?? $auction->buy_now_price ?? 0,
+                'seller_id' => $auction->user_id,
+                'congratulation_email_sent' => false,
+            ]);
+
+            BiddingTracking::create([
+                'bid_winner_id' => $bidWinner->id,
+                'bid_winner_name' => $winnerUser?->name ?? 'Winner',
+                'bid_won_item_name' => $auction->title ?? 'Auction Item',
+                'payment_status' => 'Pending',
+                'pickup_status' => 'Not Started',
+                'complete_process_date_time' => null,
+                'alert_sent' => false,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to create winner tracking', [
+                'auction_id' => $auction->id,
+                'winner_id' => $winnerId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
     
     /**

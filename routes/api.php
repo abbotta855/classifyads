@@ -26,6 +26,8 @@ use App\Http\Controllers\Admin\EmailSubscriberController;
 use App\Http\Controllers\Admin\SupportManagementController;
 use App\Http\Controllers\Admin\TransactionManagementController;
 use App\Http\Controllers\SellerVerificationController;
+use App\Http\Controllers\LiveChatController as UserLiveChatController;
+use App\Http\Controllers\SupportAvailabilityController;
 use Illuminate\Support\Facades\Route;
 
 // Temporary debug route for upload limits (remove in production)
@@ -86,6 +88,9 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::get('/user', [AuthController::class, 'user']);
   Route::post('/change-password', [AuthController::class, 'changePassword']);
 
+  // Support availability (user can read; admin will set via admin tool)
+  Route::get('/support/availability', [SupportAvailabilityController::class, 'status']);
+
   // User profile routes
   Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'show']);
   Route::match(['put', 'post'], '/profile', [App\Http\Controllers\ProfileController::class, 'update']);
@@ -102,6 +107,16 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::get('/wallet/deposit/cancel', [App\Http\Controllers\WalletController::class, 'depositCancel']);
   Route::post('/wallet/withdraw', [App\Http\Controllers\WalletController::class, 'requestWithdrawal']);
   Route::get('/wallet/transactions', [App\Http\Controllers\WalletController::class, 'getTransactions']);
+
+  // User live chat routes
+  Route::post('/live-chat/create-or-get', [UserLiveChatController::class, 'createOrGetChat']);
+  Route::get('/live-chat', [UserLiveChatController::class, 'show']);
+  Route::post('/live-chat/send', [UserLiveChatController::class, 'sendMessage']);
+  Route::post('/live-chat/mark-read', [UserLiveChatController::class, 'markRead']);
+
+  // Orders (demo checkout)
+  Route::post('/orders/checkout', [App\Http\Controllers\OrderController::class, 'checkout']);
+  Route::get('/orders', [App\Http\Controllers\OrderController::class, 'index']);
 
   // Seller verification (eBook seller)
   Route::post('/seller-verification/payment/initiate', [SellerVerificationController::class, 'initiatePayment']);
@@ -279,9 +294,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Live chat management
     Route::apiResource('live-chats', LiveChatController::class)->only(['index', 'show', 'store', 'update', 'destroy']);
+    Route::post('live-chats/open', [LiveChatController::class, 'open']);
     Route::get('live-chats/{live_chat}/messages', [LiveChatMessageController::class, 'index']);
     Route::post('live-chats/{live_chat}/messages', [LiveChatMessageController::class, 'store']);
     Route::post('live-chats/{live_chat}/mark-read', [LiveChatMessageController::class, 'markAsRead']);
+
+    // Support availability (admin)
+    Route::post('support/availability', [SupportAvailabilityController::class, 'setStatus']);
 
     // Offers/Discounts management
     Route::apiResource('offers', OfferController::class);

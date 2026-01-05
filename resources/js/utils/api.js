@@ -146,6 +146,7 @@ export const adminAPI = {
   // Live Chats
   getLiveChats: () => axios.get(`${API_BASE}/live-chats`),
   getLiveChat: (id) => axios.get(`${API_BASE}/live-chats/${id}`),
+  openLiveChat: (userId) => axios.post(`${API_BASE}/live-chats/open`, { user_id: userId }),
   getLiveChatMessages: (id) => axios.get(`${API_BASE}/live-chats/${id}/messages`),
   sendLiveChatMessage: (id, data) => axios.post(`${API_BASE}/live-chats/${id}/messages`, data),
   markLiveChatRead: (id) => axios.post(`${API_BASE}/live-chats/${id}/mark-read`),
@@ -630,6 +631,39 @@ export const sellerEbookAPI = {
   },
   deleteEbook: (id) => axios.delete(`/api/seller/ebooks/${id}`),
   getSalesReport: () => axios.get('/api/seller/ebooks/sales-report'),
+};
+
+// User-facing live chat API
+export const liveChatAPI = {
+  createOrGetChat: () => axios.post('/api/live-chat/create-or-get'),
+  getChat: () => axios.get('/api/live-chat'),
+  sendMessage: (message) => axios.post('/api/live-chat/send', { message }),
+  markRead: () => axios.post('/api/live-chat/mark-read'),
+};
+
+// Support availability API
+export const supportAPI = {
+  getAvailability: () => axios.get('/api/support/availability'),
+  setAvailability: (online) => axios.post('/api/admin/support/availability', { online }),
+};
+
+// Orders (demo checkout)
+export const orderAPI = {
+  checkout: (items) => axios.post('/api/orders/checkout', { items }),
+  list: () => axios.get('/api/orders'),
+};
+
+// Utility to get cart count from localStorage (for future badge updates)
+export const cartUtils = {
+  getCartCount: () => {
+    try {
+      const raw = localStorage.getItem('demo_cart');
+      const cart = raw ? JSON.parse(raw) : [];
+      return cart.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    } catch {
+      return 0;
+    }
+  },
 };
 
 // Sales Report API (user-facing)
