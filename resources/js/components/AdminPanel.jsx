@@ -365,6 +365,7 @@ function AdminPanel() {
   // Live chat data
   const [liveChats, setLiveChats] = useState([]);
   const [liveChatsLoading, setLiveChatsLoading] = useState(false);
+  const [liveChatUnreadCount, setLiveChatUnreadCount] = useState(0);
   const [selectedLiveChat, setSelectedLiveChat] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatMessagesLoading, setChatMessagesLoading] = useState(false);
@@ -699,6 +700,13 @@ function AdminPanel() {
       fetchUsers();
     }
   }, [activeSection]);
+
+  // Poll live chats to keep unread badge updated even when not in Live Chat section
+  useEffect(() => {
+    fetchLiveChats();
+    const interval = setInterval(fetchLiveChats, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch users for Post Ad form
   const fetchUsers = async () => {
@@ -2590,20 +2598,11 @@ function AdminPanel() {
       }
       
       setLiveChats(chats);
-      if (!selectedLiveChat && chats.length > 0) {
-        const firstChat = chats[0];
-        if (firstChat && firstChat.id) {
-          setSelectedLiveChat(firstChat);
-          await fetchChatMessages(firstChat.id);
-          await markChatAsRead(firstChat.id);
-          setLiveChats((prev) => {
-            if (Array.isArray(prev)) {
-              return prev.map((chat) => (chat.id === firstChat.id ? { ...chat, unread_admin_count: 0 } : chat));
-            }
-            return prev;
-          });
-        }
-      } else if (selectedLiveChat) {
+      const unreadTotal = Array.isArray(chats)
+        ? chats.reduce((sum, chat) => sum + (chat?.unread_admin_count || 0), 0)
+        : 0;
+      setLiveChatUnreadCount(unreadTotal);
+      if (selectedLiveChat) {
         const updated = chats.find((chat) => chat && chat.id === selectedLiveChat.id);
         if (updated) {
           setSelectedLiveChat(updated);
@@ -2645,9 +2644,12 @@ function AdminPanel() {
     await markChatAsRead(chat.id);
     setLiveChats((prev) => {
       if (Array.isArray(prev)) {
-        return prev.map((item) =>
+        const updated = prev.map((item) =>
           item.id === chat.id ? { ...item, unread_admin_count: 0 } : item
         );
+        const updatedUnread = updated.reduce((sum, c) => sum + (c?.unread_admin_count || 0), 0);
+        setLiveChatUnreadCount(updatedUnread);
+        return updated;
       }
       return prev;
     });
@@ -6974,7 +6976,14 @@ function AdminPanel() {
                           : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
                       }`}
                     >
-                      {item.label}
+                      <span className="flex items-center justify-between">
+                        <span>{item.label}</span>
+                        {item.id === 'live-chat' && liveChatUnreadCount > 0 && (
+                          <span className="ml-2 inline-flex items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] text-[11px] min-w-[18px] h-[18px] px-1">
+                            {liveChatUnreadCount}
+                          </span>
+                        )}
+                      </span>
                     </Link>
                   );
                 })}

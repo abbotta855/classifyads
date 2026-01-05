@@ -34,6 +34,9 @@ export default function SupportChatWidget() {
       const msgs = chatRes.data?.messages || [];
       setMessages(msgs);
       await liveChatAPI.markRead();
+      if (window.fetchUnreadCounts) {
+        window.fetchUnreadCounts();
+      }
     } catch (e) {
       setError(e.response?.data?.message || e.message || 'Failed to load chat');
     } finally {

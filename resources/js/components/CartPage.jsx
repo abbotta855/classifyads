@@ -57,6 +57,14 @@ export default function CartPage() {
       setCart([]);
       saveCart([]);
     } catch (e) {
+      if (e.response?.status === 402 && e.response?.data?.needs_top_up) {
+        setMessage({
+          type: 'error',
+          text: 'Insufficient wallet balance. Please add funds to your e-wallet to complete purchase.',
+        });
+        window.location.href = '/user_dashboard/e-wallet';
+        return;
+      }
       const msg =
         e.response?.data?.error ||
         e.response?.data?.message ||

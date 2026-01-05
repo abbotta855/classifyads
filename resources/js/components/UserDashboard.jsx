@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI, sellerOfferAPI, buyerSellerMessageAPI, sellerVerificationAPI, sellerEbookAPI, userAuctionAPI, walletAPI, getAdUrl } from '../utils/api';
+import { profileAPI, dashboardAPI, userAdAPI, favouriteAPI, watchlistAPI, recentlyViewedAPI, savedSearchAPI, notificationAPI, inboxAPI, ratingAPI, publicProfileAPI, boughtItemsAPI, itemsSellingAPI, sellerOfferAPI, buyerSellerMessageAPI, sellerVerificationAPI, sellerEbookAPI, userAuctionAPI, walletAPI, liveChatAPI, getAdUrl } from '../utils/api';
 import { localDateTimeToUTC } from '../utils/timezone';
 import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import RatingModal from './RatingModal';
@@ -137,6 +137,33 @@ function UserDashboard({ mode: propMode }) {
         }
       } catch (err) {
         console.error('Error fetching buyer-seller conversations:', err);
+      }
+
+      // Support chat unread count (admin → user messages not read)
+      try {
+        const chatRes = await liveChatAPI.getChat();
+        const msgs = chatRes.data?.messages || [];
+        const supportUnread = msgs.filter(m => m.sender_type === 'admin' && !m.is_read).length;
+        totalInboxUnread += supportUnread;
+      } catch (err) {
+        if (err?.response?.status !== 404) {
+          console.error('Error fetching support chat unread:', err);
+        }
+      }
+
+      // Unread support notifications (new_message from admin)
+      try {
+        const notificationsList = await notificationAPI.getNotifications();
+        const allNotifications = notificationsList.data.notifications?.data || notificationsList.data.data || [];
+        const supportNotifUnread = allNotifications.filter(
+          (n) =>
+            !n.is_read &&
+            n.type === 'new_message' &&
+            n.metadata?.sender_type === 'admin'
+        ).length;
+        totalInboxUnread += supportNotifUnread;
+      } catch (err) {
+        console.error('Error fetching support notifications for inbox:', err);
       }
       
       setInboxUnreadCount(totalInboxUnread);
@@ -6164,6 +6191,13 @@ function InboxSection({ user }) {
     try {
       const response = await inboxAPI.getChat(chatId);
       setMessages(response.data.messages || []);
+      // Mark live chat messages from admin as read when viewing support chat
+      try {
+        await liveChatAPI.markRead();
+      } catch (err) {
+        // Ignore errors marking read to avoid blocking UI
+        console.error('Failed to mark support chat as read:', err);
+      }
       // Mark support chat notifications as read when viewing the chat
       markSupportChatNotificationsAsRead(chatId);
       // Refresh inbox unread count after viewing messages

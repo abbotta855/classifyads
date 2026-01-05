@@ -6,12 +6,20 @@ use App\Models\Order;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Ad;
+use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
+    protected WalletService $walletService;
+
+    public function __construct(WalletService $walletService)
+    {
+        $this->walletService = $walletService;
+    }
+
     /**
      * Demo checkout: create order, simulate wallet payment (debit buyer, credit seller), mark completed.
      */
@@ -40,6 +48,17 @@ class OrderController extends Controller
                 'line_total' => $lineTotal,
             ];
             $total += $lineTotal;
+        }
+
+        // Enforce wallet balance (even in demo) to prevent negative balances
+        $availableBalance = $this->walletService->getAvailableBalance($user->id);
+        if ($availableBalance < $total) {
+            return response()->json([
+                'error' => 'Insufficient wallet balance. Please add funds to continue.',
+                'needs_top_up' => true,
+                'required' => $total,
+                'available' => $availableBalance,
+            ], 402);
         }
 
         DB::beginTransaction();

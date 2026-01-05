@@ -346,6 +346,11 @@ function AdDetailPage() {
       const res = await orderAPI.checkout([{ ad_id: ad.id, quantity }]);
       alert(res.data?.message || 'Buy Now completed (demo). Payment simulated.');
     } catch (e) {
+      if (e.response?.status === 402 && e.response?.data?.needs_top_up) {
+        alert('Insufficient wallet balance. Please add funds to your e-wallet to complete purchase.');
+        navigate('/user_dashboard/e-wallet');
+        return;
+      }
       alert(
         e.response?.data?.error ||
           e.response?.data?.message ||
@@ -885,27 +890,6 @@ function AdDetailPage() {
                   </Link>
                 </div>
 
-                {/* Favourites & Watchlist */}
-                {user && user.id !== ad.user_id && (
-                  <div className="flex gap-2 mt-4">
-                    <Button
-                      onClick={handleToggleFavourite}
-                      variant={isFavourite ? 'default' : 'outline'}
-                      className="flex-1"
-                      size="sm"
-                    >
-                      {isFavourite ? '❤️' : '🤍'} Favourite
-                    </Button>
-                    <Button
-                      onClick={handleToggleWatchlist}
-                      variant={isWatchlist ? 'default' : 'outline'}
-                      className="flex-1"
-                      size="sm"
-                    >
-                      {isWatchlist ? '👁️' : '👁️'} Watchlist
-                    </Button>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </div>
