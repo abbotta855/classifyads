@@ -161,9 +161,9 @@ export const adminAPI = {
   getLiveChats: () => axios.get(`${API_BASE}/live-chats`),
   getLiveChat: (id) => axios.get(`${API_BASE}/live-chats/${id}`),
   openLiveChat: (userId) => axios.post(`${API_BASE}/live-chats/open`, { user_id: userId }),
-  getLiveChatMessages: (id) => axios.get(`${API_BASE}/live-chats/${id}/messages`),
-  sendLiveChatMessage: (id, data) => axios.post(`${API_BASE}/live-chats/${id}/messages`, data),
-  markLiveChatRead: (id) => axios.post(`${API_BASE}/live-chats/${id}/mark-read`),
+  getLiveChatMessages: (id) => axios.get(`${API_BASE}/live-chats/${encodeURIComponent(id)}/messages`),
+  sendLiveChatMessage: (id, data) => axios.post(`${API_BASE}/live-chats/${encodeURIComponent(id)}/messages`, data),
+  markLiveChatRead: (id) => axios.post(`${API_BASE}/live-chats/${encodeURIComponent(id)}/mark-read`),
 
   // Offers/Discounts
   getOffers: () => axios.get(`${API_BASE}/offers`),

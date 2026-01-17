@@ -108,10 +108,6 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::get('/user', [AuthController::class, 'user']);
   Route::post('/change-password', [AuthController::class, 'changePassword']);
 
-  // Support availability (user can read; admin will set via admin tool)
-  Route::get('/support/availability', [SupportAvailabilityController::class, 'status']);
-  Route::post('/support/offline-message', [SupportOfflineMessageController::class, 'store']);
-
   // User profile routes
   Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'show']);
   Route::match(['put', 'post'], '/profile', [App\Http\Controllers\ProfileController::class, 'update']);
@@ -337,6 +333,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Support availability (admin)
     Route::post('support/availability', [SupportAvailabilityController::class, 'setAvailability']);
     Route::get('support/offline-messages', [SupportOfflineMessageController::class, 'index']);
+    Route::get('support/offline-messages/{id}', [SupportOfflineMessageController::class, 'show']);
+    Route::post('support/offline-messages/{id}/mark-read', [SupportOfflineMessageController::class, 'markAsRead']);
 
     // Offers/Discounts management
     Route::apiResource('offers', OfferController::class);

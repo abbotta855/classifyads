@@ -10903,7 +10903,12 @@ function AdminPanel() {
                                   >
                                     <td className="px-3 py-3 text-sm text-[hsl(var(--foreground))] flex items-center justify-between">
                                       <div>
-                                        <p className="font-semibold">{chat.user?.name || 'Unknown User'}</p>
+                                        <p className="font-semibold">
+                                          {chat.is_guest 
+                                            ? `${chat.guest_name || 'Guest'} (${chat.guest_email})`
+                                            : (chat.user?.name || 'Unknown User')
+                                          }
+                                        </p>
                                         <p className="text-[hsl(var(--muted-foreground))] text-xs">
                                           {chat.last_message_at ? new Date(chat.last_message_at).toLocaleString() : 'No messages yet'}
                                         </p>
@@ -10928,8 +10933,18 @@ function AdminPanel() {
                         {selectedLiveChat ? (
                           <>
                             <div className="mb-3">
-                              <p className="font-semibold text-[hsl(var(--foreground))]">{selectedLiveChat.user?.name || 'Unknown User'}</p>
-                              <p className="text-sm text-[hsl(var(--muted-foreground))]">{selectedLiveChat.user?.email}</p>
+                              <p className="font-semibold text-[hsl(var(--foreground))]">
+                                {selectedLiveChat.is_guest
+                                  ? `${selectedLiveChat.guest_name || 'Guest'} (Guest User)`
+                                  : (selectedLiveChat.user?.name || 'Unknown User')
+                                }
+                              </p>
+                              <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                                {selectedLiveChat.is_guest
+                                  ? selectedLiveChat.guest_email
+                                  : selectedLiveChat.user?.email
+                                }
+                              </p>
                             </div>
                             <div className="flex-1 overflow-y-auto space-y-3 pr-2">
                               {chatMessagesLoading ? (

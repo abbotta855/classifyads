@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from './ui/button';
 import { liveChatAPI, supportAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,6 +17,7 @@ export default function SupportChatWidget() {
   const [guestName, setGuestName] = React.useState('');
   const [guestEmail, setGuestEmail] = React.useState('');
   const [error, setError] = React.useState(null);
+  const [showRegistrationPrompt, setShowRegistrationPrompt] = React.useState(false);
 
   const pollRef = React.useRef(null);
   const availabilityRef = React.useRef(null);
@@ -121,6 +123,8 @@ export default function SupportChatWidget() {
           sent_at: new Date().toISOString(),
         },
       ]);
+      // Show registration prompt after successful message send
+      setShowRegistrationPrompt(true);
     } catch (e) {
       setError(e.response?.data?.message || e.message || 'Failed to send message');
     }
@@ -165,6 +169,27 @@ export default function SupportChatWidget() {
                   </div>
                 </div>
               ))}
+              {showRegistrationPrompt && !user && (
+                <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                    💡 Want to chat in real-time?
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-200 mb-2">
+                    Create an account to chat with support in real-time. Your message will be converted to live chat automatically!
+                  </p>
+                  <Link to="/register">
+                    <Button size="sm" className="w-full text-xs">
+                      Create Account for Live Chat
+                    </Button>
+                  </Link>
+                  <button
+                    onClick={() => setShowRegistrationPrompt(false)}
+                    className="text-xs text-blue-600 dark:text-blue-300 mt-1 underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
             </div>
             <div className="p-3 border-t border-[hsl(var(--border))] space-y-2">
               {!user && (
