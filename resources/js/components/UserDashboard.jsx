@@ -12,7 +12,6 @@ import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import RatingModal from './RatingModal';
 import PhotoCropModal from './PhotoCropModal';
 import axios from 'axios';
-import SupportChatWidget from './SupportChatWidget';
 
 function UserDashboard({ mode: propMode }) {
   const { user, loading } = useAuth();
@@ -423,7 +422,6 @@ function UserDashboard({ mode: propMode }) {
           {renderSectionContent()}
         </div>
       </div>
-      <SupportChatWidget />
     </Layout>
   );
 }

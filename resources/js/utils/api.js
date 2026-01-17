@@ -1,4 +1,18 @@
-import axios from 'axios';
+// Use window.axios if available (configured in bootstrap.js), otherwise import and configure
+let axios;
+if (typeof window !== 'undefined' && window.axios) {
+  axios = window.axios;
+} else {
+  const ax = require('axios');
+  ax.defaults.withCredentials = true;
+  ax.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+  ax.defaults.headers.common['Accept'] = 'application/json';
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  if (token) {
+    ax.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  }
+  axios = ax;
+}
 
 const API_BASE = '/api/admin';
 
@@ -573,6 +587,38 @@ export const walletAPI = {
   getTransactions: () => axios.get('/api/wallet/transactions'),
 };
 
+// Blog API
+export const blogAPI = {
+  list: (params) => axios.get('/api/blog', { params }),
+  detail: (slug) => axios.get(`/api/blog/${slug}`),
+};
+
+// Blog Admin API
+export const blogAdminAPI = {
+  list: (params) => axios.get('/api/admin/blog/posts', { params }),
+  create: (data) => axios.post('/api/admin/blog/posts', data),
+  update: (id, data) => axios.put(`/api/admin/blog/posts/${id}`, data),
+  remove: (id) => axios.delete(`/api/admin/blog/posts/${id}`),
+};
+
+// Forum API
+export const forumAPI = {
+  listThreads: (params) => axios.get('/api/forum/threads', { params }),
+  getThread: (slug, params) => axios.get(`/api/forum/threads/${slug}`, { params }),
+  createThread: (data) => axios.post('/api/forum/threads', data),
+  reply: (threadId, content) => axios.post(`/api/forum/threads/${threadId}/reply`, { content }),
+  react: (postId, type = 'like') => axios.post(`/api/forum/posts/${postId}/react`, { type }),
+  report: (postId, reason) => axios.post(`/api/forum/posts/${postId}/report`, { reason }),
+};
+
+// Analytics API
+export const analyticsAPI = {
+  track: (event_type, context, context_id, meta) =>
+    axios.post('/api/analytics/track', { event_type, context, context_id, meta }),
+  adminSummary: (params) => axios.get('/api/admin/analytics/summary', { params }),
+  userSummary: (params) => axios.get('/api/me/analytics/summary', { params }),
+};
+
 // eBook API (public)
 export const ebookAPI = {
   getEbooks: (params) => axios.get('/api/ebooks', { params }),
@@ -645,6 +691,7 @@ export const liveChatAPI = {
 export const supportAPI = {
   getAvailability: () => axios.get('/api/support/availability'),
   setAvailability: (online) => axios.post('/api/admin/support/availability', { online }),
+  sendOfflineMessage: (payload) => axios.post('/api/support/offline-message', payload),
 };
 
 // Orders (demo checkout)
@@ -670,4 +717,3 @@ export const cartUtils = {
 export const salesReportAPI = {
   getSalesReport: (params) => axios.get('/api/sales-report', { params }),
 };
-

@@ -12,7 +12,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Route middleware aliases
+        $middleware->alias([
+            'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'admin.presence' => \App\Http\Middleware\AdminPresenceMiddleware::class,
+        ]);
     })
     ->withSchedule(function ($schedule) {
         // Activate pending auctions when their start time arrives (every minute)

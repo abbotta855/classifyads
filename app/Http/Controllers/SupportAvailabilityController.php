@@ -7,31 +7,43 @@ use Illuminate\Support\Facades\Cache;
 
 class SupportAvailabilityController extends Controller
 {
-    private const CACHE_KEY = 'support_online';
-    private const CACHE_TTL_MINUTES = 60;
+    private const MANUAL_KEY = 'support:availability:manual';
+    private const LAST_SEEN_KEY = 'support:availability:last_seen';
+    private const TTL_MINUTES = 5;
 
     /**
-     * Get support availability status (public)
+     * Public status endpoint.
      */
     public function status()
     {
-        $online = Cache::get(self::CACHE_KEY, false);
-        return response()->json(['online' => (bool) $online]);
+        $manual = Cache::get(self::MANUAL_KEY);
+        $lastSeen = Cache::get(self::LAST_SEEN_KEY);
+
+        $onlineByPresence = $lastSeen && now()->diffInMinutes($lastSeen) < self::TTL_MINUTES;
+        $online = $manual === null ? $onlineByPresence : (bool) $manual;
+
+        return response()->json([
+            'online' => $online,
+            'last_seen' => $lastSeen,
+            'source' => $manual === null ? 'presence' : 'manual',
+        ]);
     }
 
     /**
-     * Set support availability (admin-only)
+     * Admin can toggle availability (manual override) and refresh heartbeat.
      */
-    public function setStatus(Request $request)
+    public function setAvailability(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'online' => 'required|boolean',
         ]);
 
-        Cache::put(self::CACHE_KEY, $request->online, now()->addMinutes(self::CACHE_TTL_MINUTES));
+        Cache::put(self::MANUAL_KEY, $validated['online'], now()->addMinutes(self::TTL_MINUTES));
+        Cache::put(self::LAST_SEEN_KEY, now(), now()->addMinutes(self::TTL_MINUTES));
 
-        return response()->json(['online' => $request->online]);
+        return response()->json([
+            'online' => $validated['online'],
+            'source' => 'manual',
+        ]);
     }
 }
-
-

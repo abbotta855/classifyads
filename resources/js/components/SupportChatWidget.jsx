@@ -1,16 +1,20 @@
 import React from 'react';
 import { Button } from './ui/button';
 import { liveChatAPI, supportAPI } from '../utils/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const POLL_INTERVAL_MS = 6000;
 const AVAILABILITY_INTERVAL_MS = 30000;
 
 export default function SupportChatWidget() {
+  const { user } = useAuth();
   const [online, setOnline] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [messages, setMessages] = React.useState([]);
   const [input, setInput] = React.useState('');
+  const [guestName, setGuestName] = React.useState('');
+  const [guestEmail, setGuestEmail] = React.useState('');
   const [error, setError] = React.useState(null);
 
   const pollRef = React.useRef(null);
@@ -26,6 +30,10 @@ export default function SupportChatWidget() {
   }, []);
 
   const loadChat = React.useCallback(async () => {
+    if (!user) {
+      setMessages([]);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -66,21 +74,53 @@ export default function SupportChatWidget() {
   }, [fetchAvailability, stopPolling]);
 
   React.useEffect(() => {
+    if (!user) {
+      stopPolling();
+      return;
+    }
     if (open) {
       loadChat();
       startPolling();
     } else {
       stopPolling();
     }
-  }, [open, loadChat, startPolling, stopPolling]);
+  }, [open, loadChat, startPolling, stopPolling, user]);
 
   const handleSend = async () => {
     if (!input.trim()) return;
+    const text = input.trim();
+    setInput('');
+
+    if (user) {
+      try {
+        await liveChatAPI.sendMessage(text);
+        await loadChat();
+      } catch (e) {
+        setError(e.response?.data?.message || e.message || 'Failed to send message');
+      }
+      return;
+    }
+
+    // Guest: leave offline message with email
     try {
-      const text = input.trim();
-      setInput('');
-      await liveChatAPI.sendMessage(text);
-      await loadChat();
+      if (!guestEmail.trim()) {
+        setError('Please provide your email so support can reach you.');
+        return;
+      }
+      await supportAPI.sendOfflineMessage({
+        name: guestName.trim() || 'Guest',
+        email: guestEmail.trim(),
+        message: text,
+      });
+      setMessages([
+        ...messages,
+        {
+          id: `guest-${Date.now()}`,
+          sender_type: 'user',
+          message: text,
+          sent_at: new Date().toISOString(),
+        },
+      ]);
     } catch (e) {
       setError(e.response?.data?.message || e.message || 'Failed to send message');
     }
@@ -127,17 +167,43 @@ export default function SupportChatWidget() {
               ))}
             </div>
             <div className="p-3 border-t border-[hsl(var(--border))] space-y-2">
+              {!user && (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    className="w-full border rounded-md text-sm p-2"
+                    placeholder="Your name (optional)"
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
+                  />
+                  <input
+                    type="email"
+                    className="w-full border rounded-md text-sm p-2"
+                    placeholder="Your email (required for reply)"
+                    value={guestEmail}
+                    onChange={(e) => setGuestEmail(e.target.value)}
+                  />
+                </div>
+              )}
               <textarea
                 className="w-full border rounded-md text-sm p-2 resize-none"
                 rows={2}
-                placeholder={online ? 'Type your message…' : 'Support is offline'}
+                placeholder={
+                  online
+                    ? 'Type your message…'
+                    : 'Support is offline — leave a message and we will reply'
+                }
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                disabled={!online}
               />
-              <Button className="w-full" onClick={handleSend} disabled={!online || !input.trim()}>
-                Send
+              <Button className="w-full" onClick={handleSend} disabled={!input.trim()}>
+                {online ? 'Send' : 'Send as offline message'}
               </Button>
+              {!online && (
+                <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
+                  Support is offline. Your message will be queued and the team will reply when online.
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -152,5 +218,4 @@ export default function SupportChatWidget() {
     </div>
   );
 }
-
 

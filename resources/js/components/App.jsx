@@ -18,6 +18,15 @@ import AuctionListingPage from './AuctionListingPage';
 import AuctionDetailPage from './AuctionDetailPage';
 import CartPage from './CartPage';
 import { Card, CardContent } from './ui/card';
+import BlogList from './BlogList';
+import BlogDetail from './BlogDetail';
+import ForumList from './ForumList';
+import ForumThread from './ForumThread';
+import AdminAnalytics from './AdminAnalytics';
+import UserAnalytics from './UserAnalytics';
+import AdminBlogPage from './AdminBlogPage';
+import AdminForumModeration from './AdminForumModeration';
+import SupportChatWidget from './SupportChatWidget';
 
 function LoadingCard() {
   return (
@@ -89,6 +98,18 @@ function UserDashboardRedirect() {
   return <Navigate to={`/user_dashboard/${section}`} replace />;
 }
 
+function GATracker() {
+  const location = useLocation();
+  React.useEffect(() => {
+    if (window.gtag) {
+      window.gtag('event', 'page_view', {
+        page_path: location.pathname + location.search,
+      });
+    }
+  }, [location]);
+  return null;
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -102,6 +123,10 @@ function AppRoutes() {
       <Route path="/auctions" element={<AuctionListingPage />} />
       <Route path="/auctions/:id" element={<AuctionDetailPage />} />
       <Route path="/profile/:userId" element={<PublicProfile />} />
+      <Route path="/blog" element={<BlogList />} />
+      <Route path="/blog/:slug" element={<BlogDetail />} />
+      <Route path="/forum" element={<ForumList />} />
+      <Route path="/forum/:slug" element={<ForumThread />} />
       <Route
         path="/cart"
         element={
@@ -170,6 +195,38 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin-analytics"
+        element={
+          <AdminRoute>
+            <AdminAnalytics />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin-blog"
+        element={
+          <AdminRoute>
+            <AdminBlogPage />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin-forum"
+        element={
+          <AdminRoute>
+            <AdminForumModeration />
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/my-analytics"
+        element={
+          <ProtectedRoute>
+            <UserAnalytics />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/super_admin/:section?/:subsection?"
         element={
           <SuperAdminRoute>
@@ -191,10 +248,31 @@ function App() {
     });
   }, []);
 
+  // Google Analytics (env-driven, prod only)
+  useEffect(() => {
+    const gaId = import.meta.env.VITE_GA_MEASUREMENT_ID;
+    if (!gaId || !import.meta.env.PROD) return;
+    if (document.getElementById('ga-script')) return;
+    const script = document.createElement('script');
+    script.id = 'ga-script';
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
+    document.head.appendChild(script);
+    window.dataLayer = window.dataLayer || [];
+    function gtag() {
+      window.dataLayer.push(arguments);
+    }
+    window.gtag = gtag;
+    gtag('js', new Date());
+    gtag('config', gaId);
+  }, []);
+
   return (
     <AuthProvider>
       <BrowserRouter>
+        <GATracker />
         <AppRoutes />
+        <SupportChatWidget />
       </BrowserRouter>
     </AuthProvider>
   );

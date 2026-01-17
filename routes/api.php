@@ -28,6 +28,12 @@ use App\Http\Controllers\Admin\TransactionManagementController;
 use App\Http\Controllers\SellerVerificationController;
 use App\Http\Controllers\LiveChatController as UserLiveChatController;
 use App\Http\Controllers\SupportAvailabilityController;
+use App\Http\Controllers\SupportOfflineMessageController;
+use App\Http\Controllers\BlogController;
+use App\Http\Controllers\Admin\BlogAdminController;
+use App\Http\Controllers\ForumController;
+use App\Http\Controllers\ForumAdminController;
+use App\Http\Controllers\AnalyticsController;
 use Illuminate\Support\Facades\Route;
 
 // Temporary debug route for upload limits (remove in production)
@@ -83,6 +89,20 @@ Route::post('/auctions/{id}/click', [App\Http\Controllers\AuctionController::cla
 Route::get('/public/profile/{userId}', [App\Http\Controllers\PublicProfileController::class, 'show']);
 Route::get('/public/profile/{userId}/ratings', [App\Http\Controllers\PublicProfileController::class, 'getRatings']);
 
+// Support availability status (public ping)
+Route::get('/support/availability', [SupportAvailabilityController::class, 'status']);
+
+// Blog public
+Route::get('/blog', [BlogController::class, 'index']);
+Route::get('/blog/{slug}', [BlogController::class, 'show']);
+
+// Forum public
+Route::get('/forum/threads', [ForumController::class, 'listThreads']);
+Route::get('/forum/threads/{slug}', [ForumController::class, 'showThread']);
+
+// Guest offline support message
+Route::post('/support/offline-message', [SupportOfflineMessageController::class, 'store']);
+
 Route::middleware('auth:sanctum')->group(function () {
   Route::post('/logout', [AuthController::class, 'logout']);
   Route::get('/user', [AuthController::class, 'user']);
@@ -90,6 +110,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
   // Support availability (user can read; admin will set via admin tool)
   Route::get('/support/availability', [SupportAvailabilityController::class, 'status']);
+  Route::post('/support/offline-message', [SupportOfflineMessageController::class, 'store']);
 
   // User profile routes
   Route::get('/profile', [App\Http\Controllers\ProfileController::class, 'show']);
@@ -185,6 +206,19 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::post('/notifications/read-all', [App\Http\Controllers\UserNotificationController::class, 'markAllAsRead']);
   Route::delete('/notifications/{id}', [App\Http\Controllers\UserNotificationController::class, 'destroy']);
 
+  // Blog (auth for future authoring extensions)
+  // Forum create/reply
+  Route::post('/forum/threads', [ForumController::class, 'createThread'])->middleware('throttle:3,1');
+  Route::post('/forum/threads/{threadId}/reply', [ForumController::class, 'reply'])->middleware('throttle:6,1');
+  Route::post('/forum/posts/{postId}/react', [ForumController::class, 'react'])->middleware('throttle:12,1');
+  Route::post('/forum/posts/{postId}/report', [ForumController::class, 'report'])->middleware('throttle:6,1');
+
+  // Analytics event tracking
+  Route::post('/analytics/track', [AnalyticsController::class, 'track']);
+
+  // User analytics summary
+  Route::get('/me/analytics/summary', [AnalyticsController::class, 'userSummary']);
+
   // Inbox/Messaging routes
   Route::get('/inbox', [App\Http\Controllers\UserLiveChatController::class, 'index']);
   Route::get('/inbox/{id}', [App\Http\Controllers\UserLiveChatController::class, 'show']);
@@ -248,7 +282,8 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::get('/sales-report', [App\Http\Controllers\SalesReportController::class, 'index']);
 
   // Admin routes
-  Route::prefix('admin')->group(function () {
+  // Admin routes (Sanctum handles both token and session auth automatically for stateful domains) + admin role + presence heartbeat
+  Route::prefix('admin')->middleware(['auth:sanctum', 'admin', 'admin.presence'])->group(function () {
     // Ads management
     Route::apiResource('ads', AdController::class);
     
@@ -300,7 +335,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('live-chats/{live_chat}/mark-read', [LiveChatMessageController::class, 'markAsRead']);
 
     // Support availability (admin)
-    Route::post('support/availability', [SupportAvailabilityController::class, 'setStatus']);
+    Route::post('support/availability', [SupportAvailabilityController::class, 'setAvailability']);
+    Route::get('support/offline-messages', [SupportOfflineMessageController::class, 'index']);
 
     // Offers/Discounts management
     Route::apiResource('offers', OfferController::class);
@@ -335,5 +371,23 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // eBook Management
     Route::apiResource('ebooks', EbookController::class);
+
+    // Blog admin
+    Route::get('blog/posts', [BlogAdminController::class, 'index']);
+    Route::post('blog/posts', [BlogAdminController::class, 'store']);
+    Route::put('blog/posts/{id}', [BlogAdminController::class, 'update']);
+    Route::delete('blog/posts/{id}', [BlogAdminController::class, 'destroy']);
+
+    // Forum admin
+    Route::get('forum/reports', [ForumAdminController::class, 'listReports']);
+    Route::post('forum/reports/{id}/resolve', [ForumAdminController::class, 'resolveReport']);
+    Route::delete('forum/posts/{id}', [ForumAdminController::class, 'deletePost']);
+    Route::post('forum/threads/{id}/lock', [ForumAdminController::class, 'lockThread']);
+    Route::post('forum/threads/{id}/unlock', [ForumAdminController::class, 'unlockThread']);
+    Route::post('forum/threads/{id}/sticky', [ForumAdminController::class, 'stickyThread']);
+    Route::post('forum/threads/{id}/unsticky', [ForumAdminController::class, 'unstickyThread']);
+
+    // Admin analytics summary
+    Route::get('analytics/summary', [AnalyticsController::class, 'adminSummary']);
   });
 });
