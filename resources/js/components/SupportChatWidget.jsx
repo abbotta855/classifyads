@@ -5,7 +5,7 @@ import { liveChatAPI, supportAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 
 const POLL_INTERVAL_MS = 6000;
-const AVAILABILITY_INTERVAL_MS = 30000;
+const AVAILABILITY_INTERVAL_MS = 10000; // Reduced from 30s to 10s for faster updates
 
 export default function SupportChatWidget() {
   const { user } = useAuth();
@@ -74,6 +74,13 @@ export default function SupportChatWidget() {
       stopPolling();
     };
   }, [fetchAvailability, stopPolling]);
+
+  // Check availability immediately when user changes (login/logout)
+  // This ensures support status updates instantly when admin logs in/out
+  React.useEffect(() => {
+    // Immediately check availability when user state changes
+    fetchAvailability();
+  }, [user, fetchAvailability]);
 
   React.useEffect(() => {
     if (!user) {
