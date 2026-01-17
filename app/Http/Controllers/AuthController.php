@@ -9,6 +9,7 @@ use App\Models\SupportOfflineMessage;
 use App\Http\Controllers\OtpController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
@@ -233,7 +234,24 @@ class AuthController extends Controller
 
   public function logout(Request $request)
   {
-    $request->user()->currentAccessToken()->delete();
+    $user = $request->user();
+    
+    // Check if user is admin/super_admin before logout
+    $isAdmin = $user && (
+      (method_exists($user, 'isAdmin') && $user->isAdmin()) ||
+      (method_exists($user, 'isSuperAdmin') && $user->isSuperAdmin()) ||
+      (property_exists($user, 'role') && in_array($user->role, ['admin', 'super_admin']))
+    );
+
+    // Delete the authentication token
+    $user->currentAccessToken()->delete();
+
+    // If admin logged out, clear admin presence cache to mark support as offline
+    // This ensures that when admin logs out, support status immediately reflects as offline
+    if ($isAdmin) {
+      Cache::forget('support:availability:last_seen');
+      Cache::forget('support:availability:manual'); // Clear manual override too on logout
+    }
 
     return response()->json([
       'message' => 'Logged out successfully',
