@@ -38,6 +38,7 @@ class DatabaseSeeder extends Seeder
             EmailSubscriberSeeder::class,
             SupportManagementSeeder::class,
             AdPostTransactionSeeder::class,
+            ForumCategoriesSeeder::class,
         ]);
     }
 }

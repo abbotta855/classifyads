@@ -43,6 +43,12 @@ function Header() {
                       Auctions
                     </Link>
                     <Link
+                      to="/forum"
+                      className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                    >
+                      Forum
+                    </Link>
+                    <Link
                       to="/user_dashboard/favourite-list"
                       className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
                       title="Favourite List"
@@ -107,6 +113,12 @@ function Header() {
                   className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
                 >
                   Auctions
+                </Link>
+                <Link
+                  to="/forum"
+                  className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                >
+                  Forum
                 </Link>
                 <Link to="/cart" className="transition-colors hover:opacity-80">
                   <img 
@@ -192,6 +204,13 @@ function Header() {
                         Auctions
                       </Link>
                       <Link
+                        to="/forum"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors py-2"
+                      >
+                        Forum
+                      </Link>
+                      <Link
                         to="/user_dashboard/favourite-list"
                         onClick={() => setMobileMenuOpen(false)}
                         className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors py-2"
@@ -263,6 +282,13 @@ function Header() {
                     className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors py-2"
                   >
                     Auctions
+                  </Link>
+                  <Link
+                    to="/forum"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors py-2"
+                  >
+                    Forum
                   </Link>
                   <Link 
                     to="/cart" 

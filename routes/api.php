@@ -97,6 +97,7 @@ Route::get('/blog', [BlogController::class, 'index']);
 Route::get('/blog/{slug}', [BlogController::class, 'show']);
 
 // Forum public
+Route::get('/forum/categories', [ForumController::class, 'categories']);
 Route::get('/forum/threads', [ForumController::class, 'listThreads']);
 Route::get('/forum/threads/{slug}', [ForumController::class, 'showThread']);
 
