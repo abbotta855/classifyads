@@ -27,6 +27,9 @@ import UserAnalytics from './UserAnalytics';
 import AdminBlogPage from './AdminBlogPage';
 import AdminForumModeration from './AdminForumModeration';
 import SupportChatWidget from './SupportChatWidget';
+import NepaliProductList from './NepaliProductList';
+import NepaliProductDetail from './NepaliProductDetail';
+import NepaliProductForm from './NepaliProductForm';
 
 function LoadingCard() {
   return (
@@ -127,6 +130,24 @@ function AppRoutes() {
       <Route path="/blog/:slug" element={<BlogDetail />} />
       <Route path="/forum" element={<ForumList />} />
       <Route path="/forum/:slug" element={<ForumThread />} />
+      <Route path="/nepali-products" element={<NepaliProductList />} />
+      <Route path="/nepali-products/:id" element={<NepaliProductDetail />} />
+      <Route
+        path="/nepali-products/new"
+        element={
+          <ProtectedRoute>
+            <NepaliProductForm />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/nepali-products/:id/edit"
+        element={
+          <ProtectedRoute>
+            <NepaliProductForm />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/cart"
         element={

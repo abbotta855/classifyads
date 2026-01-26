@@ -36,15 +36,28 @@ use App\Http\Controllers\ForumAdminController;
 use App\Http\Controllers\AnalyticsController;
 use Illuminate\Support\Facades\Route;
 
-// Temporary debug route for upload limits (remove in production)
-Route::get('/debug/php-limits', function () {
-    return response()->json([
-        'upload_max_filesize' => ini_get('upload_max_filesize'),
-        'post_max_size' => ini_get('post_max_size'),
-        'memory_limit' => ini_get('memory_limit'),
-        'max_file_uploads' => ini_get('max_file_uploads'),
-    ]);
-});
+// Debug routes (only in development)
+if (config('app.debug')) {
+    Route::get('/debug/php-limits', function () {
+        return response()->json([
+            'upload_max_filesize' => ini_get('upload_max_filesize'),
+            'post_max_size' => ini_get('post_max_size'),
+            'memory_limit' => ini_get('memory_limit'),
+            'max_file_uploads' => ini_get('max_file_uploads'),
+        ]);
+    });
+
+    Route::get('/test-email', function() {
+        try {
+            $otpCode = '123456';
+            $userName = 'Test User';
+            \Illuminate\Support\Facades\Mail::to('daltonrosemond.snow@gmail.com')->send(new App\Mail\OtpMail($otpCode, $userName));
+            return response()->json(['message' => 'Test email sent successfully! Check Mailtrap inbox.']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    });
+}
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -53,18 +66,6 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/otp/generate', [App\Http\Controllers\OtpController::class, 'generate']);
 Route::post('/otp/verify', [App\Http\Controllers\OtpController::class, 'verify']);
 Route::post('/otp/resend', [App\Http\Controllers\OtpController::class, 'resend']);
-
-// Test email route (for debugging - remove in production)
-Route::get('/test-email', function() {
-    try {
-        $otpCode = '123456';
-        $userName = 'Test User';
-        \Illuminate\Support\Facades\Mail::to('daltonrosemond.snow@gmail.com')->send(new App\Mail\OtpMail($otpCode, $userName));
-        return response()->json(['message' => 'Test email sent successfully! Check Mailtrap inbox.']);
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
-});
 
 // Public category routes
 Route::get('/categories', [CategoryController::class, 'index']);
@@ -100,6 +101,10 @@ Route::get('/blog/{slug}', [BlogController::class, 'show']);
 Route::get('/forum/categories', [ForumController::class, 'categories']);
 Route::get('/forum/threads', [ForumController::class, 'listThreads']);
 Route::get('/forum/threads/{slug}', [ForumController::class, 'showThread']);
+
+// Nepali Products public
+Route::get('/nepali-products', [App\Http\Controllers\NepaliProductController::class, 'index']);
+Route::get('/nepali-products/{id}', [App\Http\Controllers\NepaliProductController::class, 'show']);
 
 // Guest offline support message
 Route::post('/support/offline-message', [SupportOfflineMessageController::class, 'store']);
@@ -209,6 +214,12 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::post('/forum/threads/{threadId}/reply', [ForumController::class, 'reply'])->middleware('throttle:6,1');
   Route::post('/forum/posts/{postId}/react', [ForumController::class, 'react'])->middleware('throttle:12,1');
   Route::post('/forum/posts/{postId}/report', [ForumController::class, 'report'])->middleware('throttle:6,1');
+
+  // Nepali Products authenticated
+  Route::post('/nepali-products', [App\Http\Controllers\NepaliProductController::class, 'store']);
+  Route::put('/nepali-products/{id}', [App\Http\Controllers\NepaliProductController::class, 'update']);
+  Route::delete('/nepali-products/{id}', [App\Http\Controllers\NepaliProductController::class, 'destroy']);
+  Route::post('/nepali-products/{id}/rate', [App\Http\Controllers\NepaliProductController::class, 'rate']);
 
   // Analytics event tracking
   Route::post('/analytics/track', [AnalyticsController::class, 'track']);

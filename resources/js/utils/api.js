@@ -605,6 +605,7 @@ export const blogAdminAPI = {
 export const forumAPI = {
   listThreads: (params) => axios.get('/api/forum/threads', { params }),
   getThread: (slug, params) => axios.get(`/api/forum/threads/${slug}`, { params }),
+  getCategories: () => axios.get('/api/forum/categories'),
   createThread: (data) => axios.post('/api/forum/threads', data),
   reply: (threadId, content) => axios.post(`/api/forum/threads/${threadId}/reply`, { content }),
   react: (postId, type = 'like') => axios.post(`/api/forum/posts/${postId}/react`, { type }),
@@ -626,6 +627,53 @@ export const ebookAPI = {
   downloadEbook: (id) => axios.get(`/api/ebooks/${id}/download`, { responseType: 'blob' }),
   initiatePayment: (id) => axios.post(`/api/ebooks/${id}/payment/initiate`),
   getPositiveFeedback: (id) => axios.get(`/api/ebooks/${id}/positive-feedback`),
+};
+
+// Nepali Products API
+export const nepaliProductAPI = {
+  list: (params) => axios.get('/api/nepali-products', { params }),
+  get: (id) => axios.get(`/api/nepali-products/${id}`),
+  create: (data) => {
+    const formData = data instanceof FormData ? data : new FormData();
+    if (!(data instanceof FormData)) {
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          if (key === 'images' && Array.isArray(data[key])) {
+            data[key].forEach((img, idx) => {
+              formData.append(`images[${idx}]`, img);
+            });
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+    }
+    return axios.post('/api/nepali-products', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  update: (id, data) => {
+    const formData = data instanceof FormData ? data : new FormData();
+    if (!(data instanceof FormData)) {
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          if (key === 'images' && Array.isArray(data[key])) {
+            data[key].forEach((img, idx) => {
+              formData.append(`images[${idx}]`, img);
+            });
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+    }
+    formData.append('_method', 'PUT');
+    return axios.post(`/api/nepali-products/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  delete: (id) => axios.delete(`/api/nepali-products/${id}`),
+  rate: (id, rating, comment) => axios.post(`/api/nepali-products/${id}/rate`, { rating, comment }),
 };
 
 // Seller eBook API (authenticated sellers only)
