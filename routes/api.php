@@ -31,6 +31,7 @@ use App\Http\Controllers\SupportAvailabilityController;
 use App\Http\Controllers\SupportOfflineMessageController;
 use App\Http\Controllers\BlogController;
 use App\Http\Controllers\Admin\BlogAdminController;
+use App\Http\Controllers\Admin\NepaliProductController as AdminNepaliProductController;
 use App\Http\Controllers\ForumController;
 use App\Http\Controllers\ForumAdminController;
 use App\Http\Controllers\AnalyticsController;
@@ -138,8 +139,17 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::post('/live-chat/mark-read', [UserLiveChatController::class, 'markRead']);
 
   // Orders (demo checkout)
+  // Cart routes (server-side)
+  Route::get('/cart', [App\Http\Controllers\CartController::class, 'index']);
+  Route::post('/cart', [App\Http\Controllers\CartController::class, 'store']);
+  Route::put('/cart/{adId}', [App\Http\Controllers\CartController::class, 'update']);
+  Route::delete('/cart/{adId}', [App\Http\Controllers\CartController::class, 'destroy']);
+  Route::delete('/cart', [App\Http\Controllers\CartController::class, 'clear']);
+
   Route::post('/orders/checkout', [App\Http\Controllers\OrderController::class, 'checkout']);
   Route::get('/orders', [App\Http\Controllers\OrderController::class, 'index']);
+  Route::get('/orders/{id}', [App\Http\Controllers\OrderController::class, 'show']);
+  Route::put('/orders/{id}', [App\Http\Controllers\OrderController::class, 'update']);
 
   // Seller verification (eBook seller)
   Route::post('/seller-verification/payment/initiate', [SellerVerificationController::class, 'initiatePayment']);
@@ -351,6 +361,18 @@ Route::middleware('auth:sanctum')->group(function () {
     // Offers/Discounts management
     Route::apiResource('offers', OfferController::class);
     Route::post('offers/{offer}/approve', [OfferController::class, 'approve']);
+
+    // Nepali Products management
+    Route::get('nepali-products', [AdminNepaliProductController::class, 'index']);
+    Route::get('nepali-products/{id}', [AdminNepaliProductController::class, 'show']);
+    Route::post('nepali-products/{id}/approve', [AdminNepaliProductController::class, 'approve']);
+    Route::post('nepali-products/{id}/reject', [AdminNepaliProductController::class, 'reject']);
+    Route::delete('nepali-products/{id}', [AdminNepaliProductController::class, 'destroy']);
+
+    // Order Management
+    Route::get('orders', [App\Http\Controllers\Admin\OrderController::class, 'index']);
+    Route::get('orders/{id}', [App\Http\Controllers\Admin\OrderController::class, 'show']);
+    Route::put('orders/{id}', [App\Http\Controllers\Admin\OrderController::class, 'update']);
 
     // Ratings/Reviews management
     Route::apiResource('ratings', RatingController::class);

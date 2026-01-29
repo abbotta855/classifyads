@@ -21,7 +21,9 @@ return new class extends Migration
             $table->decimal('total', 12, 2);
             $table->string('payment_id')->nullable();
             $table->string('payment_method')->nullable();
-            $table->enum('status', ['pending', 'completed', 'failed'])->default('pending');
+            $table->enum('status', ['pending', 'processing', 'shipped', 'completed', 'cancelled', 'failed'])->default('pending');
+            $table->text('shipping_address')->nullable();
+            $table->text('notes')->nullable();
             $table->timestamps();
 
             $table->index(['user_id', 'status']);

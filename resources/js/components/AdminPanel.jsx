@@ -281,6 +281,18 @@ function AdminPanel() {
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [editingCategoryData, setEditingCategoryData] = useState(null);
 
+  // Nepali Products management data
+  const [nepaliProducts, setNepaliProducts] = useState([]);
+  const [nepaliProductsLoading, setNepaliProductsLoading] = useState(false);
+  const [nepaliProductsStatusFilter, setNepaliProductsStatusFilter] = useState('pending'); // pending, approved, rejected
+  const [viewingNepaliProduct, setViewingNepaliProduct] = useState(null);
+
+  // Order management data
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersStatusFilter, setOrdersStatusFilter] = useState('');
+  const [viewingOrder, setViewingOrder] = useState(null);
+
   // Bidding history data - fetched from database via API
   const [biddingHistoryData, setBiddingHistoryData] = useState([]);
   const [biddingHistoryLoading, setBiddingHistoryLoading] = useState(false);
@@ -3801,6 +3813,64 @@ function AdminPanel() {
     }
   }, [activeSection]);
 
+  // Fetch Nepali Products management data
+  const fetchNepaliProducts = async () => {
+    setNepaliProductsLoading(true);
+    try {
+      const response = await adminAPI.getNepaliProducts(nepaliProductsStatusFilter);
+      const data = response.data.data || response.data || [];
+      setNepaliProducts(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching Nepali products:', err);
+      setError('Failed to fetch Nepali products: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setNepaliProductsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === 'nepali-products') {
+      fetchNepaliProducts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection, nepaliProductsStatusFilter]);
+
+  const handleApproveNepaliProduct = async (id) => {
+    try {
+      await adminAPI.approveNepaliProduct(id);
+      setSuccessMessage('Product approved successfully');
+      fetchNepaliProducts();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to approve product: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleRejectNepaliProduct = async (id, reason = '') => {
+    try {
+      await adminAPI.rejectNepaliProduct(id, reason);
+      setSuccessMessage('Product rejected successfully');
+      fetchNepaliProducts();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to reject product: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleDeleteNepaliProduct = async (id) => {
+    if (!confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
+      return;
+    }
+    try {
+      await adminAPI.deleteNepaliProduct(id);
+      setSuccessMessage('Product deleted successfully');
+      fetchNepaliProducts();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to delete product: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
   const fetchLocations = async () => {
     setLocationsLoading(true);
     setError(null);
@@ -6909,6 +6979,8 @@ function AdminPanel() {
     ...(isSuperAdmin ? [{ id: 'change-password', label: 'Change Password' }] : []), // Only show for super_admin
     { id: 'delivery-management', label: 'Delivery Management' },
     { id: 'ebook-management', label: 'E-Book Management' },
+    { id: 'nepali-products', label: 'Nepali Products Review' },
+    { id: 'order-management', label: 'Order Management' },
     { id: 'email-subscriber', label: 'Email Subscriber List' },
     { id: 'job-management', label: 'Job Management' },
     { id: 'live-chat', label: 'Live Chat' },
@@ -17889,6 +17961,377 @@ function AdminPanel() {
               minHeight={400}
               fixedSize={{ width: 400, height: 400 }}
             />
+          )}
+
+          {activeSection === 'nepali-products' && (
+            <section>
+              {nepaliProductsLoading && (
+                <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading products...
+                </div>
+              )}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Nepali Products Review</h2>
+                    <div className="flex gap-2">
+                      <select
+                        value={nepaliProductsStatusFilter}
+                        onChange={(e) => setNepaliProductsStatusFilter(e.target.value)}
+                        className="px-3 py-2 border rounded-md"
+                      >
+                        <option value="pending">Pending Review</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {nepaliProducts.length === 0 ? (
+                    <p className="text-center text-[hsl(var(--muted-foreground))] py-8">
+                      No {nepaliProductsStatusFilter} products found.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left p-2">Image</th>
+                            <th className="text-left p-2">Title</th>
+                            <th className="text-left p-2">Company</th>
+                            <th className="text-left p-2">Owner</th>
+                            <th className="text-left p-2">Price</th>
+                            <th className="text-left p-2">Status</th>
+                            <th className="text-left p-2">Created</th>
+                            <th className="text-left p-2">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {nepaliProducts.map((product) => (
+                            <tr key={product.id} className="border-b hover:bg-[hsl(var(--accent))]">
+                              <td className="p-2">
+                                {product.primary_image ? (
+                                  <img
+                                    src={product.primary_image}
+                                    alt={product.title}
+                                    className="w-16 h-16 object-cover rounded"
+                                  />
+                                ) : (
+                                  <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center text-xs text-gray-500">
+                                    No Image
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-2">
+                                <button
+                                  onClick={() => setViewingNepaliProduct(product)}
+                                  className="text-blue-600 hover:underline"
+                                >
+                                  {product.title}
+                                </button>
+                              </td>
+                              <td className="p-2">{product.company_name}</td>
+                              <td className="p-2">{product.user?.name || 'N/A'}</td>
+                              <td className="p-2">Rs. {product.retail_price || '0.00'}</td>
+                              <td className="p-2">
+                                <span className={`px-2 py-1 rounded text-xs ${
+                                  product.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                  product.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {product.status}
+                                </span>
+                              </td>
+                              <td className="p-2 text-sm text-[hsl(var(--muted-foreground))]">
+                                {new Date(product.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="p-2">
+                                <div className="flex gap-2">
+                                  {product.status === 'pending' && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleApproveNepaliProduct(product.id)}
+                                        className="text-green-600 hover:text-green-700"
+                                      >
+                                        Approve
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          const reason = prompt('Rejection reason (optional):');
+                                          handleRejectNepaliProduct(product.id, reason || '');
+                                        }}
+                                        className="text-red-600 hover:text-red-700"
+                                      >
+                                        Reject
+                                      </Button>
+                                    </>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setViewingNepaliProduct(product)}
+                                  >
+                                    View
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleDeleteNepaliProduct(product.id)}
+                                    className="text-red-600 hover:text-red-700"
+                                  >
+                                    Delete
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Product Detail Modal */}
+              {viewingNepaliProduct && (
+                <Card className="mt-4">
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-xl font-semibold">{viewingNepaliProduct.title}</h3>
+                      <Button variant="ghost" onClick={() => setViewingNepaliProduct(null)}>×</Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="font-semibold mb-2">Product Images</h4>
+                        <div className="grid grid-cols-4 gap-2">
+                          {viewingNepaliProduct.images?.map((img, idx) => (
+                            <img
+                              key={idx}
+                              src={img.image_url || img}
+                              alt={`${viewingNepaliProduct.title} ${idx + 1}`}
+                              className="w-full h-24 object-cover rounded"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="font-semibold mb-2">Product Details</h4>
+                        <div className="space-y-2 text-sm">
+                          <p><strong>Company:</strong> {viewingNepaliProduct.company_name}</p>
+                          <p><strong>Category:</strong> {viewingNepaliProduct.category?.name || 'N/A'}</p>
+                          <p><strong>Price:</strong> Rs. {viewingNepaliProduct.retail_price}</p>
+                          <p><strong>Status:</strong> <span className={`px-2 py-1 rounded text-xs ${
+                            viewingNepaliProduct.status === 'approved' ? 'bg-green-100 text-green-800' :
+                            viewingNepaliProduct.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>{viewingNepaliProduct.status}</span></p>
+                          <p><strong>Made in Nepal:</strong> {viewingNepaliProduct.is_made_in_nepal ? 'Yes' : 'No'}</p>
+                          <p><strong>Nepali Address:</strong> {viewingNepaliProduct.has_nepali_address ? 'Yes' : 'No'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    {viewingNepaliProduct.status === 'pending' && (
+                      <div className="mt-4 flex gap-2">
+                        <Button
+                          onClick={() => {
+                            handleApproveNepaliProduct(viewingNepaliProduct.id);
+                            setViewingNepaliProduct(null);
+                          }}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          Approve Product
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            const reason = prompt('Rejection reason (optional):');
+                            handleRejectNepaliProduct(viewingNepaliProduct.id, reason || '');
+                            setViewingNepaliProduct(null);
+                          }}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          Reject Product
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </section>
+          )}
+
+          {activeSection === 'order-management' && (
+            <section>
+              {ordersLoading && (
+                <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading orders...
+                </div>
+              )}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Order Management</h2>
+                    <select
+                      value={ordersStatusFilter}
+                      onChange={(e) => setOrdersStatusFilter(e.target.value)}
+                      className="px-3 py-2 border rounded-md"
+                    >
+                      <option value="">All Orders</option>
+                      <option value="pending">Pending</option>
+                      <option value="processing">Processing</option>
+                      <option value="shipped">Shipped</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                      <option value="failed">Failed</option>
+                    </select>
+                  </div>
+
+                  {orders.length === 0 ? (
+                    <p className="text-center text-[hsl(var(--muted-foreground))] py-8">
+                      No orders found.
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left p-2">Order ID</th>
+                            <th className="text-left p-2">Customer</th>
+                            <th className="text-left p-2">Product</th>
+                            <th className="text-left p-2">Quantity</th>
+                            <th className="text-left p-2">Total</th>
+                            <th className="text-left p-2">Status</th>
+                            <th className="text-left p-2">Date</th>
+                            <th className="text-left p-2">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {orders.map((order) => (
+                            <tr key={order.id} className="border-b hover:bg-[hsl(var(--accent))]">
+                              <td className="p-2">#{order.id}</td>
+                              <td className="p-2">{order.user?.name || 'N/A'}</td>
+                              <td className="p-2">
+                                <button
+                                  onClick={() => setViewingOrder(order)}
+                                  className="text-blue-600 hover:underline"
+                                >
+                                  {order.title}
+                                </button>
+                              </td>
+                              <td className="p-2">{order.quantity}</td>
+                              <td className="p-2">Rs. {order.total?.toLocaleString()}</td>
+                              <td className="p-2">
+                                <span className={`px-2 py-1 rounded text-xs ${
+                                  order.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                  order.status === 'cancelled' || order.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                  order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {order.status}
+                                </span>
+                              </td>
+                              <td className="p-2 text-sm text-[hsl(var(--muted-foreground))]">
+                                {new Date(order.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="p-2">
+                                <div className="flex gap-2">
+                                  <select
+                                    value={order.status}
+                                    onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
+                                    className="text-xs px-2 py-1 border rounded"
+                                  >
+                                    <option value="pending">Pending</option>
+                                    <option value="processing">Processing</option>
+                                    <option value="shipped">Shipped</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                    <option value="failed">Failed</option>
+                                  </select>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setViewingOrder(order)}
+                                  >
+                                    View
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Order Detail Modal */}
+              {viewingOrder && (
+                <Card className="mt-4">
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-xl font-semibold">Order #{viewingOrder.id}</h3>
+                      <Button variant="ghost" onClick={() => setViewingOrder(null)}>×</Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <h4 className="font-semibold mb-2">Order Details</h4>
+                        <div className="space-y-2 text-sm">
+                          <p><strong>Customer:</strong> {viewingOrder.user?.name || 'N/A'}</p>
+                          <p><strong>Email:</strong> {viewingOrder.user?.email || 'N/A'}</p>
+                          <p><strong>Product:</strong> {viewingOrder.title}</p>
+                          <p><strong>Quantity:</strong> {viewingOrder.quantity}</p>
+                          <p><strong>Price:</strong> Rs. {viewingOrder.price?.toLocaleString()}</p>
+                          <p><strong>Total:</strong> Rs. {viewingOrder.total?.toLocaleString()}</p>
+                          <p><strong>Status:</strong> <span className={`px-2 py-1 rounded text-xs ${
+                            viewingOrder.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            viewingOrder.status === 'cancelled' || viewingOrder.status === 'failed' ? 'bg-red-100 text-red-800' :
+                            viewingOrder.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>{viewingOrder.status}</span></p>
+                          {viewingOrder.payment_id && <p><strong>Payment ID:</strong> {viewingOrder.payment_id}</p>}
+                          <p><strong>Order Date:</strong> {new Date(viewingOrder.created_at).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      {viewingOrder.ad && (
+                        <div>
+                          <h4 className="font-semibold mb-2">Product Image</h4>
+                          {viewingOrder.ad.photos?.[0] && (
+                            <img
+                              src={viewingOrder.ad.photos[0].photo_url}
+                              alt={viewingOrder.title}
+                              className="w-full h-48 object-cover rounded"
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-4">
+                      <label className="block mb-2">Update Status</label>
+                      <select
+                        value={viewingOrder.status}
+                        onChange={(e) => {
+                          handleUpdateOrderStatus(viewingOrder.id, e.target.value);
+                          setViewingOrder({...viewingOrder, status: e.target.value});
+                        }}
+                        className="w-full px-3 py-2 border rounded-md"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="processing">Processing</option>
+                        <option value="shipped">Shipped</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="failed">Failed</option>
+                      </select>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </section>
           )}
         </main>
       </div>

@@ -119,15 +119,61 @@ class OrderController extends Controller
     }
 
     /**
-     * List user's orders (demo)
+     * List user's orders
      */
     public function index(Request $request)
     {
-        $orders = Order::where('user_id', $request->user()->id)
-            ->orderByDesc('created_at')
-            ->get();
+        $status = $request->get('status');
+        
+        $query = Order::with(['ad', 'ad.user', 'ad.photos'])
+            ->where('user_id', $request->user()->id);
+        
+        if ($status) {
+            $query->where('status', $status);
+        }
+        
+        $orders = $query->orderByDesc('created_at')
+            ->paginate(20);
 
         return response()->json($orders);
+    }
+
+    /**
+     * Show a single order
+     */
+    public function show(Request $request, $id)
+    {
+        $order = Order::with(['ad', 'ad.user', 'ad.photos', 'user'])
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        return response()->json($order);
+    }
+
+    /**
+     * Update order status (user can cancel pending orders)
+     */
+    public function update(Request $request, $id)
+    {
+        $order = Order::where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        $validated = $request->validate([
+            'status' => 'required|in:cancelled',
+        ]);
+
+        if ($order->status !== 'pending') {
+            return response()->json([
+                'error' => 'Only pending orders can be cancelled'
+            ], 400);
+        }
+
+        $order->update(['status' => 'cancelled']);
+
+        return response()->json([
+            'message' => 'Order cancelled successfully',
+            'order' => $order->fresh(),
+        ]);
     }
 }
 

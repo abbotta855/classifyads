@@ -274,6 +274,18 @@ export const adminAPI = {
   },
   deleteEbook: (id) => axios.delete(`${API_BASE}/ebooks/${id}`),
 
+  // Nepali Products Management
+  getNepaliProducts: (status) => axios.get(`${API_BASE}/nepali-products`, { params: status ? { status } : {} }),
+  getNepaliProduct: (id) => axios.get(`${API_BASE}/nepali-products/${id}`),
+  approveNepaliProduct: (id) => axios.post(`${API_BASE}/nepali-products/${id}/approve`),
+  rejectNepaliProduct: (id, reason) => axios.post(`${API_BASE}/nepali-products/${id}/reject`, { reason }),
+  deleteNepaliProduct: (id) => axios.delete(`${API_BASE}/nepali-products/${id}`),
+
+  // Order Management
+  getOrders: (status) => axios.get(`${API_BASE}/orders`, { params: status ? { status } : {} }),
+  getOrder: (id) => axios.get(`${API_BASE}/orders/${id}`),
+  updateOrder: (id, data) => axios.put(`${API_BASE}/orders/${id}`, data),
+
   // Change Password (Super Admin only)
   changePassword: (data) => axios.post('/api/change-password', data),
 };
@@ -742,10 +754,21 @@ export const supportAPI = {
   sendOfflineMessage: (payload) => axios.post('/api/support/offline-message', payload),
 };
 
+// Cart (server-side)
+export const cartAPI = {
+  get: () => axios.get('/api/cart'),
+  add: (adId, quantity = 1) => axios.post('/api/cart', { ad_id: adId, quantity }),
+  update: (adId, quantity) => axios.put(`/api/cart/${adId}`, { quantity }),
+  remove: (adId) => axios.delete(`/api/cart/${adId}`),
+  clear: () => axios.delete('/api/cart'),
+};
+
 // Orders (demo checkout)
 export const orderAPI = {
   checkout: (items) => axios.post('/api/orders/checkout', { items }),
-  list: () => axios.get('/api/orders'),
+  list: (status) => axios.get('/api/orders', { params: status ? { status } : {} }),
+  get: (id) => axios.get(`/api/orders/${id}`),
+  update: (id, data) => axios.put(`/api/orders/${id}`, data),
 };
 
 // Utility to get cart count from localStorage (for future badge updates)

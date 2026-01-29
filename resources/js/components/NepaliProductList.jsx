@@ -1,10 +1,12 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { nepaliProductAPI } from '../utils/api';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { useAuth } from '../contexts/AuthContext';
+import SEOHead from './SEOHead';
+import LazyImage from './LazyImage';
 
 export default function NepaliProductList() {
   const [products, setProducts] = React.useState([]);
@@ -12,6 +14,7 @@ export default function NepaliProductList() {
   const [loading, setLoading] = React.useState(false);
   const [search, setSearch] = React.useState('');
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const fetchProducts = async (params = {}) => {
     setLoading(true);
@@ -69,7 +72,21 @@ export default function NepaliProductList() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <>
+      <SEOHead
+        title="Nepali Products"
+        description="Discover authentic Nepali products made in Nepal. Support local businesses and find unique products."
+      />
+      <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <div className="flex items-center gap-4 mb-6">
+        <Button
+          variant="outline"
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2"
+        >
+          ← Back to Homepage
+        </Button>
+      </div>
       <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
         <h1 className="text-3xl font-bold">Nepali Products</h1>
         <form onSubmit={handleSearch} className="flex gap-2">
@@ -117,7 +134,7 @@ export default function NepaliProductList() {
                 <Link to={`/nepali-products/${product.slug || product.id}`}>
                   <div className="aspect-square bg-[hsl(var(--muted))] overflow-hidden relative">
                     {product.primary_image ? (
-                      <img
+                      <LazyImage
                         src={product.primary_image}
                         alt={product.title}
                         className="w-full h-full object-cover"
@@ -192,7 +209,8 @@ export default function NepaliProductList() {
           )}
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

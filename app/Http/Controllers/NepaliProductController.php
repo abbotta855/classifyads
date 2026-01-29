@@ -23,62 +23,70 @@ class NepaliProductController extends Controller
         // Use auth() helper which automatically checks Sanctum tokens
         $user = auth('sanctum')->user();
         
-        $query = NepaliProduct::with(['user', 'category', 'subcategory', 'images'])
-            ->where(function ($q) use ($user) {
-                // Show approved products to everyone
-                $q->where('status', 'approved');
-                
-                // Also show pending/rejected products if user is the owner or admin
-                if ($user) {
-                    $q->orWhere(function ($subQ) use ($user) {
-                        $subQ->where('user_id', $user->id)
-                            ->whereIn('status', ['pending', 'rejected']);
-                    });
+        // Cache key based on user and filters
+        $cacheKey = 'nepali_products_' . ($user ? $user->id : 'guest') . '_' . md5(json_encode($request->all()));
+        
+        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($user, $request) {
+            $query = NepaliProduct::with(['user', 'category', 'subcategory', 'images'])
+                ->where(function ($q) use ($user) {
+                    // Show approved products to everyone
+                    $q->where('status', 'approved');
                     
-                    // Admins can see all products
-                    if (in_array($user->role, ['admin', 'super_admin'])) {
-                        $q->orWhereIn('status', ['pending', 'rejected']);
+                    // Also show pending/rejected products if user is the owner or admin
+                    if ($user) {
+                        $q->orWhere(function ($subQ) use ($user) {
+                            $subQ->where('user_id', $user->id)
+                                ->whereIn('status', ['pending', 'rejected']);
+                        });
+                        
+                        // Admins can see all products
+                        if (in_array($user->role, ['admin', 'super_admin'])) {
+                            $q->orWhereIn('status', ['pending', 'rejected']);
+                        }
                     }
-                }
-            })
-            ->orderByDesc('created_at');
+                })
+                ->orderByDesc('created_at');
 
-        // Filter by category if provided
-        if ($request->has('category_id')) {
-            $query->where('category_id', $request->category_id);
-        }
+            // Filter by category if provided
+            if ($request->has('category_id')) {
+                $query->where('category_id', $request->category_id);
+            }
 
-        // Filter by subcategory if provided
-        if ($request->has('subcategory_id')) {
-            $query->where('subcategory_id', $request->subcategory_id);
-        }
+            // Filter by subcategory if provided
+            if ($request->has('subcategory_id')) {
+                $query->where('subcategory_id', $request->subcategory_id);
+            }
 
-        // Search (accept both 'search' and 'q' parameters)
-        $searchTerm = $request->get('search') ?? $request->get('q');
-        if ($searchTerm) {
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('title', 'like', "%{$searchTerm}%")
-                  ->orWhere('company_name', 'like', "%{$searchTerm}%")
-                  ->orWhere('production_items', 'like', "%{$searchTerm}%");
+            // Search (accept both 'search' and 'q' parameters)
+            $searchTerm = $request->get('search') ?? $request->get('q');
+            if ($searchTerm) {
+                $query->where(function ($q) use ($searchTerm) {
+                    $q->where('title', 'like', "%{$searchTerm}%")
+                      ->orWhere('company_name', 'like', "%{$searchTerm}%")
+                      ->orWhere('production_items', 'like', "%{$searchTerm}%");
+                });
+            }
+
+            $products = $query->paginate(24);
+
+            // Transform to include image URLs
+            $products->getCollection()->transform(function ($product) {
+                $product->primary_image = $product->images()->orderBy('image_order')->first()?->image_url;
+                return $product;
             });
-        }
 
-        $products = $query->paginate(24);
-
-        // Transform to include image URLs
-        $products->getCollection()->transform(function ($product) {
-            $product->primary_image = $product->images()->orderBy('image_order')->first()?->image_url;
-            return $product;
+            return response()->json($products);
         });
-
-        return response()->json($products);
     }
 
     /**
      * Show a single product (by slug or ID)
      */
-    public function show($id)
+    public function show(Request $request, $id)
     {
+        // Try to get authenticated user
+        $user = auth('sanctum')->user();
+        
         // Try to find by slug first, then by ID
         $product = NepaliProduct::with([
             'user',
@@ -86,9 +94,38 @@ class NepaliProductController extends Controller
             'subcategory',
             'images',
             'ratings.user'
-        ])->where('slug', $id)
-          ->orWhere('id', $id)
-          ->firstOrFail();
+        ])->where('slug', $id)->first();
+        
+        // If not found by slug, try by ID
+        if (!$product && is_numeric($id)) {
+            $product = NepaliProduct::with([
+                'user',
+                'category',
+                'subcategory',
+                'images',
+                'ratings.user'
+            ])->where('id', $id)->first();
+        }
+        
+        if (!$product) {
+            abort(404, 'Product not found');
+        }
+
+        // Check if product is visible to this user
+        // Show approved products to everyone
+        // Show pending/rejected products only to owner or admins
+        if ($product->status !== 'approved') {
+            if (!$user) {
+                abort(404, 'Product not found');
+            }
+            
+            $isOwner = $product->user_id === $user->id;
+            $isAdmin = in_array($user->role, ['admin', 'super_admin']);
+            
+            if (!$isOwner && !$isAdmin) {
+                abort(404, 'Product not found');
+            }
+        }
 
         // Increment view count
         $product->incrementViews();
