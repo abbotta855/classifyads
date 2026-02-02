@@ -112,11 +112,17 @@ export default function NepaliProductList() {
             Search
           </Button>
         </form>
-        {user && (
-          <Link to="/nepali-products/new">
-            <Button>Add Product</Button>
-          </Link>
-        )}
+        <Button
+          onClick={() => {
+            if (!user) {
+              navigate('/login', { state: { from: '/nepali-products/new' } });
+            } else {
+              navigate('/nepali-products/new');
+            }
+          }}
+        >
+          Add Product
+        </Button>
       </div>
 
       {loading && (
@@ -129,11 +135,17 @@ export default function NepaliProductList() {
         <Card>
           <CardContent className="p-12 text-center">
             <p className="text-[hsl(var(--muted-foreground))] mb-4">No products found.</p>
-            {user && (
-              <Link to="/nepali-products/new">
-                <Button>Add First Product</Button>
-              </Link>
-            )}
+            <Button
+              onClick={() => {
+                if (!user) {
+                  navigate('/login', { state: { from: '/nepali-products/new' } });
+                } else {
+                  navigate('/nepali-products/new');
+                }
+              }}
+            >
+              Add First Product
+            </Button>
           </CardContent>
         </Card>
       )}
