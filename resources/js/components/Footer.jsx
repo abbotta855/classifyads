@@ -60,7 +60,7 @@ function Footer() {
             <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">&nbsp;</h4>
             <ul className="space-y-1 text-sm">
               <li>
-                <Link to="/community" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
+                <Link to="/forum" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
                   Online community
                 </Link>
               </li>

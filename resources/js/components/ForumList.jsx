@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import Layout from './Layout';
 import { forumAPI } from '../utils/api';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
@@ -93,9 +94,10 @@ export default function ForumList() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-5xl space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-2xl font-bold">Community Forum</h1>
+    <Layout>
+      <div className="max-w-5xl mx-auto space-y-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <h1 className="text-2xl font-bold">Post Discussion topic:</h1>
         <form onSubmit={handleSearch} className="flex flex-wrap gap-2">
           <Input
             placeholder="Search threads..."
@@ -122,12 +124,21 @@ export default function ForumList() {
       </div>
 
       {/* Community Rules Notice */}
-      <Card className="bg-[hsl(var(--muted))]">
-        <CardContent className="p-4">
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            <strong>Community Guidelines:</strong> Be respectful, stay on topic, and help others. 
-            Spam, harassment, and off-topic posts may be removed.
-          </p>
+      <Card className="bg-red-50 dark:bg-red-950/50 border-2 border-red-500 dark:border-red-700 shadow-sm">
+        <CardContent className="p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <svg className="w-5 h-5 text-red-700 dark:text-red-300" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-base font-bold text-red-900 dark:text-red-100 mb-1">Community Rules</h3>
+              <p className="text-sm text-gray-900 dark:text-gray-100 leading-relaxed">
+                User can post discussion topic or ask question related to our website, posted product, service but they have to follow online community rules ask question or reply answer.
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -170,19 +181,25 @@ export default function ForumList() {
               </select>
               <Button onClick={handleCreate} disabled={!title.trim() || !content.trim() || creating}>
                 {creating ? 'Posting...' : 'Post Thread'}
-              </Button>
+            </Button>
             </div>
           </CardContent>
         </Card>
       ) : (
-        <Card>
+        <Card className="bg-orange-50 dark:bg-orange-950/50 border border-orange-400 dark:border-orange-700">
           <CardContent className="p-4">
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              <Link to="/login" className="text-[hsl(var(--primary))] hover:underline">
-                Login
-              </Link>
-              {' '}to post a new thread and participate in discussions.
-            </p>
+            <div className="flex items-start gap-2">
+              <svg className="w-4 h-4 text-orange-700 dark:text-orange-300 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <p className="text-sm text-gray-900 dark:text-gray-100">
+                Registered user can post topic and reply answer on posted topic, so need to{' '}
+                <Link to="/login" className="font-semibold underline hover:no-underline text-blue-600 dark:text-blue-400">
+                  login
+                </Link>
+                {' '}to post.
+              </p>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -205,7 +222,7 @@ export default function ForumList() {
 
       {/* Threads List */}
       {!loading && !error && (
-        <div className="space-y-3">
+      <div className="space-y-3">
           {threads.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
@@ -215,7 +232,7 @@ export default function ForumList() {
           ) : (
             threads.map((thread) => (
               <Card key={thread.id} className={thread.is_pinned ? 'border-[hsl(var(--primary))] border-2' : ''}>
-                <CardHeader>
+            <CardHeader>
                   <div className="flex items-start gap-3">
                     <UserAvatar
                       src={thread.author?.profile_picture}
@@ -236,10 +253,10 @@ export default function ForumList() {
                         )}
                       </div>
                       <CardTitle className="text-lg mt-1">
-                        <Link to={`/forum/${thread.slug}`} className="hover:underline">
-                          {thread.title}
-                        </Link>
-                      </CardTitle>
+                <Link to={`/forum/${thread.slug}`} className="hover:underline">
+                  {thread.title}
+                </Link>
+              </CardTitle>
                       <div className="flex items-center gap-4 mt-2 text-xs text-[hsl(var(--muted-foreground))] flex-wrap">
                         <span>{thread.author?.name || 'User'}</span>
                         <span>•</span>
@@ -251,11 +268,11 @@ export default function ForumList() {
                       </div>
                     </div>
                   </div>
-                </CardHeader>
-              </Card>
+            </CardHeader>
+          </Card>
             ))
           )}
-        </div>
+      </div>
       )}
 
       {/* Pagination */}
@@ -279,6 +296,7 @@ export default function ForumList() {
           </Button>
         </div>
       )}
-    </div>
+      </div>
+    </Layout>
   );
 }

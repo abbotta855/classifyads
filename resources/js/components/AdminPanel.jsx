@@ -2614,11 +2614,20 @@ function AdminPanel() {
         ? chats.reduce((sum, chat) => sum + (chat?.unread_admin_count || 0), 0)
         : 0;
       setLiveChatUnreadCount(unreadTotal);
-      if (selectedLiveChat) {
+      
+      // Only update selectedLiveChat if it still exists in the list
+      // Preserve the current selection to prevent showing wrong user
+      if (selectedLiveChat && selectedLiveChat.id) {
         const updated = chats.find((chat) => chat && chat.id === selectedLiveChat.id);
         if (updated) {
-          setSelectedLiveChat(updated);
+          // Merge the updated chat data while preserving user relationship
+          setSelectedLiveChat({
+            ...updated,
+            // Ensure user relationship is preserved if it exists
+            user: updated.user || selectedLiveChat.user
+          });
         }
+        // If chat not found in list, keep the current selection (don't clear it)
       } else if (chats.length === 0) {
         setSelectedLiveChat(null);
         setChatMessages([]);
@@ -2637,9 +2646,50 @@ function AdminPanel() {
 
   const handleOpenLiveChat = async () => {
     if (!openChatSelectedUserId) return;
+    const userIdToOpen = openChatSelectedUserId; // Store before clearing
     try {
-      await adminAPI.openLiveChat(openChatSelectedUserId);
+      setLiveChatError(null);
+      const response = await adminAPI.openLiveChat(userIdToOpen);
+      const newChat = response.data;
+      
+      // Refresh the chat list first (this maintains the original time-based order)
       await fetchLiveChats();
+      
+      // After refresh, find the chat in the list and select it
+      // DO NOT reorder the list - maintain the original time-based order
+      setLiveChats((prev) => {
+        if (!Array.isArray(prev)) return prev;
+        
+        // Find the chat in the list (it should be there after refresh)
+        const chatInList = prev.find(chat => chat && chat.id === newChat.id);
+        
+        if (chatInList) {
+          // Chat found in list, select it and load messages
+          // Use the chat from the list (which has all relationships loaded from backend)
+          setSelectedLiveChat(chatInList);
+          fetchChatMessages(chatInList.id);
+          markChatAsRead(chatInList.id);
+          
+          // Scroll to the selected chat in the list (without changing order)
+          setTimeout(() => {
+            const chatRow = document.querySelector(`[data-chat-id="${chatInList.id}"]`);
+            if (chatRow) {
+              chatRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 200);
+        } else {
+          // Chat not in list yet (shouldn't happen, but handle it)
+          // Select the new chat and it will appear in list on next refresh
+          setSelectedLiveChat(newChat);
+          fetchChatMessages(newChat.id);
+          markChatAsRead(newChat.id);
+        }
+        
+        // Return unchanged - maintain the original time-based order
+        return prev;
+      });
+      
+      // Clear the selection
       setOpenChatSelectedUserId('');
       setOpenChatQuery('');
     } catch (err) {
@@ -2650,21 +2700,58 @@ function AdminPanel() {
   };
 
   const handleSelectLiveChat = async (chat) => {
-    if (!chat || !chat.id) return;
-    setSelectedLiveChat(chat);
-    await fetchChatMessages(chat.id);
-    await markChatAsRead(chat.id);
-    setLiveChats((prev) => {
-      if (Array.isArray(prev)) {
-        const updated = prev.map((item) =>
-          item.id === chat.id ? { ...item, unread_admin_count: 0 } : item
-        );
-        const updatedUnread = updated.reduce((sum, c) => sum + (c?.unread_admin_count || 0), 0);
-        setLiveChatUnreadCount(updatedUnread);
-        return updated;
-      }
-      return prev;
-    });
+    if (!chat || !chat.id) {
+      console.warn('handleSelectLiveChat: Invalid chat object', chat);
+      return;
+    }
+    
+    // Store the chat ID we're selecting to prevent race conditions
+    const chatIdToSelect = chat.id;
+    
+    // Immediately clear messages and set loading state to prevent showing old messages
+    setChatMessages([]);
+    setChatMessagesLoading(true);
+    
+    // Immediately set the selected chat with all its data to prevent showing wrong user
+    // Make sure we preserve the user relationship if it exists
+    // The backend should load the user relationship, but we ensure it's here
+    const chatToSelect = {
+      ...chat,
+      // Ensure user relationship is included - use the chat's user if available
+      user: chat.user || (chat.user_id ? { id: chat.user_id } : null),
+      // Preserve all other properties
+      is_guest: chat.is_guest || false,
+      guest_name: chat.guest_name,
+      guest_email: chat.guest_email
+    };
+    
+    // CRITICAL: Set selected chat immediately using React's state update
+    // This ensures the UI updates immediately to show the correct user
+    setSelectedLiveChat(chatToSelect);
+    
+    try {
+      // Fetch messages for this specific chat ID (use the stored ID to prevent race conditions)
+      await fetchChatMessages(chatIdToSelect);
+      await markChatAsRead(chatIdToSelect);
+      
+      // Update unread counts
+      setLiveChats((prev) => {
+        if (Array.isArray(prev)) {
+          const updated = prev.map((item) =>
+            item.id === chatIdToSelect ? { ...item, unread_admin_count: 0 } : item
+          );
+          const updatedUnread = updated.reduce((sum, c) => sum + (c?.unread_admin_count || 0), 0);
+          setLiveChatUnreadCount(updatedUnread);
+          return updated;
+        }
+        return prev;
+      });
+    } catch (error) {
+      console.error('Error selecting chat:', error);
+      // If fetching messages fails, still keep the chat selected
+      // so the user can see which chat they selected
+      setChatMessagesLoading(false);
+    }
   };
 
   const fetchChatMessages = async (chatId) => {
@@ -2673,7 +2760,11 @@ function AdminPanel() {
       setChatMessages([]);
       return;
     }
-    setChatMessagesLoading(true);
+    // Loading state is set in handleSelectLiveChat to prevent showing old messages
+    // Only set it here if not already loading
+    if (!chatMessagesLoading) {
+      setChatMessagesLoading(true);
+    }
     setError(null);
     try {
       const response = await adminAPI.getLiveChatMessages(chatId);
@@ -10968,8 +11059,9 @@ function AdminPanel() {
                                 return (
                                   <tr
                                     key={chat.id}
+                                    data-chat-id={chat.id}
                                     className={`cursor-pointer border-b border-[hsl(var(--border))] ${
-                                      isActive ? 'bg-[hsl(var(--accent))]' : 'hover:bg-[hsl(var(--accent))]/40'
+                                      isActive ? 'bg-[hsl(var(--accent))] border-l-4 border-l-[hsl(var(--primary))]' : 'hover:bg-[hsl(var(--accent))]/40'
                                     }`}
                                     onClick={() => handleSelectLiveChat(chat)}
                                   >

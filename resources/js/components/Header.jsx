@@ -43,12 +43,6 @@ function Header() {
                       Auctions
                     </Link>
                     <Link
-                      to="/forum"
-                      className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
-                    >
-                      Forum
-                    </Link>
-                    <Link
                       to="/nepali-products"
                       className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
                     >
@@ -119,12 +113,6 @@ function Header() {
                   className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
                 >
                   Auctions
-                </Link>
-                <Link
-                  to="/forum"
-                  className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
-                >
-                  Forum
                 </Link>
                 <Link
                   to="/nepali-products"
@@ -216,13 +204,6 @@ function Header() {
                         Auctions
                       </Link>
                       <Link
-                        to="/forum"
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors py-2"
-                      >
-                        Forum
-                      </Link>
-                      <Link
                         to="/nepali-products"
                         onClick={() => setMobileMenuOpen(false)}
                         className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors py-2"
@@ -301,13 +282,6 @@ function Header() {
                     className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors py-2"
                   >
                     Auctions
-                  </Link>
-                  <Link
-                    to="/forum"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors py-2"
-                  >
-                    Forum
                   </Link>
                   <Link
                     to="/nepali-products"

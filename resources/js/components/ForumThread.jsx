@@ -92,7 +92,7 @@ export default function ForumThread() {
             <p className="text-[hsl(var(--muted-foreground))] mb-4">Thread not found</p>
             <Link to="/forum" className="text-[hsl(var(--primary))] hover:underline">
               ← Back to forum
-            </Link>
+        </Link>
           </CardContent>
         </Card>
       </div>
@@ -111,15 +111,15 @@ export default function ForumThread() {
 
       {/* Question Section */}
       {question && (
-        <Card>
-          <CardHeader>
+      <Card>
+        <CardHeader>
             <CardTitle className="text-xl">{threadData.title}</CardTitle>
             {threadData.category && (
               <span className="text-xs bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] px-2 py-1 rounded inline-block mt-2">
                 {threadData.category.name}
               </span>
             )}
-          </CardHeader>
+        </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-4">
               <UserAvatar
@@ -156,8 +156,8 @@ export default function ForumThread() {
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+        </CardContent>
+      </Card>
       )}
 
       {/* Replies Section */}
@@ -208,7 +208,7 @@ export default function ForumThread() {
                       label="helpful"
                     />
                   </div>
-                </div>
+            </div>
               );
             })
           )}
@@ -223,19 +223,19 @@ export default function ForumThread() {
         <CardContent className="space-y-3">
           {user ? (
             <>
-              <Textarea
+          <Textarea
                 rows={6}
                 placeholder="Write your reply..."
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
                 disabled={replying}
-              />
+          />
               <Button 
                 onClick={handleReply} 
                 disabled={!reply.trim() || replying || !threadData.id}
               >
                 {replying ? 'Posting...' : 'Post Reply'}
-              </Button>
+          </Button>
             </>
           ) : (
             <div className="p-4 bg-[hsl(var(--muted))] rounded-md">
