@@ -14,6 +14,9 @@ class EbookController extends Controller
      */
     public function index(Request $request)
     {
+        // Try to get authenticated user (Sanctum works on public routes if token is provided)
+        $user = auth('sanctum')->user();
+        
         $query = Ebook::with(['user', 'category'])
             ->where('status', 'active');
 
@@ -41,10 +44,10 @@ class EbookController extends Controller
         $ebooks = $query->orderBy('created_at', 'desc')->paginate(20);
 
         // Add purchase status for authenticated users
-        if (Auth::check()) {
+        if ($user) {
             foreach ($ebooks->items() as $ebook) {
-                $ebook->is_purchased = $ebook->isPurchasedBy(Auth::id());
-                $ebook->verification_code = $ebook->getVerificationCodeForUser(Auth::id());
+                $ebook->is_purchased = $ebook->isPurchasedBy($user->id);
+                $ebook->verification_code = $ebook->getVerificationCodeForUser($user->id);
             }
         }
 
@@ -56,12 +59,15 @@ class EbookController extends Controller
      */
     public function show(string $id)
     {
+        // Try to get authenticated user (Sanctum works on public routes if token is provided)
+        $user = auth('sanctum')->user();
+        
         $ebook = Ebook::with(['user', 'category'])->findOrFail($id);
 
         // Add purchase status for authenticated users
-        if (Auth::check()) {
-            $ebook->is_purchased = $ebook->isPurchasedBy(Auth::id());
-            $ebook->verification_code = $ebook->getVerificationCodeForUser(Auth::id());
+        if ($user) {
+            $ebook->is_purchased = $ebook->isPurchasedBy($user->id);
+            $ebook->verification_code = $ebook->getVerificationCodeForUser($user->id);
         } else {
             $ebook->is_purchased = false;
             $ebook->verification_code = null;
@@ -100,14 +106,17 @@ class EbookController extends Controller
      */
     public function download(string $id)
     {
+        // Try to get authenticated user (Sanctum works on public routes if token is provided)
+        $user = auth('sanctum')->user();
+        
         $ebook = Ebook::findOrFail($id);
 
-        if (!Auth::check()) {
+        if (!$user) {
             return response()->json(['error' => 'Authentication required'], 401);
         }
 
         // Check if user has purchased this eBook
-        if (!$ebook->isPurchasedBy(Auth::id())) {
+        if (!$ebook->isPurchasedBy($user->id)) {
             return response()->json(['error' => 'You must purchase this eBook before downloading'], 403);
         }
 

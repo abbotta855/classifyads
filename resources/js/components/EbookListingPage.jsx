@@ -26,12 +26,29 @@ function EbookListingPage() {
         search: searchQuery || undefined,
       };
       const response = await ebookAPI.getEbooks(params);
-      setEbooks(response.data.data || response.data);
-      if (response.data.last_page) {
-        setLastPage(response.data.last_page);
+      
+      // Handle paginated response structure
+      if (response.data && Array.isArray(response.data.data)) {
+        // Paginated response: { data: [...], current_page, last_page, etc. }
+        setEbooks(response.data.data);
+        if (response.data.last_page) {
+          setLastPage(response.data.last_page);
+        }
+      } else if (Array.isArray(response.data)) {
+        // Direct array response
+        setEbooks(response.data);
+        setLastPage(1);
+      } else {
+        // Unexpected structure, log and set empty
+        console.warn('Unexpected eBook response structure:', response.data);
+        setEbooks([]);
+        setLastPage(1);
       }
     } catch (error) {
       console.error('Error fetching eBooks:', error);
+      // Set empty array on error so UI shows "No eBooks found" instead of crashing
+      setEbooks([]);
+      setLastPage(1);
     } finally {
       setLoading(false);
     }

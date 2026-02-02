@@ -21,15 +21,27 @@ export default function NepaliProductList() {
     try {
       const res = await nepaliProductAPI.list(params);
       const payload = res.data;
+      
+      // Handle paginated response structure
       if (Array.isArray(payload)) {
+        // Direct array response
         setProducts(payload);
         setMeta(null);
-      } else {
-        setProducts(payload.data || []);
+      } else if (payload && Array.isArray(payload.data)) {
+        // Paginated response: { data: [...], current_page, last_page, etc. }
+        setProducts(payload.data);
         setMeta(payload);
+      } else {
+        // Unexpected structure, log and set empty
+        console.warn('Unexpected Nepali Products response structure:', payload);
+        setProducts([]);
+        setMeta(null);
       }
     } catch (e) {
       console.error('Failed to load products', e);
+      // Set empty array on error so UI shows "No products found" instead of crashing
+      setProducts([]);
+      setMeta(null);
     } finally {
       setLoading(false);
     }

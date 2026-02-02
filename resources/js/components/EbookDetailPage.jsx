@@ -376,7 +376,7 @@ function EbookDetailPage() {
                       disabled={purchasing}
                       className="w-full"
                     >
-                      {purchasing ? 'Processing...' : 'Buy Now with PayPal'}
+                      {purchasing ? 'Processing...' : 'Buy Now'}
                     </Button>
                   )}
 

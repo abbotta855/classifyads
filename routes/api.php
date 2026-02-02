@@ -107,6 +107,10 @@ Route::get('/forum/threads/{slug}', [ForumController::class, 'showThread']);
 Route::get('/nepali-products', [App\Http\Controllers\NepaliProductController::class, 'index']);
 Route::get('/nepali-products/{id}', [App\Http\Controllers\NepaliProductController::class, 'show']);
 
+// eBook routes (public)
+Route::get('/ebooks', [App\Http\Controllers\EbookController::class, 'index']);
+Route::get('/ebooks/{id}', [App\Http\Controllers\EbookController::class, 'show']);
+
 // Guest offline support message
 Route::post('/support/offline-message', [SupportOfflineMessageController::class, 'store']);
 
@@ -275,9 +279,7 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::put('/ratings/{id}', [App\Http\Controllers\RatingController::class, 'update']);
   Route::delete('/ratings/{id}', [App\Http\Controllers\RatingController::class, 'destroy']);
 
-  // eBook routes (public)
-  Route::get('/ebooks', [App\Http\Controllers\EbookController::class, 'index']);
-  Route::get('/ebooks/{id}', [App\Http\Controllers\EbookController::class, 'show']);
+  // eBook download route (authenticated only)
   Route::get('/ebooks/{id}/download', [App\Http\Controllers\EbookController::class, 'download']);
 
   // Seller eBook management routes (authenticated sellers only)
