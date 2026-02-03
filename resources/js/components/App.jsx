@@ -4,6 +4,8 @@ import { initializeTimezone } from '../utils/timezone';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './Login';
 import Register from './Register';
+import ForgotPassword from './ForgotPassword';
+import ResetPassword from './ResetPassword';
 import Dashboard from './Dashboard';
 import UserDashboard from './UserDashboard';
 import AdminPanel from './AdminPanel';
@@ -171,6 +173,22 @@ function AppRoutes() {
         element={
           <GuestRoute>
             <Register />
+          </GuestRoute>
+        }
+      />
+      <Route
+        path="/forgot-password"
+        element={
+          <GuestRoute>
+            <ForgotPassword />
+          </GuestRoute>
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={
+          <GuestRoute>
+            <ResetPassword />
           </GuestRoute>
         }
       />

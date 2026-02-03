@@ -7,13 +7,18 @@ use App\Models\LiveChat;
 use App\Models\LiveChatMessage;
 use App\Models\SupportOfflineMessage;
 use App\Http\Controllers\OtpController;
+use App\Mail\PasswordResetMail;
+use App\Services\SendGridService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class AuthController extends Controller
 {
@@ -300,6 +305,153 @@ class AuthController extends Controller
         'email' => $targetUser->email,
         'role' => $targetUser->role,
       ],
+    ]);
+  }
+
+  /**
+   * Send password reset link to user's email
+   */
+  public function forgotPassword(Request $request)
+  {
+    $request->validate([
+      'email' => [
+        'required',
+        'email',
+        'regex:/\.com$/',
+      ],
+    ], [
+      'email.regex' => 'Confirm your email is correct',
+    ]);
+
+    $user = User::where('email', $request->email)->first();
+
+    // Always return success message to prevent email enumeration
+    // But only send email if user exists
+    if ($user) {
+      // Generate password reset token
+      $token = Str::random(64);
+      
+      // Store token in password_reset_tokens table
+      DB::table('password_reset_tokens')->updateOrInsert(
+        ['email' => $user->email],
+        [
+          'token' => Hash::make($token),
+          'created_at' => now(),
+        ]
+      );
+
+      // Generate reset URL
+      // Use FRONTEND_URL from .env, or default to Laravel server (same as APP_URL)
+      // The React app is served by Laravel, not directly by Vite
+      // In production, set FRONTEND_URL in .env to your actual frontend domain
+      $frontendUrl = env('FRONTEND_URL', config('app.url'));
+      $resetUrl = $frontendUrl . '/reset-password?token=' . $token . '&email=' . urlencode($user->email);
+
+      // Send password reset email using SendGrid (same as OTP) with SMTP fallback
+      try {
+        $sendGridService = new SendGridService();
+        
+        // Render email template
+        $htmlContent = view('emails.password-reset', [
+          'userName' => $user->name,
+          'resetUrl' => $resetUrl
+        ])->render();
+        
+        $textContent = "Hello {$user->name},\n\nWe received a request to reset your password. Click the link below to create a new password:\n\n{$resetUrl}\n\nThis link will expire in 60 minutes. If you did not request a password reset, please ignore this email.";
+        
+        $sent = $sendGridService->sendEmail(
+          $user->email,
+          'Reset Your Password',
+          $htmlContent,
+          $textContent
+        );
+        
+        if ($sent) {
+          \Log::info('Password reset email sent via SendGrid API to: ' . $user->email);
+        } else {
+          // Fallback to SMTP if HTTP API fails
+          try {
+            Mail::to($user->email)->send(new PasswordResetMail($user->name, $resetUrl));
+            \Log::info('Password reset email sent via SMTP fallback to: ' . $user->email);
+          } catch (\Exception $e) {
+            \Log::error('Failed to send password reset email via both methods to ' . $user->email . ': ' . $e->getMessage());
+          }
+        }
+      } catch (\Exception $e) {
+        // Log error but don't expose it to user
+        \Log::error('Failed to send password reset email: ' . $e->getMessage());
+      }
+    }
+
+    return response()->json([
+      'message' => 'If an account exists with that email, we have sent a password reset link.',
+    ]);
+  }
+
+  /**
+   * Reset password using token
+   */
+  public function resetPassword(Request $request)
+  {
+    $request->validate([
+      'email' => [
+        'required',
+        'email',
+        'regex:/\.com$/',
+      ],
+      'token' => 'required|string',
+      'password' => 'required|string|min:8|confirmed',
+    ], [
+      'email.regex' => 'Confirm your email is correct',
+      'password.confirmed' => 'The password confirmation does not match.',
+      'password.min' => 'The password must be at least 8 characters.',
+    ]);
+
+    // Find the password reset token
+    $passwordReset = DB::table('password_reset_tokens')
+      ->where('email', $request->email)
+      ->first();
+
+    if (!$passwordReset) {
+      throw ValidationException::withMessages([
+        'token' => ['Invalid or expired reset token.'],
+      ]);
+    }
+
+    // Check if token is valid (not expired - 60 minutes)
+    $tokenAge = now()->diffInMinutes($passwordReset->created_at);
+    if ($tokenAge > 60) {
+      // Delete expired token
+      DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+      throw ValidationException::withMessages([
+        'token' => ['This password reset link has expired. Please request a new one.'],
+      ]);
+    }
+
+    // Verify token
+    if (!Hash::check($request->token, $passwordReset->token)) {
+      throw ValidationException::withMessages([
+        'token' => ['Invalid or expired reset token.'],
+      ]);
+    }
+
+    // Find user and update password
+    $user = User::where('email', $request->email)->first();
+    if (!$user) {
+      throw ValidationException::withMessages([
+        'email' => ['User not found.'],
+      ]);
+    }
+
+    // Update password
+    $user->password = Hash::make($request->password);
+    $user->save();
+
+    // Delete used token
+    DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+
+    return response()->json([
+      'message' => 'Password has been reset successfully. You can now login with your new password.',
     ]);
   }
 }

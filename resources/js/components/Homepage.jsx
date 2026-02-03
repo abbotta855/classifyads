@@ -5,9 +5,11 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { getAdUrl } from '../utils/api';
+import { useAuth } from '../contexts/AuthContext';
 
 function Homepage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [categories, setCategories] = useState([]);
   const [locationData, setLocationData] = useState({ provinces: [] }); // Location data from database
   const [showCategoryFilter, setShowCategoryFilter] = useState(false); // Track if category filter section is visible
@@ -2930,6 +2932,18 @@ function Homepage() {
                   <option value="latest listing">latest listing</option>
                   <option value="top review">top review</option>
                 </select>
+                <Button
+                  onClick={() => {
+                    if (!user) {
+                      navigate('/login', { state: { from: '/user_dashboard/ad-post' } });
+                    } else {
+                      navigate('/user_dashboard/ad-post');
+                    }
+                  }}
+                  className="px-6"
+                >
+                  Post Ad
+                </Button>
               </div>
                     </div>
 

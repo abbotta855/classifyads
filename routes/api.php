@@ -62,6 +62,8 @@ Route::get('/debug/php-limits', function () {
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 // OTP routes (public)
 Route::post('/otp/generate', [App\Http\Controllers\OtpController::class, 'generate']);
