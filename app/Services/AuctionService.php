@@ -827,15 +827,23 @@ class AuctionService
     private function createWinnerRecords(Auction $auction, int $winnerId): void
     {
         try {
+            Log::info('createWinnerRecords called', [
+                'auction_id' => $auction->id,
+                'winner_id' => $winnerId,
+                'auction_title' => $auction->title,
+            ]);
+
             // Check if BidWinner exists
             $existingBidWinner = BidWinner::where('auction_id', $auction->id)->first();
             
-            // If BidWinner exists but BiddingTracking doesn't, create it
             if ($existingBidWinner) {
-                $existingTracking = \App\Models\BiddingTracking::where('bid_winner_id', $existingBidWinner->id)->first();
+                Log::info('BidWinner already exists', ['bid_winner_id' => $existingBidWinner->id, 'auction_id' => $auction->id]);
+                
+                // Ensure BiddingTracking also exists
+                $existingTracking = BiddingTracking::where('bid_winner_id', $existingBidWinner->id)->first();
                 if (!$existingTracking) {
                     $winnerUser = User::find($winnerId);
-                    \App\Models\BiddingTracking::create([
+                    BiddingTracking::create([
                         'bid_winner_id' => $existingBidWinner->id,
                         'bid_winner_name' => $winnerUser?->name ?? 'Winner',
                         'bid_won_item_name' => $auction->title ?? 'Auction Item',
@@ -844,16 +852,43 @@ class AuctionService
                         'complete_process_date_time' => null,
                         'alert_sent' => false,
                     ]);
+                    Log::info('Created missing BiddingTracking for existing BidWinner', ['bid_winner_id' => $existingBidWinner->id]);
                 }
-                return; // Both records exist, nothing to do
+                return;
             }
 
             // Create both BidWinner and BiddingTracking
             $winnerUser = User::find($winnerId);
+            if (!$winnerUser) {
+                Log::warning('Winner user not found', ['winner_id' => $winnerId]);
+            }
+
             $nowDate = now()->toDateString();
-            $startDate = $auction->start_time ? $auction->start_time->toDateString() : $nowDate;
-            $wonDate = $auction->end_time ? $auction->end_time->toDateString() : $nowDate;
-            $paymentDate = $nowDate;
+            $startDate = $nowDate;
+            $wonDate = $nowDate;
+
+            try {
+                $startDate = $auction->start_time ? $auction->start_time->toDateString() : $nowDate;
+            } catch (\Exception $e) {
+                Log::warning('Could not parse start_time', ['start_time' => $auction->start_time, 'error' => $e->getMessage()]);
+            }
+
+            try {
+                $wonDate = $auction->end_time ? $auction->end_time->toDateString() : $nowDate;
+            } catch (\Exception $e) {
+                Log::warning('Could not parse end_time', ['end_time' => $auction->end_time, 'error' => $e->getMessage()]);
+            }
+
+            $totalPayment = $auction->current_bid_price ?? $auction->buy_now_price ?? 0;
+
+            Log::info('Creating BidWinner record', [
+                'auction_id' => $auction->id,
+                'user_id' => $winnerId,
+                'seller_id' => $auction->user_id,
+                'total_payment' => $totalPayment,
+                'start_date' => $startDate,
+                'won_date' => $wonDate,
+            ]);
 
             $bidWinner = BidWinner::create([
                 'user_id' => $winnerId,
@@ -861,13 +896,15 @@ class AuctionService
                 'bidding_item' => $auction->title ?? 'Auction Item',
                 'bid_start_date' => $startDate,
                 'bid_won_date' => $wonDate,
-                'payment_proceed_date' => $paymentDate,
-                'total_payment' => $auction->current_bid_price ?? $auction->buy_now_price ?? 0,
+                'payment_proceed_date' => $nowDate,
+                'total_payment' => $totalPayment,
                 'seller_id' => $auction->user_id,
                 'congratulation_email_sent' => false,
             ]);
 
-            \App\Models\BiddingTracking::create([
+            Log::info('BidWinner created', ['bid_winner_id' => $bidWinner->id]);
+
+            BiddingTracking::create([
                 'bid_winner_id' => $bidWinner->id,
                 'bid_winner_name' => $winnerUser?->name ?? 'Winner',
                 'bid_won_item_name' => $auction->title ?? 'Auction Item',
@@ -876,11 +913,15 @@ class AuctionService
                 'complete_process_date_time' => null,
                 'alert_sent' => false,
             ]);
+
+            Log::info('BiddingTracking created for BidWinner', ['bid_winner_id' => $bidWinner->id]);
+
         } catch (\Exception $e) {
             Log::error('Failed to create winner tracking', [
                 'auction_id' => $auction->id,
                 'winner_id' => $winnerId,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }

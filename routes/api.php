@@ -327,6 +327,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('bidding-history', BiddingHistoryController::class);
     
     // Bid Winners management
+    Route::post('bid-winners/backfill', [BidWinnerController::class, 'backfill']);
     Route::apiResource('bid-winners', BidWinnerController::class);
     
     // Blocked Users management

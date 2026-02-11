@@ -75,6 +75,7 @@ export const adminAPI = {
   // Bid Winners
   getBidWinners: () => axios.get(`${API_BASE}/bid-winners`),
   getBidWinner: (id) => axios.get(`${API_BASE}/bid-winners/${id}`),
+  backfillBidWinners: () => axios.post(`${API_BASE}/bid-winners/backfill`),
   createBidWinner: (data) => axios.post(`${API_BASE}/bid-winners`, data),
   updateBidWinner: (id, data) => axios.put(`${API_BASE}/bid-winners/${id}`, data),
   deleteBidWinner: (id) => axios.delete(`${API_BASE}/bid-winners/${id}`),

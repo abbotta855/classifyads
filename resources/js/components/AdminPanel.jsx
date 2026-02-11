@@ -4332,6 +4332,7 @@ function AdminPanel() {
           auctionTitle: group.auction_title || 'Unknown Auction',
           auction: group.auction,
           totalCount: group.total_count,
+          bidCount: group.bid_count || 0,
           biddingHistory: (group.bidding_history || []).map(bid => ({
             id: bid.id,
             userName: bid.user?.name || 'N/A',
@@ -15357,9 +15358,9 @@ function AdminPanel() {
                           ? biddingHistoryGrouped
                           : biddingHistoryGrouped.filter(group => selectedAuctionIds.includes(group.auctionId));
                         
-                        // Flatten all bidding history from selected auctions
+                        // Flatten all bidding history from selected auctions, limit to 15 per auction
                         const allBids = filteredGroups.flatMap(group => 
-                          group.biddingHistory.map(bid => ({
+                          group.biddingHistory.slice(0, 15).map(bid => ({
                             ...bid,
                             auctionTitle: group.auctionTitle,
                             auctionId: group.auctionId
@@ -15565,7 +15566,28 @@ function AdminPanel() {
               <section className="mb-6">
                 <Card>
                   <CardContent className="p-4">
-                    <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Bid winner tracking</h2>
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">Bid winner tracking</h2>
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            setError(null);
+                            setSuccessMessage('Backfilling winner records...');
+                            const response = await adminAPI.backfillBidWinners();
+                            setSuccessMessage(response.data.message || 'Backfill complete');
+                            setTimeout(() => setSuccessMessage(null), 5000);
+                            fetchBidWinners();
+                            fetchBiddingTracking();
+                          } catch (err) {
+                            setError('Failed to backfill: ' + (err.response?.data?.message || err.message));
+                          }
+                        }}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        Sync Winner Records
+                      </Button>
+                    </div>
                     <div className="overflow-x-auto">
                       <table className="w-full border-collapse">
                         <thead>
