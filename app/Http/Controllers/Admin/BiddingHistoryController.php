@@ -4,17 +4,53 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\BiddingHistory;
+use App\Models\Auction;
+use App\Models\Bid;
 use Illuminate\Http\Request;
 
 class BiddingHistoryController extends Controller
 {
   public function index()
   {
-    $biddingHistory = BiddingHistory::with(['user', 'auction'])
-      ->orderBy('start_date_time', 'desc')
+    // Get all auctions that have bids (from bids table)
+    $auctionsWithBids = Auction::whereHas('bids')
+      ->with(['bids' => function ($query) {
+        $query->orderBy('created_at', 'desc');
+      }])
       ->get();
 
-    return response()->json($biddingHistory);
+    // Get all bidding history records grouped by auction
+    $biddingHistoryByAuction = BiddingHistory::with(['user', 'auction'])
+      ->orderBy('start_date_time', 'desc')
+      ->get()
+      ->groupBy('auction_id');
+
+    // Build grouped data - include ALL auctions with bids, even if no bidding_history
+    $groupedByAuction = $auctionsWithBids->map(function ($auction) use ($biddingHistoryByAuction) {
+      $auctionId = $auction->id;
+      $biddingHistory = $biddingHistoryByAuction->get($auctionId, collect());
+      
+      return [
+        'auction_id' => $auctionId,
+        'auction_title' => $auction->title ?? 'Unknown Auction',
+        'auction' => $auction,
+        'bidding_history' => $biddingHistory->take(50)->values(), // Last 50 records
+        'total_count' => $biddingHistory->count(),
+        'bid_count' => $auction->bids()->count(), // Total bids from bids table
+      ];
+    })->values();
+
+    // Flatten for backward compatibility
+    $biddingHistory = $biddingHistoryByAuction
+      ->flatten()
+      ->sortByDesc('start_date_time')
+      ->take(50)
+      ->values();
+
+    return response()->json([
+      'grouped' => $groupedByAuction,
+      'flat' => $biddingHistory, // Keep flat for backward compatibility
+    ]);
   }
 
   public function store(Request $request)
@@ -61,7 +97,14 @@ class BiddingHistoryController extends Controller
 
   public function destroy(string $id)
   {
-    $biddingHistory = BiddingHistory::findOrFail($id);
+    $biddingHistory = BiddingHistory::find($id);
+    
+    if (!$biddingHistory) {
+      return response()->json([
+        'message' => 'Bidding history not found. It may have already been deleted.'
+      ], 404);
+    }
+    
     $biddingHistory->delete();
 
     return response()->json(['message' => 'Bidding history deleted successfully']);

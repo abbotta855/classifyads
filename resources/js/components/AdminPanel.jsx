@@ -295,7 +295,11 @@ function AdminPanel() {
 
   // Bidding history data - fetched from database via API
   const [biddingHistoryData, setBiddingHistoryData] = useState([]);
+  const [biddingHistoryGrouped, setBiddingHistoryGrouped] = useState([]);
+  const [expandedAuctionIds, setExpandedAuctionIds] = useState(new Set());
   const [biddingHistoryLoading, setBiddingHistoryLoading] = useState(false);
+  const [selectedAuctionIds, setSelectedAuctionIds] = useState([]); // Array of selected auction IDs
+  const [availableAuctions, setAvailableAuctions] = useState([]); // List of auctions with bidding history
   const [editingBiddingHistoryId, setEditingBiddingHistoryId] = useState(null);
   const [editingBiddingHistoryData, setEditingBiddingHistoryData] = useState(null);
 
@@ -4320,35 +4324,15 @@ function AdminPanel() {
     try {
       const response = await adminAPI.getBiddingHistory();
       
-      // Handle different response structures - ensure we get an array
-      let biddingData = [];
-      
-      // Check if response.data is an array
-      if (Array.isArray(response.data)) {
-        biddingData = response.data;
-      } 
-      // Check if response itself is an array
-      else if (Array.isArray(response)) {
-        biddingData = response;
-      }
-      // Check if response.data.data exists and is an array
-      else if (response.data && response.data.data && Array.isArray(response.data.data)) {
-        biddingData = response.data.data;
-      }
-      // If response.data exists but is not an array, log it for debugging
-      else if (response.data) {
-        console.error('Unexpected response format - response.data is not an array:', response.data);
-        biddingData = [];
-      }
-      // Fallback to empty array
-      else {
-        console.error('Unexpected response format:', response);
-        biddingData = [];
-      }
-      
-      // Transform to match expected format - only if we have valid data
-      const transformedBidding = Array.isArray(biddingData)
-        ? biddingData.map(bid => ({
+      // Handle new grouped response structure
+      if (response.data && response.data.grouped) {
+        // New grouped format
+        const groupedData = response.data.grouped.map(group => ({
+          auctionId: group.auction_id,
+          auctionTitle: group.auction_title || 'Unknown Auction',
+          auction: group.auction,
+          totalCount: group.total_count,
+          biddingHistory: (group.bidding_history || []).map(bid => ({
             id: bid.id,
             userName: bid.user?.name || 'N/A',
             itemName: bid.item_name,
@@ -4357,18 +4341,94 @@ function AdminPanel() {
             paymentMethod: bid.payment_method,
             startDateTime: bid.start_date_time
           }))
-        : [];
-      
-      setBiddingHistoryData(transformedBidding);
+        }));
+        
+        setBiddingHistoryGrouped(groupedData);
+        
+        // Extract available auctions for filter dropdown
+        const auctions = groupedData.map(group => ({
+          id: group.auctionId,
+          title: group.auctionTitle,
+          count: group.totalCount || 0, // Bidding history count
+          bidCount: group.bidCount || 0 // Total bids from bids table
+        }));
+        setAvailableAuctions(auctions);
+        
+        // If no auctions selected, select all by default
+        if (selectedAuctionIds.length === 0 && auctions.length > 0) {
+          setSelectedAuctionIds(auctions.map(a => a.id));
+        }
+        
+        // Also set flat data for backward compatibility
+        const flatData = response.data.flat || [];
+        const transformedBidding = Array.isArray(flatData)
+          ? flatData.map(bid => ({
+              id: bid.id,
+              userName: bid.user?.name || 'N/A',
+              itemName: bid.item_name,
+              reservePrice: parseFloat(bid.reserve_price) || 0,
+              buyNowPrice: parseFloat(bid.buy_now_price) || 0,
+              paymentMethod: bid.payment_method,
+              startDateTime: bid.start_date_time
+            }))
+          : [];
+        setBiddingHistoryData(transformedBidding);
+      } else {
+        // Fallback to old format for backward compatibility
+        let biddingData = [];
+        
+        if (Array.isArray(response.data)) {
+          biddingData = response.data;
+        } else if (Array.isArray(response)) {
+          biddingData = response;
+        } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+          biddingData = response.data.data;
+        } else if (response.data) {
+          console.error('Unexpected response format - response.data is not an array:', response.data);
+          biddingData = [];
+        } else {
+          console.error('Unexpected response format:', response);
+          biddingData = [];
+        }
+        
+        const transformedBidding = Array.isArray(biddingData)
+          ? biddingData.map(bid => ({
+              id: bid.id,
+              userName: bid.user?.name || 'N/A',
+              itemName: bid.item_name,
+              reservePrice: parseFloat(bid.reserve_price) || 0,
+              buyNowPrice: parseFloat(bid.buy_now_price) || 0,
+              paymentMethod: bid.payment_method,
+              startDateTime: bid.start_date_time
+            }))
+          : [];
+        
+        setBiddingHistoryData(transformedBidding);
+        setBiddingHistoryGrouped([]);
+      }
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message || 'Unknown error';
       setError('Failed to fetch bidding history: ' + errorMessage);
       console.error('Error fetching bidding history:', err);
       console.error('Error response:', err.response);
-      setBiddingHistoryData([]); // Set empty array on error
+      setBiddingHistoryData([]);
+      setBiddingHistoryGrouped([]);
     } finally {
       setBiddingHistoryLoading(false);
     }
+  };
+  
+  // Toggle auction expansion
+  const toggleAuctionExpansion = (auctionId) => {
+    setExpandedAuctionIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(auctionId)) {
+        newSet.delete(auctionId);
+      } else {
+        newSet.add(auctionId);
+      }
+      return newSet;
+    });
   };
 
   // Handle edit bidding history
@@ -4419,11 +4479,18 @@ function AdminPanel() {
     try {
       await adminAPI.deleteBiddingHistory(id);
       setSuccessMessage('Bidding history deleted successfully');
-      fetchBiddingHistory();
+      fetchBiddingHistory(); // Refresh the list
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      setError('Failed to delete bidding history: ' + (err.response?.data?.message || err.message));
-      setTimeout(() => setError(null), 5000);
+      // If record not found (404), it was already deleted - refresh list and show info message
+      if (err.response?.status === 404) {
+        setSuccessMessage(err.response?.data?.message || 'Bidding history was already deleted. Refreshing list...');
+        fetchBiddingHistory(); // Refresh to get updated list
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        setError('Failed to delete bidding history: ' + (err.response?.data?.message || err.message));
+        setTimeout(() => setError(null), 5000);
+      }
     }
   };
 
@@ -15250,24 +15317,80 @@ function AdminPanel() {
                 <Card>
                   <CardContent className="p-4">
                     <h2 className="text-lg font-semibold text-[hsl(var(--foreground))] mb-4">Bidding history tracking:</h2>
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse">
-                        <thead>
-                          <tr className="border-b border-[hsl(var(--border))]">
-                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
-                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User Name</th>
-                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Item Name</th>
-                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Reserve Price</th>
-                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Buy Now Price</th>
-                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Payment Method</th>
-                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Start Date Time</th>
-                            <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {biddingHistoryData.map((bid, index) => (
+                    
+                    {/* Auction Selection Filter */}
+                    {availableAuctions.length > 0 && (
+                      <div className="mb-4 flex items-center gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1 text-[hsl(var(--foreground))]">Auction</label>
+                          <select
+                            value={selectedAuctionIds.length > 0 ? selectedAuctionIds[0] : 'all'}
+                            onChange={(e) => {
+                              if (e.target.value === 'all') {
+                                setSelectedAuctionIds(availableAuctions.map(a => a.id));
+                              } else {
+                                setSelectedAuctionIds([parseInt(e.target.value)]);
+                              }
+                            }}
+                            className="px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                          >
+                            <option value="all">All Auctions</option>
+                            {availableAuctions.map(auction => (
+                              <option key={auction.id} value={auction.id}>
+                                {auction.title} ({auction.bidCount || 0} bids)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {biddingHistoryGrouped.length > 0 ? (
+                      // Filter and display selected auctions in a single table
+                      (() => {
+                        // Filter grouped data by selected auction IDs
+                        // If "all" is selected or all auctions are selected, show all
+                        const filteredGroups = (selectedAuctionIds.length === 0 || selectedAuctionIds.length === availableAuctions.length)
+                          ? biddingHistoryGrouped
+                          : biddingHistoryGrouped.filter(group => selectedAuctionIds.includes(group.auctionId));
+                        
+                        // Flatten all bidding history from selected auctions
+                        const allBids = filteredGroups.flatMap(group => 
+                          group.biddingHistory.map(bid => ({
+                            ...bid,
+                            auctionTitle: group.auctionTitle,
+                            auctionId: group.auctionId
+                          }))
+                        );
+                        
+                        return (
+                          <div className="overflow-x-auto">
+                            <table className="w-full border-collapse">
+                              <thead>
+                                <tr className="border-b border-[hsl(var(--border))] bg-[hsl(var(--muted))]">
+                                  <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                                  <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Auction</th>
+                                  <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User Name</th>
+                                  <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Item Name</th>
+                                  <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Reserve Price</th>
+                                  <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Buy Now Price</th>
+                                  <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Payment Method</th>
+                                  <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Start Date Time</th>
+                                  <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {allBids.length === 0 ? (
+                                  <tr>
+                                    <td colSpan="9" className="p-8 text-center text-[hsl(var(--muted-foreground))]">
+                                      No bidding history found for selected auctions
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  allBids.map((bid, index) => (
                             <tr key={bid.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingBiddingHistoryId === bid.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                              <td className="p-3 text-sm text-[hsl(var(--foreground))]">{bid.auctionTitle || 'N/A'}</td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{bid.userName}</td>
                               <td className="p-3 text-sm">
                                 {editingBiddingHistoryId === bid.id ? (
@@ -15371,10 +15494,59 @@ function AdminPanel() {
                                 </div>
                               </td>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      // Fallback to flat view if no grouped data
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="border-b border-[hsl(var(--border))]">
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User Name</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Item Name</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Reserve Price</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Buy Now Price</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Payment Method</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Start Date Time</th>
+                              <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {biddingHistoryData.length === 0 ? (
+                              <tr>
+                                <td colSpan="8" className="p-8 text-center text-[hsl(var(--muted-foreground))]">
+                                  No bidding history found
+                                </td>
+                              </tr>
+                            ) : (
+                              biddingHistoryData.map((bid, index) => (
+                                <tr key={bid.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingBiddingHistoryId === bid.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
+                                  <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
+                                  <td className="p-3 text-sm text-[hsl(var(--foreground))]">{bid.userName}</td>
+                                  <td className="p-3 text-sm">{bid.itemName}</td>
+                                  <td className="p-3 text-sm"><span className="font-semibold">Rs. {bid.reservePrice.toLocaleString()}</span></td>
+                                  <td className="p-3 text-sm"><span className="font-semibold">Rs. {bid.buyNowPrice.toLocaleString()}</span></td>
+                                  <td className="p-3 text-sm">{bid.paymentMethod}</td>
+                                  <td className="p-3 text-sm"><span className="text-[hsl(var(--muted-foreground))]">{new Date(bid.startDateTime).toLocaleString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></td>
+                                  <td className="p-3 text-sm">
+                                    <div className="flex gap-2">
+                                      <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleEditBiddingHistory(bid)}>Edit</Button>
+                                      <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => handleDeleteBiddingHistory(bid.id)}>Delete</Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </section>
@@ -15406,7 +15578,14 @@ function AdminPanel() {
                           </tr>
                         </thead>
                         <tbody>
-                          {bidWinnerData.map((winner, index) => (
+                          {bidWinnerData.length === 0 && !bidWinnerLoading ? (
+                            <tr>
+                              <td colSpan="10" className="p-8 text-center text-[hsl(var(--muted-foreground))]">
+                                No bid winners found. Bid winners are created when auctions end and winners are determined.
+                              </td>
+                            </tr>
+                          ) : (
+                            bidWinnerData.map((winner, index) => (
                             <tr key={winner.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingBidWinnerId === winner.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{winner.userName}</td>
@@ -15528,7 +15707,8 @@ function AdminPanel() {
                                 </div>
                               </td>
                             </tr>
-                          ))}
+                            ))
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -15560,7 +15740,14 @@ function AdminPanel() {
                           </tr>
                         </thead>
                         <tbody>
-                          {blockedUserData.map((user, index) => (
+                          {blockedUserData.length === 0 && !blockedUserLoading ? (
+                            <tr>
+                              <td colSpan="7" className="p-8 text-center text-[hsl(var(--muted-foreground))]">
+                                No blocked users found. Block users who violate the rules using the User Management section.
+                              </td>
+                            </tr>
+                          ) : (
+                            blockedUserData.map((user, index) => (
                             <tr key={user.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingBlockedUserId === user.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{user.userName}</td>
@@ -15654,7 +15841,8 @@ function AdminPanel() {
                                 </div>
                               </td>
                             </tr>
-                          ))}
+                            ))
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -15662,6 +15850,11 @@ function AdminPanel() {
                 </Card>
               </section>
 
+              {biddingTrackingLoading && (
+                <div className="mb-4 text-center text-[hsl(var(--muted-foreground))]">
+                  Loading bidding tracking...
+                </div>
+              )}
               {/* Bidding Tracking Table */}
               <section>
                 <Card>
@@ -15682,7 +15875,14 @@ function AdminPanel() {
                           </tr>
                         </thead>
                         <tbody>
-                          {biddingTrackingData.map((tracking, index) => (
+                          {biddingTrackingData.length === 0 && !biddingTrackingLoading ? (
+                            <tr>
+                              <td colSpan="8" className="p-8 text-center text-[hsl(var(--muted-foreground))]">
+                                No bidding tracking records found. Bidding tracking records are created when bid winners are processed.
+                              </td>
+                            </tr>
+                          ) : (
+                            biddingTrackingData.map((tracking, index) => (
                             <tr key={tracking.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingBiddingTrackingId === tracking.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                               <td className="p-3 text-sm">
@@ -15812,7 +16012,8 @@ function AdminPanel() {
                                 </div>
                               </td>
                             </tr>
-                          ))}
+                            ))
+                          )}
                         </tbody>
                       </table>
                     </div>
