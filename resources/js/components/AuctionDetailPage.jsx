@@ -27,6 +27,8 @@ function AuctionDetailPage() {
   const [timeRemaining, setTimeRemaining] = useState('');
   const [statusUpdateInterval, setStatusUpdateInterval] = useState(10); // Dynamic interval for status updates
   const statusCheckInProgress = useRef(false); // Prevent multiple simultaneous status checks
+  const lastBidIdRef = useRef(null); // Track last bid ID to detect new bids
+  const bidUpdateInProgressRef = useRef(false); // Prevent multiple simultaneous bid updates
   
   // Finance calculator state
   const [showFinanceCalculator, setShowFinanceCalculator] = useState(false);
@@ -163,6 +165,88 @@ function AuctionDetailPage() {
       loadBidHistory();
     }
   }, [auction]);
+
+  // Real-time polling for bid updates (current bid and bid history)
+  useEffect(() => {
+    if (!auction) return;
+    
+    // Only poll if auction is active (not pending, ended, or completed)
+    if (auction.status !== 'active') {
+      lastBidIdRef.current = null;
+      return;
+    }
+
+    // Initialize last bid ID from current bid history
+    if (bidHistory.length > 0 && !lastBidIdRef.current) {
+      lastBidIdRef.current = bidHistory[0].id;
+    }
+
+    let bidUpdateInterval = null;
+    const pollInterval = 3000; // Poll every 3 seconds
+
+    const updateBidData = async () => {
+      // Prevent multiple simultaneous requests
+      if (bidUpdateInProgressRef.current) return;
+      bidUpdateInProgressRef.current = true;
+
+      try {
+        // Fetch latest auction data to get updated current bid
+        const auctionResponse = await publicAuctionAPI.getAuction(id);
+        const updatedAuction = auctionResponse.data;
+        
+        // Check if current bid or bid count has changed
+        setAuction(prevAuction => {
+          const currentBidChanged = updatedAuction.current_bid_price !== prevAuction.current_bid_price ||
+                                    updatedAuction.current_bid !== prevAuction.current_bid;
+          const bidCountChanged = updatedAuction.bid_count !== prevAuction.bid_count;
+          
+          if (currentBidChanged || bidCountChanged) {
+            // Update bid amount input to reflect new minimum bid
+            if (updatedAuction.next_minimum_bid) {
+              setBidAmount(updatedAuction.next_minimum_bid.toFixed(2));
+            }
+            
+            return {
+              ...prevAuction,
+              current_bid: updatedAuction.current_bid_price || updatedAuction.current_bid || prevAuction?.current_bid,
+              current_bid_price: updatedAuction.current_bid_price || updatedAuction.current_bid || prevAuction?.current_bid_price,
+              bid_count: updatedAuction.bid_count || prevAuction?.bid_count,
+              next_minimum_bid: updatedAuction.next_minimum_bid || prevAuction?.next_minimum_bid,
+            };
+          }
+          return prevAuction;
+        });
+
+        // Fetch latest bid history to show new bids
+        const historyResponse = await publicAuctionAPI.getBidHistory(auction.id);
+        const newBidHistory = historyResponse.data.bids || [];
+        
+        // Check if bid history has changed (new bids added)
+        if (newBidHistory.length > 0) {
+          const latestBidId = newBidHistory[0].id;
+          if (latestBidId !== lastBidIdRef.current) {
+            lastBidIdRef.current = latestBidId;
+            setBidHistory(newBidHistory);
+          }
+        }
+      } catch (error) {
+        // Silently fail - don't break the UI
+        console.warn('Failed to update bid data:', error);
+      } finally {
+        bidUpdateInProgressRef.current = false;
+      }
+    };
+
+    // Start polling
+    bidUpdateInterval = setInterval(updateBidData, pollInterval);
+
+    // Cleanup on unmount or when auction status changes
+    return () => {
+      if (bidUpdateInterval) {
+        clearInterval(bidUpdateInterval);
+      }
+    };
+  }, [auction?.id, auction?.status, id]);
 
   // Handle payment success/cancel from URL params
   useEffect(() => {
