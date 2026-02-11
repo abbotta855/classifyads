@@ -20,43 +20,45 @@ class BiddingHistoryController extends Controller
       ->get();
 
     // Get all bidding history records grouped by auction
+    // Since bidding_history.start_date_time is set to auction.start_time (not bid timestamp),
+    // we need to match bidding_history records with bids differently
+    // Strategy: Match by creation order (bidding_history.id order matches bid creation order)
     $biddingHistoryByAuction = BiddingHistory::with(['user', 'auction'])
-      ->orderBy('start_date_time', 'desc')
+      ->orderBy('id', 'asc') // Order by ID to match creation order
       ->get()
-      ->map(function ($history) {
-        // Get the most recent bid by this user for this auction
-        $bid = Bid::where('user_id', $history->user_id)
-          ->where('auction_id', $history->auction_id)
-          ->orderBy('created_at', 'desc')
-          ->first();
-        
-        // Add bid_amount to the history object
-        $history->bid_amount = $bid ? $bid->bid_amount : null;
-        $history->bid_created_at = $bid ? $bid->created_at : null;
-        return $history;
-      })
-      // Deduplicate: group by user_id + auction_id, keep only most recent
       ->groupBy(function ($history) {
         return $history->user_id . '_' . $history->auction_id;
       })
-      ->map(function ($group) {
-        // For each user+auction combination, keep only the most recent record
-        return $group->sortByDesc(function ($history) {
-          // Use bid_created_at if available (more accurate), otherwise start_date_time
-          return $history->bid_created_at 
-            ? strtotime($history->bid_created_at) 
-            : strtotime($history->start_date_time);
-        })->first();
+      ->map(function ($userAuctionHistory) {
+        // For each user+auction combination, get all their bids in creation order
+        $firstHistory = $userAuctionHistory->first();
+        $bids = Bid::where('user_id', $firstHistory->user_id)
+          ->where('auction_id', $firstHistory->auction_id)
+          ->orderBy('id', 'asc') // Order by ID to match creation order
+          ->get();
+        
+        // Match bidding_history records with bids by index position
+        // Since both are created in the same transaction and order, they should match
+        return $userAuctionHistory->map(function ($history, $index) use ($bids) {
+          $matchedBid = $bids->get($index);
+          
+          // Add bid_amount to the history object
+          $history->bid_amount = $matchedBid ? $matchedBid->bid_amount : null;
+          $history->bid_created_at = $matchedBid ? $matchedBid->created_at : null;
+          $history->bid_id = $matchedBid ? $matchedBid->id : null;
+          
+          return $history;
+        });
       })
-      ->values()
-      // Sort by time (most recent first)
+      ->flatten()
+      // Sort by time (most recent first) - use bid_created_at if available, otherwise start_date_time
       ->sortByDesc(function ($history) {
         return $history->bid_created_at 
           ? strtotime($history->bid_created_at) 
           : strtotime($history->start_date_time);
       })
       ->values()
-      // Group by auction_id after deduplication
+      // Group by auction_id
       ->groupBy('auction_id');
 
     // Build grouped data - include ALL auctions with bids, even if no bidding_history

@@ -547,21 +547,9 @@ class AuctionService
                 'winner_id' => $highestBid->user_id,
             ]);
             
-            // Create bid_winner record (if table exists)
-            if (DB::getSchemaBuilder()->hasTable('bid_winners')) {
-                DB::table('bid_winners')->insert([
-                    'user_id' => $highestBid->user_id,
-                    'auction_id' => $auctionId,
-                    'bidding_item' => $auction->title ?? 'Auction Item',
-                    'bid_start_date' => $auction->start_time,
-                    'bid_won_date' => now(),
-                    'total_payment' => $highestBid->bid_amount,
-                    'seller_id' => $auction->user_id,
-                    'congratulation_email_sent' => false,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
+            // Create winner records (BidWinner and BiddingTracking)
+            // This will be called again in endAuction, but createWinnerRecords checks for duplicates
+            $this->createWinnerRecords($auction, $highestBid->user_id);
             
             // Send notifications
             $this->sendWinnerNotification($highestBid->user_id, $auction);
@@ -839,12 +827,28 @@ class AuctionService
     private function createWinnerRecords(Auction $auction, int $winnerId): void
     {
         try {
-            // Avoid duplicate records per auction
-            $existing = BidWinner::where('auction_id', $auction->id)->first();
-            if ($existing) {
-                return;
+            // Check if BidWinner exists
+            $existingBidWinner = BidWinner::where('auction_id', $auction->id)->first();
+            
+            // If BidWinner exists but BiddingTracking doesn't, create it
+            if ($existingBidWinner) {
+                $existingTracking = \App\Models\BiddingTracking::where('bid_winner_id', $existingBidWinner->id)->first();
+                if (!$existingTracking) {
+                    $winnerUser = User::find($winnerId);
+                    \App\Models\BiddingTracking::create([
+                        'bid_winner_id' => $existingBidWinner->id,
+                        'bid_winner_name' => $winnerUser?->name ?? 'Winner',
+                        'bid_won_item_name' => $auction->title ?? 'Auction Item',
+                        'payment_status' => 'Pending',
+                        'pickup_status' => 'Not Started',
+                        'complete_process_date_time' => null,
+                        'alert_sent' => false,
+                    ]);
+                }
+                return; // Both records exist, nothing to do
             }
 
+            // Create both BidWinner and BiddingTracking
             $winnerUser = User::find($winnerId);
             $nowDate = now()->toDateString();
             $startDate = $auction->start_time ? $auction->start_time->toDateString() : $nowDate;
@@ -863,7 +867,7 @@ class AuctionService
                 'congratulation_email_sent' => false,
             ]);
 
-            BiddingTracking::create([
+            \App\Models\BiddingTracking::create([
                 'bid_winner_id' => $bidWinner->id,
                 'bid_winner_name' => $winnerUser?->name ?? 'Winner',
                 'bid_won_item_name' => $auction->title ?? 'Auction Item',
