@@ -66,13 +66,16 @@ class BiddingHistoryController extends Controller
       $auctionId = $auction->id;
       $biddingHistory = $biddingHistoryByAuction->get($auctionId, collect());
       
+      // Get actual bid count from bids table using direct query to ensure accuracy
+      $actualBidCount = Bid::where('auction_id', $auctionId)->count();
+      
       return [
         'auction_id' => $auctionId,
         'auction_title' => $auction->title ?? 'Unknown Auction',
         'auction' => $auction,
-        'bidding_history' => $biddingHistory->take(50)->values(), // Last 50 records
+        'bidding_history' => $biddingHistory->take(15)->values(), // Last 15 records
         'total_count' => $biddingHistory->count(),
-        'bid_count' => $auction->bids()->count(), // Total bids from bids table
+        'bid_count' => $actualBidCount, // Total bids from bids table
       ];
     })->values();
 
@@ -85,7 +88,7 @@ class BiddingHistoryController extends Controller
           ? strtotime($history->bid_created_at) 
           : strtotime($history->start_date_time);
       })
-      ->take(50)
+      ->take(15)
       ->values();
 
     return response()->json([
