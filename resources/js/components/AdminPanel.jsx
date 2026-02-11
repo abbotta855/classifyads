@@ -4336,6 +4336,7 @@ function AdminPanel() {
             id: bid.id,
             userName: bid.user?.name || 'N/A',
             itemName: bid.item_name,
+            bidAmount: parseFloat(bid.bid_amount) || null,
             reservePrice: parseFloat(bid.reserve_price) || 0,
             buyNowPrice: parseFloat(bid.buy_now_price) || 0,
             paymentMethod: bid.payment_method,
@@ -4366,6 +4367,7 @@ function AdminPanel() {
               id: bid.id,
               userName: bid.user?.name || 'N/A',
               itemName: bid.item_name,
+              bidAmount: parseFloat(bid.bid_amount) || null,
               reservePrice: parseFloat(bid.reserve_price) || 0,
               buyNowPrice: parseFloat(bid.buy_now_price) || 0,
               paymentMethod: bid.payment_method,
@@ -4396,6 +4398,7 @@ function AdminPanel() {
               id: bid.id,
               userName: bid.user?.name || 'N/A',
               itemName: bid.item_name,
+              bidAmount: parseFloat(bid.bid_amount) || null,
               reservePrice: parseFloat(bid.reserve_price) || 0,
               buyNowPrice: parseFloat(bid.buy_now_price) || 0,
               paymentMethod: bid.payment_method,
@@ -15371,7 +15374,7 @@ function AdminPanel() {
                                   <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
                                   <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Auction</th>
                                   <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User Name</th>
-                                  <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Item Name</th>
+                                  <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Bid Amount</th>
                                   <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Reserve Price</th>
                                   <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Buy Now Price</th>
                                   <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Payment Method</th>
@@ -15393,14 +15396,10 @@ function AdminPanel() {
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{bid.auctionTitle || 'N/A'}</td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{bid.userName}</td>
                               <td className="p-3 text-sm">
-                                {editingBiddingHistoryId === bid.id ? (
-                                  <Input
-                                    value={editingBiddingHistoryData.itemName}
-                                    onChange={(e) => setEditingBiddingHistoryData({...editingBiddingHistoryData, itemName: e.target.value})}
-                                    className="w-full text-sm"
-                                  />
+                                {bid.bidAmount !== null && bid.bidAmount !== undefined ? (
+                                  <span className="font-semibold text-[hsl(var(--primary))]">Rs. {bid.bidAmount.toLocaleString()}</span>
                                 ) : (
-                                  <span>{bid.itemName}</span>
+                                  <span className="text-[hsl(var(--muted-foreground))]">N/A</span>
                                 )}
                               </td>
                               <td className="p-3 text-sm">
@@ -15529,7 +15528,13 @@ function AdminPanel() {
                                 <tr key={bid.id} className={`border-b border-[hsl(var(--border))] hover:bg-[hsl(var(--accent))] ${editingBiddingHistoryId === bid.id ? 'bg-[hsl(var(--accent))]' : ''}`}>
                                   <td className="p-3 text-sm text-[hsl(var(--foreground))]">{index + 1}</td>
                                   <td className="p-3 text-sm text-[hsl(var(--foreground))]">{bid.userName}</td>
-                                  <td className="p-3 text-sm">{bid.itemName}</td>
+                                  <td className="p-3 text-sm">
+                                    {bid.bidAmount !== null && bid.bidAmount !== undefined ? (
+                                      <span className="font-semibold text-[hsl(var(--primary))]">Rs. {bid.bidAmount.toLocaleString()}</span>
+                                    ) : (
+                                      <span className="text-[hsl(var(--muted-foreground))]">N/A</span>
+                                    )}
+                                  </td>
                                   <td className="p-3 text-sm"><span className="font-semibold">Rs. {bid.reservePrice.toLocaleString()}</span></td>
                                   <td className="p-3 text-sm"><span className="font-semibold">Rs. {bid.buyNowPrice.toLocaleString()}</span></td>
                                   <td className="p-3 text-sm">{bid.paymentMethod}</td>

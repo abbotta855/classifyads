@@ -23,7 +23,22 @@ class BiddingHistoryController extends Controller
     $biddingHistoryByAuction = BiddingHistory::with(['user', 'auction'])
       ->orderBy('start_date_time', 'desc')
       ->get()
-      ->groupBy('auction_id');
+      ->groupBy('auction_id')
+      ->map(function ($group) {
+        // For each bidding_history record, get the corresponding bid amount
+        return $group->map(function ($history) {
+          // Get the most recent bid by this user for this auction
+          $bid = Bid::where('user_id', $history->user_id)
+            ->where('auction_id', $history->auction_id)
+            ->orderBy('created_at', 'desc')
+            ->first();
+          
+          // Add bid_amount to the history object
+          $history->bid_amount = $bid ? $bid->bid_amount : null;
+          $history->bid_created_at = $bid ? $bid->created_at : null;
+          return $history;
+        });
+      });
 
     // Build grouped data - include ALL auctions with bids, even if no bidding_history
     $groupedByAuction = $auctionsWithBids->map(function ($auction) use ($biddingHistoryByAuction) {
