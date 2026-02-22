@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { nepaliProductAPI } from '../utils/api';
+import Layout from './Layout';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -9,8 +10,10 @@ import { EmptyState } from './ui/empty-state';
 import { useAuth } from '../contexts/AuthContext';
 import SEOHead from './SEOHead';
 import LazyImage from './LazyImage';
+import { useTranslation } from '../utils/translation';
 
 export default function NepaliProductList() {
+  const { t } = useTranslation();
   const [products, setProducts] = React.useState([]);
   const [meta, setMeta] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
@@ -112,39 +115,39 @@ export default function NepaliProductList() {
   };
 
   return (
-    <>
+    <Layout>
       <SEOHead
         title="Nepali Products"
         description="Discover authentic Nepali products made in Nepal. Support local businesses and find unique products."
       />
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <div className="max-w-7xl">
       <div className="flex items-center gap-4 mb-6">
         <Button
           variant="outline"
           onClick={() => navigate('/')}
           className="flex items-center gap-2"
         >
-          ← Back to Homepage
+          ← {t('nepaliProducts.backToHomepage')}
         </Button>
       </div>
       <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-        <h1 className="text-3xl font-bold">Nepali Products</h1>
+        <h1 className="text-3xl font-bold">{t('nepaliProducts.title')}</h1>
         <div className="flex gap-2">
           <Button
             variant="outline"
             onClick={() => setShowFilters(!showFilters)}
           >
-            {showFilters ? 'Hide' : 'Show'} Filters
+            {showFilters ? t('nepaliProducts.hideFilters') : t('nepaliProducts.showFilters')}
           </Button>
           <form onSubmit={handleSearch} className="flex gap-2">
             <Input
-              placeholder="Search products..."
+              placeholder={t('nepaliProducts.searchPlaceholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-64"
             />
             <Button type="submit" disabled={loading}>
-              Search
+              {t('common.search')}
             </Button>
           </form>
           <Button
@@ -156,7 +159,7 @@ export default function NepaliProductList() {
               }
             }}
           >
-            Add Product
+            {t('nepaliProducts.addProduct')}
           </Button>
         </div>
       </div>
@@ -165,34 +168,34 @@ export default function NepaliProductList() {
       {showFilters && (
         <Card className="mb-6">
           <CardContent className="p-4">
-            <h3 className="font-semibold mb-4">Filter Products</h3>
+            <h3 className="font-semibold mb-4">{t('nepaliProducts.filterProducts')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Min Price (Rs.)</label>
+                <label className="block text-sm font-medium mb-1">{t('nepaliProducts.minPrice')}</label>
                 <Input
                   type="number"
-                  placeholder="Min"
+                  placeholder={t('nepaliProducts.min')}
                   value={filters.min_price}
                   onChange={(e) => setFilters({...filters, min_price: e.target.value})}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Max Price (Rs.)</label>
+                <label className="block text-sm font-medium mb-1">{t('nepaliProducts.maxPrice')}</label>
                 <Input
                   type="number"
-                  placeholder="Max"
+                  placeholder={t('nepaliProducts.max')}
                   value={filters.max_price}
                   onChange={(e) => setFilters({...filters, max_price: e.target.value})}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Category</label>
+                <label className="block text-sm font-medium mb-1">{t('homepage.category')}</label>
                 <select
                   value={filters.category_id}
                   onChange={(e) => setFilters({...filters, category_id: e.target.value, subcategory_id: ''})}
                   className="w-full h-10 rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-3 py-2 text-sm text-[hsl(var(--foreground))] transition-all duration-200 hover:border-[hsl(var(--primary))]/50 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] focus:ring-offset-2"
                 >
-                  <option value="">All Categories</option>
+                  <option value="">{t('homepage.allCategories')}</option>
                   {/* Categories would be loaded from API */}
                 </select>
               </div>
@@ -205,7 +208,7 @@ export default function NepaliProductList() {
                   }}
                   className="w-full"
                 >
-                  Clear Filters
+                  {t('nepaliProducts.clearFilters')}
                 </Button>
               </div>
             </div>
@@ -237,8 +240,8 @@ export default function NepaliProductList() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
             </svg>
           }
-          title="No Products Found"
-          description={search ? `No products match your search "${search}". Try different keywords or clear filters.` : "No products are available at the moment. Be the first to add a product!"}
+          title={t('nepaliProducts.noProductsFound')}
+          description={search ? t('nepaliProducts.noProductsMatchSearch', { searchQuery: search }) : t('nepaliProducts.noProductsAvailable')}
           action={() => {
             if (!user) {
               navigate('/login', { state: { from: '/nepali-products/new' } });
@@ -246,7 +249,7 @@ export default function NepaliProductList() {
               navigate('/nepali-products/new');
             }
           }}
-          actionLabel="Add First Product"
+          actionLabel={t('nepaliProducts.addFirstProduct')}
         />
       )}
 
@@ -276,12 +279,12 @@ export default function NepaliProductList() {
                     )}
                     {product.status === 'pending' && (
                       <div className="absolute top-2 right-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full font-medium shadow-md">
-                        Pending
+                        {t('nepaliProducts.pending')}
                       </div>
                     )}
                     {product.status === 'rejected' && (
                       <div className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full font-medium shadow-md">
-                        Rejected
+                        {t('nepaliProducts.rejected')}
                       </div>
                     )}
                   </div>
@@ -298,7 +301,7 @@ export default function NepaliProductList() {
                     </div>
                     {product.retail_price && (
                       <p className="font-semibold text-[hsl(var(--primary))] text-lg">
-                        Rs. {product.retail_price.toLocaleString()}
+                        {t('homepage.pricePrefix')} {product.retail_price.toLocaleString()}
                       </p>
                     )}
                   </CardContent>
@@ -340,7 +343,7 @@ export default function NepaliProductList() {
         </>
       )}
       </div>
-    </>
+    </Layout>
   );
 }
 

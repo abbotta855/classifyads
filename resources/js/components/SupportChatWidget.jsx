@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom';
 import { Button } from './ui/button';
 import { liveChatAPI, supportAPI } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useTranslation } from '../utils/translation';
 
 const POLL_INTERVAL_MS = 6000;
 const AVAILABILITY_INTERVAL_MS = 10000; // Reduced from 30s to 10s for faster updates
 
 export default function SupportChatWidget() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [online, setOnline] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
@@ -204,14 +206,14 @@ export default function SupportChatWidget() {
                   <input
                     type="text"
                     className="w-full border rounded-md text-sm p-2"
-                    placeholder="Your name (optional)"
+                    placeholder={t('support.yourName')}
                     value={guestName}
                     onChange={(e) => setGuestName(e.target.value)}
                   />
                   <input
                     type="email"
                     className="w-full border rounded-md text-sm p-2"
-                    placeholder="Your email (required for reply)"
+                    placeholder={t('support.yourEmail')}
                     value={guestEmail}
                     onChange={(e) => setGuestEmail(e.target.value)}
                   />
@@ -222,18 +224,18 @@ export default function SupportChatWidget() {
                 rows={2}
                 placeholder={
                   online
-                    ? 'Type your message…'
-                    : 'Support is offline — leave a message and we will reply'
+                    ? t('support.typeMessage')
+                    : t('support.offlineMessage')
                 }
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
               />
               <Button className="w-full" onClick={handleSend} disabled={!input.trim()}>
-                {online ? 'Send' : 'Send as offline message'}
+                {online ? t('support.send') : t('support.sendAsOffline')}
               </Button>
               {!online && (
                 <p className="text-[11px] text-[hsl(var(--muted-foreground))]">
-                  Support is offline. Your message will be queued and the team will reply when online.
+                  {t('support.offlineNotice')}
                 </p>
               )}
             </div>
@@ -244,7 +246,7 @@ export default function SupportChatWidget() {
           className="shadow-lg"
           variant={online ? 'default' : 'outline'}
         >
-          {online ? 'Chat with Support' : 'Support Offline'}
+          {online ? t('support.chatWithSupport') : t('support.supportOffline')}
         </Button>
       </div>
     </div>

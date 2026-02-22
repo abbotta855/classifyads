@@ -7,7 +7,7 @@ import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import axios from 'axios';
 import { useToast } from './Toast';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../utils/translation';
 
 export default function ContactUs() {
   const { t } = useTranslation();

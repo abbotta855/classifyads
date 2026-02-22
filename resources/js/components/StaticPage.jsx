@@ -3,7 +3,7 @@ import { useParams, useLocation } from 'react-router-dom';
 import Layout from './Layout';
 import { Card, CardContent } from './ui/card';
 import axios from 'axios';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../utils/translation';
 
 export default function StaticPage() {
   const { slug } = useParams();
@@ -81,15 +81,15 @@ export default function StaticPage() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <h1 className="text-3xl font-bold mb-8 text-[hsl(var(--foreground))] animate-fade-in">{page.title}</h1>
+        <h1 className="text-4xl font-bold mb-6 text-[hsl(var(--foreground))] animate-fade-in">{page.title}</h1>
         <Card className="animate-fade-in shadow-lg">
-          <CardContent className="p-8">
-          <div
-            className="prose prose-sm max-w-none prose-headings:text-[hsl(var(--foreground))] prose-p:text-[hsl(var(--foreground))] prose-a:text-[hsl(var(--primary))] prose-a:no-underline hover:prose-a:underline prose-strong:text-[hsl(var(--foreground))] prose-ul:text-[hsl(var(--foreground))] prose-ol:text-[hsl(var(--foreground))]"
-            dangerouslySetInnerHTML={{ __html: page.content }}
-          />
-        </CardContent>
-      </Card>
+          <CardContent className="p-8 lg:p-12">
+            <div
+              className="static-page-content"
+              dangerouslySetInnerHTML={{ __html: page.content }}
+            />
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );

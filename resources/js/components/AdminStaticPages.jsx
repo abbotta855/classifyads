@@ -6,7 +6,7 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { adminAPI } from '../utils/api';
 import { useToast } from './Toast';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../utils/translation';
 
 export default function AdminStaticPages() {
   const { t } = useTranslation();

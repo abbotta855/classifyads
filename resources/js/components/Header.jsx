@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../utils/translation';
 import { Button } from './ui/button';
 import { cartAPI } from '../utils/api';
 
@@ -67,22 +67,8 @@ function Header() {
     }
   }
 
-  // Safely get translation function - with fallback
-  let t = (key) => {
-    // Default: return key as-is, or try to extract readable text
-    const parts = key.split('.');
-    return parts[parts.length - 1];
-  };
-  
-  try {
-    const { t: translate } = useTranslation();
-    if (translate) {
-      t = translate;
-    }
-  } catch (e) {
-    // useTranslation not available, use default
-    console.warn('Translation not available:', e);
-  }
+  // Get translation function - useTranslation hook must be called unconditionally
+  const { t } = useTranslation();
 
   useEffect(() => {
     const loadCartCount = async () => {
@@ -118,17 +104,47 @@ function Header() {
           </Link>
 
           <div className="flex items-center space-x-4">
-            {/* Language Switcher */}
-            <div className="relative">
+            {/* Language Switcher with Icon */}
+            <div className="relative flex items-center">
+              <div className="absolute left-2 pointer-events-none z-10">
+                <svg
+                  className="w-5 h-5 text-[hsl(var(--muted-foreground))]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
+                  />
+                </svg>
+              </div>
               <select
                 value={language}
                 onChange={(e) => changeLanguage(e.target.value)}
-                className="p-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] text-sm cursor-pointer"
+                className="pl-9 pr-8 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] text-sm cursor-pointer appearance-none hover:bg-[hsl(var(--accent))] transition-colors"
                 aria-label="Select language"
               >
                 <option value="en">English</option>
                 <option value="ne">नेपाली</option>
               </select>
+              <div className="absolute right-2 pointer-events-none z-10">
+                <svg
+                  className="w-4 h-4 text-[hsl(var(--muted-foreground))]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </div>
             </div>
 
             {/* Theme Toggle Button - More Visible */}
@@ -208,13 +224,32 @@ function Header() {
                     </Link>
                   </>
                 )}
-                {!isAdminPage && !isUserDashboardPage && user.role !== 'admin' && user.role !== 'super_admin' && (
-                  <Link
-                    to="/user_dashboard/dashboard"
-                    className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
-                  >
-                    User Dashboard
-                  </Link>
+                {!isAdminPage && !isUserDashboardPage && (
+                  <>
+                    {user.role === 'admin' || user.role === 'super_admin' ? (
+                      <>
+                        <Link
+                          to="/admin"
+                          className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                        >
+                          {t('common.adminPanel')}
+                        </Link>
+                        <Link
+                          to="/user_dashboard/dashboard"
+                          className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                        >
+                          {t('common.userDashboard')}
+                        </Link>
+                      </>
+                    ) : (
+                      <Link
+                        to="/user_dashboard/dashboard"
+                        className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                      >
+                        {t('common.userDashboard')}
+                      </Link>
+                    )}
+                  </>
                 )}
                 <span className="text-[hsl(var(--foreground))]">
                   {t('common.welcome')} {user.name}
@@ -338,18 +373,65 @@ function Header() {
             <nav className="flex flex-col py-4 space-y-3 px-4">
               {/* Language Switcher - Mobile */}
               <div className="py-2">
-                <label className="text-sm font-medium text-[hsl(var(--foreground))] mb-1 block">Language:</label>
-                <select
-                  value={language}
-                  onChange={(e) => {
-                    changeLanguage(e.target.value);
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full p-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] text-sm"
-                >
-                  <option value="en">English</option>
-                  <option value="ne">नेपाली</option>
-                </select>
+                <label className="text-sm font-medium text-[hsl(var(--foreground))] mb-2 block flex items-center gap-2">
+                  <svg
+                    className="w-4 h-4 text-[hsl(var(--muted-foreground))]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
+                    />
+                  </svg>
+                  Language:
+                </label>
+                <div className="relative">
+                  <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+                    <svg
+                      className="w-4 h-4 text-[hsl(var(--muted-foreground))]"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
+                      />
+                    </svg>
+                  </div>
+                  <select
+                    value={language}
+                    onChange={(e) => {
+                      changeLanguage(e.target.value);
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full pl-9 pr-8 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--foreground))] text-sm appearance-none"
+                  >
+                    <option value="en">English</option>
+                    <option value="ne">नेपाली</option>
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+                    <svg
+                      className="w-4 h-4 text-[hsl(var(--muted-foreground))]"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
+                    </svg>
+                  </div>
+                </div>
               </div>
 
               {/* Theme Toggle Button - Mobile */}
@@ -439,14 +521,35 @@ function Header() {
                       </Link>
                     </>
                   )}
-                  {!isAdminPage && !isUserDashboardPage && user.role !== 'admin' && user.role !== 'super_admin' && (
-                    <Link
-                      to="/user_dashboard/dashboard"
-                      className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      User Dashboard
-                    </Link>
+                  {!isAdminPage && !isUserDashboardPage && (
+                    <>
+                      {user.role === 'admin' || user.role === 'super_admin' ? (
+                        <>
+                          <Link
+                            to="/admin"
+                            className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                            onClick={() => setMobileMenuOpen(false)}
+                          >
+                            {t('common.adminPanel')}
+                          </Link>
+                          <Link
+                            to="/user_dashboard/dashboard"
+                            className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                            onClick={() => setMobileMenuOpen(false)}
+                          >
+                            {t('common.userDashboard')}
+                          </Link>
+                        </>
+                      ) : (
+                        <Link
+                          to="/user_dashboard/dashboard"
+                          className="text-[hsl(var(--foreground))] hover:text-[hsl(var(--primary))] transition-colors"
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          {t('common.userDashboard')}
+                        </Link>
+                      )}
+                    </>
                   )}
                   <span className="text-[hsl(var(--foreground))]">
                     {t('common.welcome')} {user.name}

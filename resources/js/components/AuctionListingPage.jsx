@@ -6,9 +6,11 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { publicAuctionAPI } from '../utils/api';
 import axios from 'axios';
+import { useTranslation } from '../utils/translation';
 
 function AuctionListingPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [categories, setCategories] = useState([]);
   const [locationData, setLocationData] = useState({ provinces: [] });
   const [selectedLocations, setSelectedLocations] = useState(new Set());
@@ -228,7 +230,7 @@ function AuctionListingPage() {
         <div className="mb-6 flex flex-wrap gap-4 items-center">
           <Input
             type="text"
-            placeholder="Search auctions..."
+            placeholder={t('auctions.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -242,7 +244,7 @@ function AuctionListingPage() {
               onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
               className="w-[200px] justify-between"
             >
-              <span>All Categories</span>
+              <span>{t('homepage.allCategories')}</span>
               <span>▼</span>
             </Button>
             {showCategoryDropdown && (
@@ -293,7 +295,7 @@ function AuctionListingPage() {
               onClick={() => setShowLocationDropdown(!showLocationDropdown)}
               className="w-[200px] justify-between"
             >
-              <span>All Locations</span>
+              <span>{t('homepage.allLocations')}</span>
               <span>▼</span>
             </Button>
             {showLocationDropdown && locationData.provinces && (
@@ -382,22 +384,22 @@ function AuctionListingPage() {
             )}
           </div>
 
-          <Button onClick={handleSearch}>Search</Button>
+          <Button onClick={handleSearch}>{t('common.search')}</Button>
         </div>
 
         {/* Results Summary & Sorting */}
         <div className="mb-4 flex justify-between items-center">
           <p className="text-sm text-gray-600">
-            Showing {startResult}-{endResult} of {filteredAuctionsCount} results
+            {t('homepage.showingResults', { from: startResult, to: endResult, total: filteredAuctionsCount })}
           </p>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
             className="px-4 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm transition-all duration-200 hover:border-[hsl(var(--primary))]/50 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] focus:ring-offset-2"
           >
-            <option value="ending_soon">Ending Soon</option>
-            <option value="highest_bid">Highest Bid</option>
-            <option value="newest">Newest</option>
+            <option value="ending_soon">{t('auctions.endingSoon')}</option>
+            <option value="highest_bid">{t('auctions.highestBid')}</option>
+            <option value="newest">{t('auctions.newest')}</option>
           </select>
         </div>
 
@@ -424,8 +426,8 @@ function AuctionListingPage() {
                 <svg className="w-16 h-16 mx-auto mb-4 text-[hsl(var(--muted-foreground))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
-                <p className="text-lg font-semibold text-[hsl(var(--foreground))] mb-2">No auctions found</p>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">Try adjusting your search or filters</p>
+                <p className="text-lg font-semibold text-[hsl(var(--foreground))] mb-2">{t('auctions.noAuctionsFound')}</p>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">{t('auctions.tryAdjustingFilters')}</p>
               </CardContent>
             </Card>
           </div>

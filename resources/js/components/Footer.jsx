@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import axios from 'axios';
 import { useToast } from './Toast';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '../utils/translation';
 
 function Footer() {
   const { t } = useTranslation();
@@ -42,13 +42,13 @@ function Footer() {
         {/* Customer Testimonials Section */}
         <section className="mb-8">
           <h3 className="text-xl font-bold text-[hsl(var(--foreground))] mb-4">
-            Our Happy Customer Says About Us
+            {t('homepage.customerTestimonials')}
           </h3>
           <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
-            Shushil12 always try to provide Best services to its Users. And here are some of the Satisfied Customers of Shushil12.
+            {t('homepage.customerTestimonialsDesc')}
           </p>
           <Link to="/about">
-            <Button variant="outline">Know more about us</Button>
+            <Button variant="outline">{t('homepage.knowMoreAboutUs')}</Button>
           </Link>
         </section>
 
@@ -119,7 +119,7 @@ function Footer() {
               className="flex-1"
             />
             <Button type="submit" disabled={subscribing}>
-              {subscribing ? 'Subscribing...' : t('footer.subscribe')}
+              {subscribing ? t('homepage.subscribing') : t('footer.subscribe')}
             </Button>
           </form>
         </section>

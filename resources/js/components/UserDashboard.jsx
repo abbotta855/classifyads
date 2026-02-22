@@ -13,9 +13,11 @@ import RatingModal from './RatingModal';
 import PhotoCropModal from './PhotoCropModal';
 import axios from 'axios';
 import { useToast } from './Toast';
+import { useTranslation } from '../utils/translation';
 
 function UserDashboard({ mode: propMode }) {
   const { user, loading } = useAuth();
+  const { t } = useTranslation();
   const { section } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -212,34 +214,34 @@ function UserDashboard({ mode: propMode }) {
 
   // Dashboard menu items - User mode
   const userMenuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { id: 'profile', label: 'Profile', icon: '👤' },
-    { id: 'ad-post', label: 'Ad Post', icon: '📝' },
-    { id: 'categories', label: 'Categories', icon: '📂' },
-    { id: 'e-wallet', label: 'E-Wallet', icon: '💳' },
-    ...(user?.seller_verified ? [{ id: 'my-ebooks', label: 'My eBooks', icon: '📚' }] : []),
-    { id: 'my-auctions', label: 'My Auctions', icon: '🔨' },
-    { id: 'my-bids', label: 'My Bids', icon: '💰' },
-    { id: 'won-auctions', label: 'Won Auctions', icon: '🏆' },
-    { id: 'favourite-list', label: 'Favourite List', icon: '❤️' },
-    { id: 'watch-list', label: 'Watch List', icon: '👁️' },
-    { id: 'inbox', label: 'Inbox', icon: '📬' },
-    { id: 'notifications', label: 'Notifications', icon: '🔔' },
-    { id: 'listed-items', label: 'Listed Items', icon: '📋' },
-    { id: 'bought-items', label: 'Total Bought Items', icon: '🛒' },
-    { id: 'my-ratings', label: 'My Ratings', icon: '⭐' },
+    { id: 'dashboard', labelKey: 'dashboard.dashboard', icon: '📊' },
+    { id: 'profile', labelKey: 'dashboard.profile', icon: '👤' },
+    { id: 'ad-post', labelKey: 'dashboard.adPost', icon: '📝' },
+    { id: 'categories', labelKey: 'dashboard.categories', icon: '📂' },
+    { id: 'e-wallet', labelKey: 'dashboard.eWallet', icon: '💳' },
+    ...(user?.seller_verified ? [{ id: 'my-ebooks', labelKey: 'dashboard.myEbooks', icon: '📚' }] : []),
+    { id: 'my-auctions', labelKey: 'dashboard.myAuctions', icon: '🔨' },
+    { id: 'my-bids', labelKey: 'dashboard.myBids', icon: '💰' },
+    { id: 'won-auctions', labelKey: 'dashboard.wonAuctions', icon: '🏆' },
+    { id: 'favourite-list', labelKey: 'dashboard.favouriteList', icon: '❤️' },
+    { id: 'watch-list', labelKey: 'dashboard.watchList', icon: '👁️' },
+    { id: 'inbox', labelKey: 'dashboard.inbox', icon: '📬' },
+    { id: 'notifications', labelKey: 'dashboard.notifications', icon: '🔔' },
+    { id: 'listed-items', labelKey: 'dashboard.listedItems', icon: '📋' },
+    { id: 'bought-items', labelKey: 'dashboard.totalBoughtItems', icon: '🛒' },
+    { id: 'my-ratings', labelKey: 'dashboard.myRatings', icon: '⭐' },
   ];
 
   // Dashboard menu items - Seller mode (only if has posted ads)
   const sellerMenuItems = [
-    { id: 'dashboard', label: 'Seller Dashboard', icon: '📊' },
-    { id: 'items-selling', label: 'Items Selling', icon: '🛍️' },
-    { id: 'listed-items', label: 'Listed Items', icon: '📋' },
-    { id: 'sales-report', label: 'Sales Report', icon: '📈' },
-    { id: 'profile', label: 'Profile', icon: '👤' },
-    { id: 'inbox', label: 'Inbox', icon: '📬' },
-    { id: 'notifications', label: 'Notifications', icon: '🔔' },
-    { id: 'my-ratings', label: 'My Ratings', icon: '⭐' },
+    { id: 'dashboard', labelKey: 'dashboard.sellerDashboard', icon: '📊' },
+    { id: 'items-selling', labelKey: 'dashboard.itemsSelling', icon: '🛍️' },
+    { id: 'listed-items', labelKey: 'dashboard.listedItems', icon: '📋' },
+    { id: 'sales-report', labelKey: 'dashboard.salesReport', icon: '📈' },
+    { id: 'profile', labelKey: 'dashboard.profile', icon: '👤' },
+    { id: 'inbox', labelKey: 'dashboard.inbox', icon: '📬' },
+    { id: 'notifications', labelKey: 'dashboard.notifications', icon: '🔔' },
+    { id: 'my-ratings', labelKey: 'dashboard.myRatings', icon: '⭐' },
   ];
 
   // Get current menu items based on mode
@@ -332,16 +334,16 @@ function UserDashboard({ mode: propMode }) {
           {/* Header */}
           <div className="p-4 border-b border-[hsl(var(--border))]">
             <h2 className="text-xl font-bold text-[hsl(var(--foreground))]">
-              {dashboardMode === 'seller' ? 'Seller Dashboard' : 'User Dashboard'}
+              {dashboardMode === 'seller' ? t('dashboard.sellerDashboard') : t('dashboard.userDashboard')}
             </h2>
             <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-              Welcome, {user?.name}
+              {t('dashboard.welcome')}, {user?.name}
             </p>
             
             {/* Role Switcher - Only show if user has posted ads */}
             {hasPostedAds && !loadingAds && (
               <div className="mt-3 space-y-1 border-t border-[hsl(var(--border))] pt-3">
-                <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 font-medium">Switch Mode:</p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 font-medium">{t('dashboard.switchMode')}</p>
                 <button
                   onClick={() => {
                     if (dashboardMode !== 'user') {
@@ -354,7 +356,7 @@ function UserDashboard({ mode: propMode }) {
                       : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
                   }`}
                 >
-                  User Dashboard
+                  {t('dashboard.userDashboard')}
                 </button>
                 <button
                   onClick={() => {
@@ -369,7 +371,7 @@ function UserDashboard({ mode: propMode }) {
                       : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
                   } ${!hasPostedAds ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  Seller Dashboard
+                  {t('dashboard.sellerDashboard')}
                 </button>
               </div>
             )}
@@ -397,7 +399,7 @@ function UserDashboard({ mode: propMode }) {
                   }`}
                 >
                   <span className="text-xl">{item.icon}</span>
-                  <span className="font-medium flex-1">{item.label}</span>
+                  <span className="font-medium flex-1">{t(item.labelKey)}</span>
                   {unreadCount > 0 && (
                     <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5">
                       {unreadCount > 99 ? '99+' : unreadCount}
@@ -412,7 +414,7 @@ function UserDashboard({ mode: propMode }) {
           <div className="p-4 border-t border-[hsl(var(--border))]">
             <Link to="/">
               <Button variant="outline" className="w-full">
-                Back to Homepage
+                {t('dashboard.backToHomepage')}
               </Button>
             </Link>
           </div>
@@ -5518,7 +5520,7 @@ function EWalletSection({ user }) {
       {/* Quick Actions */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
+          <CardTitle>{t('dashboard.quickActions')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -5530,7 +5532,7 @@ function EWalletSection({ user }) {
                 setVerificationMessage(null);
               }}
             >
-              Add Funds
+              {t('dashboard.addFunds')}
             </Button>
             <div>
               <Button 
@@ -5544,11 +5546,11 @@ function EWalletSection({ user }) {
                   }
                 }}
               >
-                Withdraw
+                {t('dashboard.withdraw')}
             </Button>
               {!user?.seller_verified && (
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                  Seller verification required for withdrawals
+                  {t('dashboard.sellerVerificationRequired')}
                 </p>
               )}
             </div>
@@ -5798,6 +5800,7 @@ function EWalletSection({ user }) {
 }
 
 function FavouriteListSection({ user }) {
+  const { t } = useTranslation();
   const [favourites, setFavourites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -5812,7 +5815,7 @@ function FavouriteListSection({ user }) {
       const response = await favouriteAPI.getFavourites();
       setFavourites(response.data.data || response.data || []);
     } catch (err) {
-      setError('Failed to load favourites');
+      setError(t('dashboard.failedToLoadFavourites'));
       console.error(err);
     } finally {
       setLoading(false);
@@ -5831,10 +5834,10 @@ function FavouriteListSection({ user }) {
   if (loading) {
     return (
       <div>
-        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">Favourite List</h1>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">{t('dashboard.favouriteList')}</h1>
         <Card>
           <CardContent className="p-6">
-            <p className="text-[hsl(var(--muted-foreground))]">Loading favourites...</p>
+            <p className="text-[hsl(var(--muted-foreground))]">{t('dashboard.loadingFavourites')}</p>
           </CardContent>
         </Card>
       </div>
@@ -5844,9 +5847,9 @@ function FavouriteListSection({ user }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">Favourite List</h1>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">{t('dashboard.favouriteList')}</h1>
         <p className="text-sm text-[hsl(var(--muted-foreground))]">
-          {favourites.length} {favourites.length === 1 ? 'item' : 'items'}
+          {favourites.length} {favourites.length === 1 ? t('dashboard.item') : t('dashboard.items')}
         </p>
       </div>
 
@@ -5863,13 +5866,13 @@ function FavouriteListSection({ user }) {
           <CardContent className="p-12 text-center">
             <div className="text-6xl mb-4">❤️</div>
             <h3 className="text-xl font-semibold text-[hsl(var(--foreground))] mb-2">
-              No favourites yet
+              {t('dashboard.noFavourites')}
             </h3>
             <p className="text-[hsl(var(--muted-foreground))] mb-6">
-              Start adding items you love to your favourites list
+              {t('dashboard.noFavouritesDesc')}
             </p>
             <Button onClick={() => window.location.href = '/'} variant="outline">
-              Browse Ads
+              {t('dashboard.browseAds')}
             </Button>
           </CardContent>
         </Card>
@@ -5888,7 +5891,7 @@ function FavouriteListSection({ user }) {
                   <button
                     onClick={() => handleRemove(favourite.id)}
                     className="absolute top-2 right-2 bg-white/90 hover:bg-white rounded-full p-2 transition-colors"
-                    title="Remove from favourites"
+                    title={t('dashboard.removeFromFavourites')}
                   >
                     <span className="text-red-500 text-xl">❤️</span>
                   </button>
@@ -5898,10 +5901,10 @@ function FavouriteListSection({ user }) {
                     {ad.title}
                   </h3>
                   <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
-                    Rs. {parseFloat(ad.price || 0).toLocaleString()}
+                    {t('homepage.pricePrefix')} {parseFloat(ad.price || 0).toLocaleString()}
                   </p>
                   <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
-                    {ad.category?.category || 'Uncategorized'}
+                    {ad.category?.category || t('dashboard.uncategorized')}
                   </p>
                   <Button
                     variant="outline"
@@ -5910,7 +5913,7 @@ function FavouriteListSection({ user }) {
                       window.location.href = getAdUrl(ad);
                     }}
                   >
-                    View Details
+                    {t('dashboard.viewDetails')}
                   </Button>
                 </CardContent>
               </Card>
@@ -5923,6 +5926,7 @@ function FavouriteListSection({ user }) {
 }
 
 function WatchListSection({ user }) {
+  const { t } = useTranslation();
   const [watchlists, setWatchlists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -5937,7 +5941,7 @@ function WatchListSection({ user }) {
       const response = await watchlistAPI.getWatchlists();
       setWatchlists(response.data.data || response.data || []);
     } catch (err) {
-      setError('Failed to load watchlist');
+      setError(t('dashboard.failedToLoadWatchlist'));
       console.error(err);
     } finally {
       setLoading(false);
@@ -5956,10 +5960,10 @@ function WatchListSection({ user }) {
   if (loading) {
     return (
       <div>
-        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">Watch List</h1>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))] mb-6">{t('dashboard.watchList')}</h1>
         <Card>
           <CardContent className="p-6">
-            <p className="text-[hsl(var(--muted-foreground))]">Loading watchlist...</p>
+            <p className="text-[hsl(var(--muted-foreground))]">{t('dashboard.loadingWatchlist')}</p>
           </CardContent>
         </Card>
       </div>
@@ -5969,9 +5973,9 @@ function WatchListSection({ user }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">Watch List</h1>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">{t('dashboard.watchList')}</h1>
         <p className="text-sm text-[hsl(var(--muted-foreground))]">
-          {watchlists.length} {watchlists.length === 1 ? 'item' : 'items'}
+          {watchlists.length} {watchlists.length === 1 ? t('dashboard.item') : t('dashboard.items')}
         </p>
       </div>
 
@@ -5988,13 +5992,13 @@ function WatchListSection({ user }) {
           <CardContent className="p-12 text-center">
             <div className="text-6xl mb-4">👁️</div>
             <h3 className="text-xl font-semibold text-[hsl(var(--foreground))] mb-2">
-              Your watchlist is empty
+              {t('dashboard.noWatchlist')}
             </h3>
             <p className="text-[hsl(var(--muted-foreground))] mb-6">
-              Add items you're interested in to keep track of them
+              {t('dashboard.noWatchlistDesc')}
             </p>
             <Button onClick={() => window.location.href = '/'} variant="outline">
-              Browse Ads
+              {t('dashboard.browseAds')}
             </Button>
           </CardContent>
         </Card>
@@ -6013,7 +6017,7 @@ function WatchListSection({ user }) {
                   <button
                     onClick={() => handleRemove(watchlist.id)}
                     className="absolute top-2 right-2 bg-white/90 hover:bg-white rounded-full p-2 transition-colors"
-                    title="Remove from watchlist"
+                    title={t('dashboard.removeFromWatchlist')}
                   >
                     <span className="text-gray-600 text-xl">👁️</span>
                   </button>
@@ -6023,10 +6027,10 @@ function WatchListSection({ user }) {
                     {ad.title}
                   </h3>
                   <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
-                    Rs. {parseFloat(ad.price || 0).toLocaleString()}
+                    {t('homepage.pricePrefix')} {parseFloat(ad.price || 0).toLocaleString()}
                   </p>
                   <p className="text-xs text-[hsl(var(--muted-foreground))] mb-3">
-                    {ad.category?.category || 'Uncategorized'}
+                    {ad.category?.category || t('dashboard.uncategorized')}
                   </p>
                   <Button
                     variant="outline"
@@ -6035,7 +6039,7 @@ function WatchListSection({ user }) {
                       window.location.href = getAdUrl(ad);
                     }}
                   >
-                    View Details
+                    {t('dashboard.viewDetails')}
                   </Button>
                 </CardContent>
               </Card>
@@ -9489,12 +9493,12 @@ function MyEbooksSection({ user }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">My eBooks</h1>
+        <h1 className="text-3xl font-bold text-[hsl(var(--foreground))]">{t('dashboard.myEbooks')}</h1>
         <div className="flex gap-2">
           <Button onClick={() => setShowSalesReport(!showSalesReport)} variant="outline">
-            {showSalesReport ? 'Hide' : 'Show'} Sales Report
+            {showSalesReport ? t('dashboard.hide') : t('dashboard.show')} {t('dashboard.salesReport')}
           </Button>
-          <Button onClick={() => setShowAddForm(true)}>Add New eBook</Button>
+          <Button onClick={() => setShowAddForm(true)}>{t('dashboard.addNew')} eBook</Button>
         </div>
       </div>
 

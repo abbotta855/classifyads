@@ -12,6 +12,7 @@ import PhotoCropModal from './PhotoCropModal';
 import axios from 'axios';
 import { useToast } from './Toast';
 import AdminStaticPages from './AdminStaticPages';
+import { useTranslation } from '../utils/translation';
 
 // Job category options
 const JOB_CATEGORY_OPTIONS = [
@@ -65,6 +66,7 @@ function AdminPanel() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const activeSection = section || null; // No section selected when on /admin
   const activeSubsection = subsection || null;
   
@@ -5086,12 +5088,12 @@ function AdminPanel() {
     const totalCount = addressIds.length + wardIdsWithoutAddresses.length;
     
     if (totalCount === 0) {
-      return 'All Locations';
+      return t('homepage.allLocations');
     }
     if (totalCount === 1) {
-      return '1 location selected';
+      return t('admin.oneLocationSelected');
     }
-    return `${totalCount} locations selected`;
+    return t('admin.locationsSelected', { count: totalCount });
   };
 
   const toggleProvince = (provinceId) => {
@@ -6246,12 +6248,12 @@ function AdminPanel() {
   const buildCategorySearchString = () => {
     // Count only subcategories (leaf level) - matching UserDashboard logic
     if (selectedSubcategories.size === 0) {
-      return 'All Categories';
+      return t('homepage.allCategories');
     }
     if (selectedSubcategories.size === 1) {
-      return '1 category selected';
+      return t('admin.oneCategorySelected');
     }
-    return `${selectedSubcategories.size} categories selected`;
+    return t('admin.categoriesSelected', { count: selectedSubcategories.size });
   };
 
   const buildCategorySearchStringOld = () => {
@@ -7201,25 +7203,25 @@ function AdminPanel() {
   };
 
   const menuItems = [
-    { id: 'ads-management', label: 'Ads Management' },
-    { id: 'auction-management', label: 'Auction Management' },
-    { id: 'category-management', label: 'Category Management' },
-    ...(isSuperAdmin ? [{ id: 'change-password', label: 'Change Password' }] : []), // Only show for super_admin
-    { id: 'delivery-management', label: 'Delivery Management' },
-    { id: 'ebook-management', label: 'E-Book Management' },
-    { id: 'nepali-products', label: 'Nepali Products Review' },
-    { id: 'order-management', label: 'Order Management' },
-    { id: 'email-subscriber', label: 'Email Subscriber List' },
-    { id: 'job-management', label: 'Job Management' },
-    { id: 'live-chat', label: 'Live Chat' },
-    { id: 'location-address', label: 'Location/Address' },
-    { id: 'offer-discount', label: 'Offer/Discount' },
-    { id: 'rating-review', label: 'Rating/Review' },
-    { id: 'sales-report', label: 'Sales Report' },
-    { id: 'stock-management', label: 'Stock Management' },
-    { id: 'support-management', label: 'Support Management' },
-    { id: 'transaction-management', label: 'Transaction Management' },
-    { id: 'user-management', label: 'User Management' },
+    { id: 'ads-management', labelKey: 'admin.adsManagement' },
+    { id: 'auction-management', labelKey: 'admin.auctionManagement' },
+    { id: 'category-management', labelKey: 'admin.categoryManagement' },
+    ...(isSuperAdmin ? [{ id: 'change-password', labelKey: 'admin.changePassword' }] : []), // Only show for super_admin
+    { id: 'delivery-management', labelKey: 'admin.deliveryManagement' },
+    { id: 'ebook-management', labelKey: 'admin.ebookManagement' },
+    { id: 'nepali-products', labelKey: 'admin.nepaliProductsReview' },
+    { id: 'order-management', labelKey: 'admin.orderManagement' },
+    { id: 'email-subscriber', labelKey: 'admin.emailSubscriberList' },
+    { id: 'job-management', labelKey: 'admin.jobManagement' },
+    { id: 'live-chat', labelKey: 'admin.liveChat' },
+    { id: 'location-address', labelKey: 'admin.locationAddress' },
+    { id: 'offer-discount', labelKey: 'admin.offerDiscount' },
+    { id: 'rating-review', labelKey: 'admin.ratingReview' },
+    { id: 'sales-report', labelKey: 'admin.salesReport' },
+    { id: 'stock-management', labelKey: 'admin.stockManagement' },
+    { id: 'support-management', labelKey: 'admin.supportManagement' },
+    { id: 'transaction-management', labelKey: 'admin.transactionManagement' },
+    { id: 'user-management', labelKey: 'admin.userManagement' },
   ];
 
   return (
@@ -7229,7 +7231,7 @@ function AdminPanel() {
         <aside className="w-64 flex-shrink-0 hidden lg:block">
           <Card>
             <CardContent className="p-4">
-              <h2 className="text-lg font-bold text-[hsl(var(--foreground))] mb-4">Admin Dashboard</h2>
+              <h2 className="text-lg font-bold text-[hsl(var(--foreground))] mb-4">{t('admin.adminDashboard')}</h2>
               
               {/* Role Selection - Only show interactive switch for roles the user actually has */}
               {!isSuperAdmin ? (
@@ -7237,9 +7239,9 @@ function AdminPanel() {
                   {/* Non-super admins can see that Super Admin exists, but it is not clickable */}
                   <div
                     className="w-full text-left px-3 py-2 text-sm text-[hsl(var(--muted-foreground))] cursor-default select-none"
-                    title="Only super admins can access this section"
+                    title={t('admin.onlySuperAdminsCanAccess')}
                   >
-                    Super Admin
+                    {t('admin.superAdmin')}
                   </div>
                   <button
                     onClick={() => {
@@ -7252,13 +7254,13 @@ function AdminPanel() {
                         : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]'
                     }`}
                   >
-                    Admin
+                    {t('admin.admin')}
                   </button>
                 </div>
               ) : (
                 <div className="mb-4">
                   <div className="w-full text-left px-3 py-2 text-sm rounded bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] font-medium">
-                    Super Admin
+                    {t('admin.superAdmin')}
                   </div>
                 </div>
               )}
@@ -7277,7 +7279,7 @@ function AdminPanel() {
                       }`}
                     >
                       <span className="flex items-center justify-between">
-                        <span>{item.label}</span>
+                        <span>{t(item.labelKey)}</span>
                         {item.id === 'live-chat' && liveChatUnreadCount > 0 && (
                           <span className="ml-2 inline-flex items-center justify-center rounded-full bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] text-[11px] min-w-[18px] h-[18px] px-1">
                             {liveChatUnreadCount}
@@ -7301,7 +7303,7 @@ function AdminPanel() {
                 <div className="flex gap-2 flex-wrap items-center">
                   <Input
                     type="text"
-                    placeholder="Enter keyword"
+                    placeholder={t('homepage.enterKeyword')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="flex-1 min-w-[200px] bg-[hsl(var(--background))]"
@@ -7314,7 +7316,7 @@ function AdminPanel() {
                         onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
                         className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center"
                       >
-                        <span>{buildCategorySearchString() || 'All Categories'}</span>
+                        <span>{buildCategorySearchString() || t('homepage.allCategories')}</span>
                       </button>
                       
                       {/* Category Menu - Matching sidebar filter design */}
@@ -8231,7 +8233,7 @@ function AdminPanel() {
                       )}
                     </div>
                   </div>
-                  <Button className="min-w-[100px]">Search</Button>
+                  <Button className="min-w-[100px]">{t('common.search')}</Button>
                 </div>
               </CardContent>
             </Card>
@@ -8241,7 +8243,7 @@ function AdminPanel() {
           {!activeSection && (
             <section>
               <div className="flex justify-end mb-6">
-                <Button onClick={() => setShowPostAdForm(!showPostAdForm)}>Post Ad</Button>
+                <Button onClick={() => setShowPostAdForm(!showPostAdForm)}>{t('homepage.postAd')}</Button>
               </div>
 
               {/* Post Ad Form - appears when Post Ad is clicked */}
@@ -8338,7 +8340,7 @@ function AdminPanel() {
                                           !postAdSelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
                                         }`}
                                       >
-                                        All Categories
+                                        {t('homepage.allCategories')}
                                       </button>
                                       {categories.map((category, index) => (
                                         <button
@@ -8842,10 +8844,10 @@ function AdminPanel() {
                 <>
                   <div className="mb-4 flex items-center justify-between">
                     <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                      Showing {startResult}-{endResult} of {filteredAndSortedAds.length} results
+                      {t('homepage.showingResults', { from: startResult, to: endResult, total: filteredAndSortedAds.length })}
                     </p>
                     <div className="flex items-center gap-2">
-                      <label className="text-sm text-[hsl(var(--foreground))]">Sorting option:</label>
+                      <label className="text-sm text-[hsl(var(--foreground))]">{t('homepage.sortingOption')}</label>
                       <select
                         value={adSort}
                         onChange={(e) => {
@@ -8854,13 +8856,13 @@ function AdminPanel() {
                         }}
                         className="px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
                       >
-                        <option value="most relevant">most relevant</option>
-                        <option value="lowest price">lowest price</option>
-                        <option value="highest price">highest price</option>
-                        <option value="ascending order">ascending order</option>
-                        <option value="descending order">descending order</option>
-                        <option value="latest listing">latest listing</option>
-                        <option value="top review">top review</option>
+                        <option value="most relevant">{t('homepage.mostRelevant')}</option>
+                        <option value="lowest price">{t('homepage.priceLowToHigh')}</option>
+                        <option value="highest price">{t('homepage.priceHighToLow')}</option>
+                        <option value="ascending order">{t('admin.ascendingOrder')}</option>
+                        <option value="descending order">{t('admin.descendingOrder')}</option>
+                        <option value="latest listing">{t('admin.latestListing')}</option>
+                        <option value="top review">{t('admin.topReview')}</option>
                       </select>
                     </div>
                   </div>
@@ -8868,7 +8870,7 @@ function AdminPanel() {
                   {/* Display ads in grid (4 per row) */}
                   {filteredAndSortedAds.length === 0 ? (
                     <div className="text-center py-12 text-[hsl(var(--muted-foreground))]">
-                      <p>No ads found matching your search criteria.</p>
+                      <p>{t('admin.noAdsFoundMatchingSearch')}</p>
                     </div>
                   ) : (
                     <>
@@ -8898,7 +8900,7 @@ function AdminPanel() {
                                 {ad.description}
                               </p>
                               <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
-                                Rs. {ad.price.toLocaleString()}
+                                {t('homepage.pricePrefix')} {ad.price.toLocaleString()}
                               </p>
                               {ad.location && (
                                 <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">
@@ -8919,7 +8921,7 @@ function AdminPanel() {
                             onClick={() => handlePageChange(currentPage - 1)}
                             disabled={currentPage === 1}
                           >
-                            Previous
+                            {t('common.previous')}
                           </Button>
                           
                           <div className="flex gap-1">
@@ -8955,7 +8957,7 @@ function AdminPanel() {
                             onClick={() => handlePageChange(currentPage + 1)}
                             disabled={currentPage === totalPages}
                           >
-                            Next
+                            {t('common.next')}
                           </Button>
                         </div>
                       )}
@@ -9015,7 +9017,7 @@ function AdminPanel() {
                         </p>
                       </div>
                       <div className="ml-4">
-                        <Button onClick={() => setShowPostAdForm(!showPostAdForm)}>Post Ad</Button>
+                        <Button onClick={() => setShowPostAdForm(!showPostAdForm)}>{t('homepage.postAd')}</Button>
                       </div>
                     </div>
                   </CardContent>
@@ -12764,7 +12766,7 @@ function AdminPanel() {
                     <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">Transaction Management</h3>
                     {transactionManagementTab === 'ad-post' && (
                     <Button variant="outline" onClick={() => setShowPostAdTransactionForm(!showPostAdTransactionForm)}>
-                      {showPostAdTransactionForm ? 'Close Form' : 'Post Ad'}
+                      {showPostAdTransactionForm ? t('common.close') : t('homepage.postAd')}
                     </Button>
                     )}
                   </div>
@@ -12800,7 +12802,7 @@ function AdminPanel() {
                   {showPostAdTransactionForm && (
                     <Card className="bg-[hsl(var(--accent))]/50">
                       <CardContent className="p-6">
-                        <h4 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">Post Ad Transaction</h4>
+                        <h4 className="text-md font-semibold text-[hsl(var(--foreground))] mb-4">{t('admin.postAdTransaction')}</h4>
                         <form onSubmit={handlePostAdTransactionSubmit} className="space-y-4">
                           <div className="grid grid-cols-2 gap-4">
                             <div>
@@ -12866,7 +12868,7 @@ function AdminPanel() {
                                             !transactionSelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
                                           }`}
                                         >
-                                          All Categories
+                                          {t('homepage.allCategories')}
                                         </button>
                                         {categories.map((category, index) => (
                                           <button
@@ -13012,7 +13014,7 @@ function AdminPanel() {
                             >
                               Cancel
                             </Button>
-                            <Button type="submit">Post Ad</Button>
+                            <Button type="submit">{t('homepage.postAd')}</Button>
                           </div>
                         </form>
                       </CardContent>
@@ -13266,7 +13268,7 @@ function AdminPanel() {
                                                 !transactionSelectedCategoryName ? 'bg-[hsl(var(--accent))]' : ''
                                               }`}
                                             >
-                                              All Categories
+                                              {t('homepage.allCategories')}
                                             </button>
                                             {categories.map((category, index) => (
                                               <button

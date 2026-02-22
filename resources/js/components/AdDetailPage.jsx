@@ -9,12 +9,14 @@ import { ratingAPI, publicProfileAPI, favouriteAPI, watchlistAPI, userAdAPI, pub
 import { useToast } from './Toast';
 import RatingModal from './RatingModal';
 import axios from 'axios';
+import { useTranslation } from '../utils/translation';
 
 function AdDetailPage() {
   const { slug, categorySlug, adSlug } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [ad, setAd] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -440,7 +442,7 @@ function AdDetailPage() {
               className="flex items-center gap-2"
               size="lg"
             >
-              {isFavourite ? '❤️' : '🤍'} Favourite
+              {isFavourite ? '❤️' : '🤍'} {t('productDetail.favourite')}
             </Button>
             <Button
               onClick={handleToggleWatchlist}
@@ -448,7 +450,7 @@ function AdDetailPage() {
               className="flex items-center gap-2"
               size="lg"
             >
-              {isWatchlist ? '👁️' : '👁️'} Watchlist
+              {isWatchlist ? '👁️' : '👁️'} {t('productDetail.watchlist')}
             </Button>
           </div>
         )}
@@ -459,7 +461,7 @@ function AdDetailPage() {
           onClick={() => navigate(-1)}
           className="mb-6 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
         >
-          ← Back
+          ← {t('common.back')}
         </Button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -481,7 +483,7 @@ function AdDetailPage() {
                   )}
                   {!ad.category_path && ad.category && (
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">Category:</span>
+                      <span className="font-medium">{t('productDetail.category')}:</span>
                       <span className="text-[hsl(var(--foreground))]">{ad.category}</span>
                       {ad.subcategory && (
                         <span className="text-[hsl(var(--muted-foreground))]">
@@ -507,7 +509,7 @@ function AdDetailPage() {
 
                   <div className="flex items-center gap-2">
                     <span>👁️</span>
-                    <span className="text-[hsl(var(--foreground))]">{ad.views || 0} views</span>
+                    <span className="text-[hsl(var(--foreground))]">{ad.views || 0} {t('productDetail.views')}</span>
                   </div>
                 </div>
               </CardContent>
@@ -574,7 +576,7 @@ function AdDetailPage() {
             {/* Description Section - Above seller info */}
             <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-xl">Description</CardTitle>
+                <CardTitle className="text-xl">{t('productDetail.description')}</CardTitle>
               </CardHeader>
               <CardContent>
                 {/* Size & Weight (if applicable) */}
@@ -582,13 +584,13 @@ function AdDetailPage() {
                   <div className="flex gap-6 mb-4 pb-4 border-b border-[hsl(var(--border))]">
                     {ad.size && (
                       <div>
-                        <span className="text-sm text-[hsl(var(--muted-foreground))]">Size:</span>
+                        <span className="text-sm text-[hsl(var(--muted-foreground))]">{t('productDetail.size')}:</span>
                         <span className="ml-2 font-medium text-[hsl(var(--foreground))]">{ad.size}</span>
                       </div>
                     )}
                     {ad.weight && (
                       <div>
-                        <span className="text-sm text-[hsl(var(--muted-foreground))]">Weight:</span>
+                        <span className="text-sm text-[hsl(var(--muted-foreground))]">{t('productDetail.weight')}:</span>
                         <span className="ml-2 font-medium text-[hsl(var(--foreground))]">{ad.weight}</span>
                       </div>
                     )}
@@ -596,7 +598,7 @@ function AdDetailPage() {
                 )}
 
                 <p className="text-[hsl(var(--foreground))] whitespace-pre-wrap leading-relaxed">
-                  {ad.description || 'No description provided.'}
+                  {ad.description || t('productDetail.noDescriptionProvided')}
                 </p>
               </CardContent>
             </Card>
@@ -605,7 +607,7 @@ function AdDetailPage() {
             {ad.seller && (
               <Card className="border-0 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-lg">Seller Information</CardTitle>
+                  <CardTitle className="text-lg">{t('productDetail.sellerInformation')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Seller Name & Rating */}
@@ -636,7 +638,7 @@ function AdDetailPage() {
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-yellow-400">★</span>
                           <span className="text-sm font-semibold text-[hsl(var(--foreground))]">
-                            {sellerRating.average.toFixed(1)} ({sellerRating.total} reviews)
+                            {sellerRating.average.toFixed(1)} ({sellerRating.total} {t('productDetail.reviews')})
                           </span>
                         </div>
                       )}
@@ -649,7 +651,7 @@ function AdDetailPage() {
                     {(sellerProfile?.user?.phone || sellerProfile?.user?.mobile) && (
                       <div>
                         <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-1">
-                          Mobile
+                          {t('productDetail.mobile')}
                         </label>
                         <p className="text-sm text-[hsl(var(--foreground))]">
                           {sellerProfile.user.phone || sellerProfile.user.mobile}
@@ -661,7 +663,7 @@ function AdDetailPage() {
                     {sellerProfile?.user?.email && (
                       <div>
                         <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-1">
-                          Email
+                          {t('productDetail.email')}
                         </label>
                         <p className="text-sm text-[hsl(var(--foreground))]">{sellerProfile.user.email}</p>
                       </div>
@@ -671,12 +673,12 @@ function AdDetailPage() {
                     {user && user.id !== ad.user_id && (
                       <form onSubmit={handleSendTextToSeller}>
                         <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-2">
-                          Text to Seller
+                          {t('productDetail.textToSeller')}
                         </label>
                         <textarea
                           value={textToSeller}
                           onChange={(e) => setTextToSeller(e.target.value)}
-                          placeholder="Type your message..."
+                          placeholder={t('productDetail.typeYourMessage')}
                           className="w-full px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm resize-none mb-2"
                           rows="3"
                           disabled={sendingTextToSeller}
@@ -686,7 +688,7 @@ function AdDetailPage() {
                           disabled={!textToSeller.trim() || sendingTextToSeller}
                           className="w-full"
                         >
-                          {sendingTextToSeller ? 'Sending...' : 'Send Message'}
+                          {sendingTextToSeller ? t('productDetail.sending') : t('productDetail.sendMessage')}
                         </Button>
                       </form>
                     )}
@@ -694,9 +696,9 @@ function AdDetailPage() {
                     {/* Response Rate */}
                     <div>
                       <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-1">
-                        Response Rate
+                        {t('productDetail.responseRate')}
                       </label>
-                      <p className="text-sm text-[hsl(var(--foreground))]">Usually responds within 24 hours</p>
+                      <p className="text-sm text-[hsl(var(--foreground))]">{t('productDetail.usuallyRespondsWithin24Hours')}</p>
                     </div>
                   </div>
 
@@ -704,14 +706,14 @@ function AdDetailPage() {
                   <div className="space-y-3 pt-4 border-t border-[hsl(var(--border))]">
                     <div>
                       <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-2">
-                        Shipping Calculator
+                        {t('productDetail.shippingCalculator')}
                       </label>
                       <Button
                         onClick={calculateShipping}
                         variant="outline"
                         className="w-full"
                       >
-                        Calculate Shipping
+                        {t('productDetail.calculateShipping')}
                       </Button>
                     </div>
                     
@@ -719,18 +721,18 @@ function AdDetailPage() {
                       <>
                         <div>
                           <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-1">
-                            Shipping Cost
+                            {t('productDetail.shippingCost')}
                           </label>
                           <p className="text-sm font-medium text-[hsl(var(--foreground))]">
-                            Rs. {shippingCost.toLocaleString()}
+                            {t('homepage.pricePrefix')} {shippingCost.toLocaleString()}
                           </p>
                         </div>
                         <div>
                           <label className="block text-xs text-[hsl(var(--muted-foreground))] mb-1">
-                            Estimated Delivery Time
+                            {t('productDetail.estimatedDeliveryTime')}
                           </label>
                           <p className="text-sm font-medium text-[hsl(var(--foreground))]">
-                            {estimatedDelivery || 'Not calculated'}
+                            {estimatedDelivery || t('productDetail.notCalculated')}
                           </p>
                         </div>
                       </>
@@ -744,7 +746,7 @@ function AdDetailPage() {
                       className="block"
                     >
                       <Button variant="outline" className="w-full">
-                        View Seller Profile →
+                        {t('productDetail.viewSellerProfile')} →
                       </Button>
                     </Link>
                     {user && user.id !== ad.user_id && (
@@ -753,7 +755,7 @@ function AdDetailPage() {
                         variant="outline"
                         className="w-full"
                       >
-                        ⭐ Rate Seller
+                        ⭐ {t('productDetail.rateSeller')}
                       </Button>
                     )}
                   </div>
@@ -764,7 +766,7 @@ function AdDetailPage() {
             {/* Share this Ad - After shipping info */}
             <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="text-lg">Share this Ad</CardTitle>
+                <CardTitle className="text-lg">{t('productDetail.shareThisAd')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex gap-4">
@@ -772,19 +774,19 @@ function AdDetailPage() {
                     onClick={() => handleShare('facebook')}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
                   >
-                    <span>📘</span> Facebook
+                    <span>📘</span> {t('productDetail.facebook')}
                   </button>
                   <button
                     onClick={() => handleShare('whatsapp')}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors"
                   >
-                    <span>💬</span> WhatsApp
+                    <span>💬</span> {t('productDetail.whatsapp')}
                   </button>
                   <button
                     onClick={() => handleShare('email')}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 text-white transition-colors"
                   >
-                    <span>✉️</span> Email
+                    <span>✉️</span> {t('productDetail.email')}
                   </button>
                 </div>
               </CardContent>
@@ -794,13 +796,13 @@ function AdDetailPage() {
             {sellerProfile?.user?.location && (
               <Card className="border-0 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-lg">Seller Location</CardTitle>
+                  <CardTitle className="text-lg">{t('productDetail.sellerLocation')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="h-64 bg-gray-100 rounded-lg flex items-center justify-center">
                     <div className="text-center text-[hsl(var(--muted-foreground))]">
-                      <p className="mb-2">📍 {sellerProfile.user.location.name || 'Location not specified'}</p>
-                      <p className="text-sm">Google Map integration coming soon</p>
+                      <p className="mb-2">📍 {sellerProfile.user.location.name || t('productDetail.locationNotSpecified')}</p>
+                      <p className="text-sm">{t('productDetail.googleMapIntegrationComingSoon')}</p>
                       {/* TODO: Integrate Google Maps API */}
                     </div>
                   </div>
@@ -815,13 +817,13 @@ function AdDetailPage() {
             <Card className="border-0 shadow-lg sticky top-6">
               <CardContent className="p-6">
                 <div className="text-4xl font-bold text-[hsl(var(--primary))] mb-6">
-                  Rs. {pricePerUnit.toLocaleString()}
+                  {t('homepage.pricePrefix')} {pricePerUnit.toLocaleString()}
                 </div>
 
                 {/* Quantity Selector */}
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-2">
-                    Quantity
+                    {t('productDetail.quantity')}
                   </label>
                   <div className="flex items-center gap-3">
                     <button
@@ -849,22 +851,22 @@ function AdDetailPage() {
                 {/* Price Breakdown */}
                 <div className="space-y-2 mb-6 pb-6 border-b border-[hsl(var(--border))]">
                   <div className="flex justify-between text-sm">
-                    <span className="text-[hsl(var(--muted-foreground))]">Price per unit:</span>
-                    <span className="font-medium text-[hsl(var(--foreground))]">Rs. {pricePerUnit.toLocaleString()}</span>
+                    <span className="text-[hsl(var(--muted-foreground))]">{t('productDetail.pricePerUnit')}:</span>
+                    <span className="font-medium text-[hsl(var(--foreground))]">{t('homepage.pricePrefix')} {pricePerUnit.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-[hsl(var(--muted-foreground))]">Quantity:</span>
+                    <span className="text-[hsl(var(--muted-foreground))]">{t('productDetail.quantity')}:</span>
                     <span className="font-medium text-[hsl(var(--foreground))]">{quantity}</span>
                   </div>
                   {shippingCost > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-[hsl(var(--muted-foreground))]">Shipping:</span>
-                      <span className="font-medium text-[hsl(var(--foreground))]">Rs. {shippingCost.toLocaleString()}</span>
+                      <span className="text-[hsl(var(--muted-foreground))]">{t('productDetail.shipping')}:</span>
+                      <span className="font-medium text-[hsl(var(--foreground))]">{t('homepage.pricePrefix')} {shippingCost.toLocaleString()}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-lg font-bold pt-2 border-t border-[hsl(var(--border))] mt-2">
-                    <span className="text-[hsl(var(--foreground))]">Total Price:</span>
-                    <span className="text-[hsl(var(--primary))]">Rs. {totalPrice.toLocaleString()}</span>
+                    <span className="text-[hsl(var(--foreground))]">{t('productDetail.totalPrice')}:</span>
+                    <span className="text-[hsl(var(--primary))]">{t('homepage.pricePrefix')} {totalPrice.toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -874,18 +876,18 @@ function AdDetailPage() {
                     onClick={handleAddToCart}
                     className="w-full bg-[hsl(var(--primary))] hover:bg-[hsl(var(--primary))]/90 text-white h-12 text-base font-semibold shadow-md"
                   >
-                    🛒 Add to Cart
+                    🛒 {t('productDetail.addToCart')}
                   </Button>
                   <Button
                     onClick={handleBuyNow}
                     variant="default"
                     className="w-full bg-green-600 hover:bg-green-700 text-white h-12 text-base font-semibold shadow-md"
                   >
-                    💳 Buy Now
+                    💳 {t('productDetail.buyNow')}
                   </Button>
                   <Link to="/cart" className="block w-full">
                     <Button variant="outline" className="w-full h-11">
-                      View Cart
+                      {t('productDetail.viewCart')}
                     </Button>
                   </Link>
                 </div>
@@ -940,7 +942,7 @@ function AdDetailPage() {
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Type your message..."
+                    placeholder={t('productDetail.typeYourMessage')}
                     className="flex-1 px-3 py-2 border border-[hsl(var(--border))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))]"
                     disabled={sendingMessage}
                   />

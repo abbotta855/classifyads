@@ -1,5 +1,6 @@
 import './bootstrap';
 import '../css/app.css';
+import './i18n/config'; // Ensure i18n is initialized before App
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';

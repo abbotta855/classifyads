@@ -6,11 +6,15 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { getAdUrl } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useTranslation } from '../utils/translation';
 import SEOHead from './SEOHead';
 
 function Homepage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const translation = useTranslation();
+  // Ensure t is always defined
+  const t = translation?.t || ((key) => key);
   const [categories, setCategories] = useState([]);
   const [locationData, setLocationData] = useState({ provinces: [] }); // Location data from database
   const [showCategoryFilter, setShowCategoryFilter] = useState(false); // Track if category filter section is visible
@@ -142,7 +146,7 @@ function Homepage() {
     const totalCount = addressIds.length + wardIdsWithoutAddresses.length;
     
     if (totalCount === 0) {
-      return 'All Locations';
+      return t('homepage.allLocations');
     }
     if (totalCount === 1) {
       return '1 location selected';
@@ -386,7 +390,7 @@ function Homepage() {
   const buildCategorySearchString = () => {
     // Count only item categories (leaf level) - matching UserDashboard logic
     if (selectedItemCategories.size === 0) {
-      return 'All Categories';
+      return t('homepage.allCategories');
     }
     if (selectedItemCategories.size === 1) {
       return '1 category selected';
@@ -1192,7 +1196,7 @@ function Homepage() {
                 {/* Search Keyword Input */}
                 <Input
                   type="text"
-                  placeholder="Enter keyword"
+                  placeholder={t('homepage.enterKeyword')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -1206,7 +1210,7 @@ function Homepage() {
                       onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
                       className="w-full px-3 py-2 text-left border-0 rounded-md bg-[hsl(var(--accent))] text-[hsl(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] flex items-center"
                     >
-                      <span>{buildCategorySearchString() || 'All Categories'}</span>
+                      <span>{buildCategorySearchString() || t('homepage.allCategories')}</span>
                     </button>
                     
                     {/* Category Menu - Matching sidebar filter design */}
@@ -2046,7 +2050,7 @@ function Homepage() {
                     )}
                   </div>
                 </div>
-                <Button onClick={handleSearch} className="min-w-[100px]">Search</Button>
+                <Button onClick={handleSearch} className="min-w-[100px]">{t('homepage.search')}</Button>
           </div>
             </CardContent>
           </Card>
@@ -2057,7 +2061,7 @@ function Homepage() {
           <aside className="w-64 flex-shrink-0 hidden lg:block">
             <Card>
               <CardContent className="p-4">
-                <h2 className="text-lg font-bold text-[hsl(var(--foreground))] mb-4">Filters</h2>
+                <h2 className="text-lg font-bold text-[hsl(var(--foreground))] mb-4">{t('homepage.filters')}</h2>
 
                 {/* Category Filter */}
                 <div className="mb-6">
@@ -2065,7 +2069,7 @@ function Homepage() {
                     onClick={() => setShowCategoryFilter(!showCategoryFilter)}
                     className="flex items-center justify-between w-full font-semibold text-[hsl(var(--foreground))] mb-2 hover:text-[hsl(var(--primary))] transition-colors"
                   >
-                    <span>Category</span>
+                    <span>{t('homepage.category')}</span>
                   </button>
                   {showCategoryFilter && (
                     <div className="space-y-1 max-h-96 overflow-y-auto">
@@ -2313,7 +2317,7 @@ function Homepage() {
                     onClick={() => setShowSidebarLocationDropdown(!showSidebarLocationDropdown)}
                     className="flex items-center justify-between w-full font-semibold text-[hsl(var(--foreground))] mb-2 hover:text-[hsl(var(--primary))] transition-colors"
                   >
-                    <span>Location</span>
+                    <span>{t('homepage.location')}</span>
                   </button>
                   
                   {showSidebarLocationDropdown && (
@@ -2880,7 +2884,7 @@ function Homepage() {
                 {/* Price Range */}
                 <div className="mb-6">
                   <h3 className="font-semibold text-[hsl(var(--foreground))] mb-2">
-                    Price range
+                    {t('homepage.priceRange')}
                   </h3>
                   <div className="space-y-2">
                     <div>
@@ -2888,7 +2892,7 @@ function Homepage() {
                         type="number"
                         min="0"
                         step="0.01"
-                        placeholder="From"
+                        placeholder={t('homepage.from')}
                         value={priceRange.min}
                         onChange={(e) => handlePriceChange('min', e.target.value)}
                         className={`w-full ${priceErrors.min ? 'border-red-500' : ''}`}
@@ -2902,7 +2906,7 @@ function Homepage() {
                         type="number"
                         min="0"
                         step="0.01"
-                        placeholder="To"
+                        placeholder={t('homepage.to')}
                         value={priceRange.max}
                         onChange={(e) => handlePriceChange('max', e.target.value)}
                         className={`w-full ${priceErrors.max ? 'border-red-500' : ''}`}
@@ -2922,22 +2926,22 @@ function Homepage() {
           <main className="flex-1">
             <div className="mb-4 flex items-center justify-between">
               <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                Showing {startResult}-{endResult} of {filteredAdsCount} results
+                {t('homepage.showingResults', { from: startResult, to: endResult, total: filteredAdsCount })}
                     </p>
               <div className="flex items-center gap-2">
-                <label className="text-sm text-[hsl(var(--foreground))]">Sorting option:</label>
+                <label className="text-sm text-[hsl(var(--foreground))]">{t('homepage.sortingOption')}</label>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
                   className="px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm transition-all duration-200 hover:border-[hsl(var(--primary))]/50 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] focus:ring-offset-2"
                 >
-                  <option value="most relevant">most relevant</option>
-                  <option value="lowest price">lowest price</option>
-                  <option value="highest price">highest price</option>
-                  <option value="ascending order">ascending order</option>
-                  <option value="descending order">descending order</option>
-                  <option value="latest listing">latest listing</option>
-                  <option value="top review">top review</option>
+                  <option value="most relevant">{t('homepage.mostRelevant')}</option>
+                  <option value="lowest price">{t('homepage.priceLowToHigh')}</option>
+                  <option value="highest price">{t('homepage.priceHighToLow')}</option>
+                  <option value="ascending order">{t('homepage.newestFirst')}</option>
+                  <option value="descending order">{t('homepage.oldestFirst')}</option>
+                  <option value="latest listing">{t('homepage.newestFirst')}</option>
+                  <option value="top review">{t('homepage.mostRelevant')}</option>
                 </select>
                 <Button
                   onClick={() => {
@@ -2949,7 +2953,7 @@ function Homepage() {
                   }}
                   className="px-6"
                 >
-                  Post Ad
+                  {t('homepage.postAd')}
                 </Button>
               </div>
                     </div>
@@ -2979,7 +2983,7 @@ function Homepage() {
                           {ad.description}
                         </p>
                         <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
-                          Rs. {ad.price.toLocaleString()}
+                          {t('homepage.pricePrefix')} {ad.price.toLocaleString()}
                         </p>
                         {ad.user_id && (
                           <Link
@@ -2987,7 +2991,7 @@ function Homepage() {
                             onClick={(e) => e.stopPropagation()}
                             className="text-xs text-[hsl(var(--primary))] hover:underline"
                           >
-                            View Seller Profile →
+                            {t('homepage.viewSellerProfile')}
                           </Link>
                         )}
                       </div>
@@ -3050,15 +3054,23 @@ function Homepage() {
             <div className="my-8 border-t-2 border-[hsl(var(--border))]"></div>
 
             {/* Popular ad sections (4 ads per row, then "more ad" link) */}
-            {['Land for sale', 'Car for sale', 'Motorbike for sale', 'Bus for sale', 'Truck for sale', 'House for sale'].map((sectionName) => {
-              const categoryAds = getCategoryAds(sectionName);
+            {[
+              { key: 'landForSale', name: 'Land for sale' },
+              { key: 'carForSale', name: 'Car for sale' },
+              { key: 'motorbikeForSale', name: 'Motorbike for sale' },
+              { key: 'busForSale', name: 'Bus for sale' },
+              { key: 'truckForSale', name: 'Truck for sale' },
+              { key: 'houseForSale', name: 'House for sale' }
+            ].map((section) => {
+              const categoryAds = getCategoryAds(section.name);
+              const sectionTitle = t(`homepage.categorySections.${section.key}`);
 
               return (
-                <div key={sectionName} className="mb-8">
-                  <h3 className="text-xl font-bold text-[hsl(var(--foreground))] mb-4">{sectionName}</h3>
+                <div key={section.key} className="mb-8">
+                  <h3 className="text-xl font-bold text-[hsl(var(--foreground))] mb-4">{sectionTitle}</h3>
                   {categoryAds.length === 0 ? (
                     <div className="text-center py-8 text-[hsl(var(--muted-foreground))]">
-                      <p>0 items</p>
+                      <p>{t('homepage.zeroItems')}</p>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -3085,7 +3097,7 @@ function Homepage() {
                                 {ad.description}
                               </p>
                               <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
-                                Rs. {ad.price.toLocaleString()}
+                                {t('homepage.pricePrefix')} {ad.price.toLocaleString()}
                               </p>
                               {ad.user_id && (
                                 <Link
@@ -3093,7 +3105,7 @@ function Homepage() {
                                   onClick={(e) => e.stopPropagation()}
                                   className="text-xs text-[hsl(var(--primary))] hover:underline"
                                 >
-                                  View Seller Profile →
+                                  {t('homepage.viewSellerProfile')}
                                 </Link>
                               )}
                             </div>
@@ -3103,10 +3115,10 @@ function Homepage() {
                       <Card className="hover:shadow-lg transition-shadow flex items-center justify-center">
                         <CardContent className="p-4 text-center">
                           <Link
-                            to={getCategoryRoute(sectionName)}
+                            to={getCategoryRoute(section.name)}
                             className="text-[hsl(var(--primary))] hover:underline font-semibold"
                           >
-                            more ad
+                            {t('homepage.moreAd')}
                           </Link>
                         </CardContent>
                       </Card>

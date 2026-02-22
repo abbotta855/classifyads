@@ -7,8 +7,10 @@ import { Button } from './ui/button';
 import { Skeleton } from './ui/skeleton';
 import { EmptyState } from './ui/empty-state';
 import { ebookAPI } from '../utils/api';
+import { useTranslation } from '../utils/translation';
 
 function EbookListingPage() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [ebooks, setEbooks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,16 +69,16 @@ function EbookListingPage() {
     <Layout>
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8 animate-fade-in">
-          <h1 className="text-3xl font-bold mb-6 text-[hsl(var(--foreground))]">eBooks</h1>
+          <h1 className="text-3xl font-bold mb-6 text-[hsl(var(--foreground))]">{t('ebooks.title')}</h1>
           <form onSubmit={handleSearch} className="flex gap-2 max-w-2xl">
             <Input
               type="text"
-              placeholder="Search eBooks by title, writer, or description..."
+              placeholder={t('ebooks.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1"
             />
-            <Button type="submit">Search</Button>
+            <Button type="submit">{t('common.search')}</Button>
           </form>
         </div>
 
@@ -103,8 +105,8 @@ function EbookListingPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
             }
-            title="No eBooks Found"
-            description={searchQuery ? `No eBooks match your search "${searchQuery}". Try different keywords.` : "No eBooks are available at the moment. Check back later!"}
+            title={t('ebooks.noEbooksFound')}
+            description={searchQuery ? t('ebooks.noEbooksMatchSearch', { searchQuery }) : t('ebooks.noEbooksAvailable')}
           />
         ) : (
           <>
@@ -135,11 +137,11 @@ function EbookListingPage() {
                       )}
                       <h3 className="font-semibold text-lg mb-2 line-clamp-2 text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--primary))] transition-colors">{ebook.title}</h3>
                       {ebook.writer && (
-                        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-2">By {ebook.writer}</p>
+                        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-2">{t('ebooks.by')} {ebook.writer}</p>
                       )}
                       <div className="flex items-center justify-between mt-4">
                         <span className="text-lg font-bold text-[hsl(var(--primary))]">
-                          Rs {parseFloat(ebook.price || 0).toFixed(2)}
+                          {t('ebooks.price', { price: parseFloat(ebook.price || 0).toFixed(2) })}
                         </span>
                         {ebook.overall_rating > 0 && (
                           <div className="flex items-center gap-1 bg-[hsl(var(--muted))] px-2 py-1 rounded-full">
@@ -161,17 +163,17 @@ function EbookListingPage() {
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
                 >
-                  Previous
+                  {t('common.previous')}
                 </Button>
                 <span className="flex items-center px-4">
-                  Page {currentPage} of {lastPage}
+                  {t('ebooks.pageOf', { currentPage, lastPage })}
                 </span>
                 <Button
                   variant="outline"
                   onClick={() => setCurrentPage((p) => Math.min(lastPage, p + 1))}
                   disabled={currentPage === lastPage}
                 >
-                  Next
+                  {t('common.next')}
                 </Button>
               </div>
             )}
