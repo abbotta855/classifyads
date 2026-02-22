@@ -162,7 +162,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
   // User ad management routes
   Route::prefix('user')->group(function () {
-    Route::apiResource('ads', App\Http\Controllers\UserAdController::class);
+    Route::apiResource('ads', App\Http\Controllers\UserAdController::class)->names([
+      'index' => 'user.ads.index',
+      'store' => 'user.ads.store',
+      'show' => 'user.ads.show',
+      'update' => 'user.ads.update',
+      'destroy' => 'user.ads.destroy',
+    ]);
     Route::post('ads/{id}/mark-sold', [App\Http\Controllers\UserAdController::class, 'markSold']);
     
     // User auction routes
@@ -305,7 +311,13 @@ Route::middleware('auth:sanctum')->group(function () {
   // Admin routes (Sanctum handles both token and session auth automatically for stateful domains) + admin role + presence heartbeat
   Route::prefix('admin')->middleware(['auth:sanctum', 'admin', 'admin.presence'])->group(function () {
     // Ads management
-    Route::apiResource('ads', AdController::class);
+    Route::apiResource('ads', AdController::class)->names([
+      'index' => 'admin.ads.index',
+      'store' => 'admin.ads.store',
+      'show' => 'admin.ads.show',
+      'update' => 'admin.ads.update',
+      'destroy' => 'admin.ads.destroy',
+    ]);
     
     // Auctions management
     // IMPORTANT: statuses route must come BEFORE apiResource to avoid route conflicts

@@ -170,7 +170,7 @@ class SearchController extends Controller
                     'price' => $product->retail_price,
                     'image' => $product->primary_image ?? $product->images->first()?->image_url,
                     'type' => 'product',
-                    'url' => "/nepali-products/{$product->slug ?? $product->id}",
+                    'url' => "/nepali-products/" . ($product->slug ?? $product->id),
                 ];
             });
         }
