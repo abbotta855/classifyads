@@ -1,2 +1,9 @@
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /admin/
+Disallow: /super_admin/
+Disallow: /user_dashboard/
+Disallow: /seller_dashboard/
+Disallow: /api/
+
+Sitemap: http://localhost:8000/sitemap.xml

@@ -37,32 +37,13 @@ use App\Http\Controllers\ForumAdminController;
 use App\Http\Controllers\AnalyticsController;
 use Illuminate\Support\Facades\Route;
 
-// Debug routes (only in development)
-if (config('app.debug')) {
-Route::get('/debug/php-limits', function () {
-    return response()->json([
-        'upload_max_filesize' => ini_get('upload_max_filesize'),
-        'post_max_size' => ini_get('post_max_size'),
-        'memory_limit' => ini_get('memory_limit'),
-        'max_file_uploads' => ini_get('max_file_uploads'),
-    ]);
-});
-
-    Route::get('/test-email', function() {
-        try {
-            $otpCode = '123456';
-            $userName = 'Test User';
-            \Illuminate\Support\Facades\Mail::to('daltonrosemond.snow@gmail.com')->send(new App\Mail\OtpMail($otpCode, $userName));
-            return response()->json(['message' => 'Test email sent successfully! Check Mailtrap inbox.']);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
-    });
-}
+// Debug routes removed for security
+// These were only for development and should not be exposed in production
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/verify-reset-code', [AuthController::class, 'verifyResetCode']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 // OTP routes (public)
@@ -99,6 +80,23 @@ Route::get('/support/availability', [SupportAvailabilityController::class, 'stat
 // Blog public
 Route::get('/blog', [BlogController::class, 'index']);
 Route::get('/blog/{slug}', [BlogController::class, 'show']);
+
+// Search routes
+Route::get('/search', [App\Http\Controllers\SearchController::class, 'search']);
+Route::get('/search/autocomplete', [App\Http\Controllers\SearchController::class, 'autocomplete']);
+
+// Email subscription (public)
+Route::post('/email-subscribe', [App\Http\Controllers\EmailSubscriptionController::class, 'subscribe']);
+
+// Sitemap (public)
+Route::get('/sitemap.xml', [App\Http\Controllers\SitemapController::class, 'index']);
+
+// Static pages (public)
+Route::get('/static-pages/{slug}', [App\Http\Controllers\StaticPageController::class, 'show']);
+
+// Contact form (public)
+Route::post('/contact', [App\Http\Controllers\ContactController::class, 'submit']);
+Route::get('/contact/captcha', [App\Http\Controllers\ContactController::class, 'generateCaptcha']);
 
 // Forum public
 Route::get('/forum/categories', [ForumController::class, 'categories']);
@@ -416,6 +414,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('blog/posts/{id}', [BlogAdminController::class, 'destroy']);
 
     // Forum admin
+    Route::get('forum/threads', [ForumAdminController::class, 'listThreads']);
     Route::get('forum/reports', [ForumAdminController::class, 'listReports']);
     Route::post('forum/reports/{id}/resolve', [ForumAdminController::class, 'resolveReport']);
     Route::delete('forum/posts/{id}', [ForumAdminController::class, 'deletePost']);
@@ -426,5 +425,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Admin analytics summary
     Route::get('analytics/summary', [AnalyticsController::class, 'adminSummary']);
+
+    // Static Pages management
+    Route::apiResource('static-pages', App\Http\Controllers\Admin\StaticPageController::class);
   });
 });

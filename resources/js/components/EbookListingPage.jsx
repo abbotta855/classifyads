@@ -4,6 +4,8 @@ import Layout from './Layout';
 import { Card, CardContent } from './ui/card';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
+import { Skeleton } from './ui/skeleton';
+import { EmptyState } from './ui/empty-state';
 import { ebookAPI } from '../utils/api';
 
 function EbookListingPage() {
@@ -64,9 +66,9 @@ function EbookListingPage() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-4">eBooks</h1>
-          <form onSubmit={handleSearch} className="flex gap-2">
+        <div className="mb-8 animate-fade-in">
+          <h1 className="text-3xl font-bold mb-6 text-[hsl(var(--foreground))]">eBooks</h1>
+          <form onSubmit={handleSearch} className="flex gap-2 max-w-2xl">
             <Input
               type="text"
               placeholder="Search eBooks by title, writer, or description..."
@@ -79,45 +81,70 @@ function EbookListingPage() {
         </div>
 
         {loading ? (
-          <div className="text-center py-12">
-            <p>Loading eBooks...</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[...Array(8)].map((_, i) => (
+              <Card key={i} className="animate-fade-in">
+                <CardContent className="p-4">
+                  <Skeleton className="w-full h-48 rounded mb-3" />
+                  <Skeleton className="h-5 w-3/4 mb-2" />
+                  <Skeleton className="h-4 w-1/2 mb-2" />
+                  <div className="flex items-center justify-between mt-4">
+                    <Skeleton className="h-6 w-20" />
+                    <Skeleton className="h-5 w-12" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         ) : ebooks.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <p className="text-gray-500">No eBooks found.</p>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={
+              <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            }
+            title="No eBooks Found"
+            description={searchQuery ? `No eBooks match your search "${searchQuery}". Try different keywords.` : "No eBooks are available at the moment. Check back later!"}
+          />
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {ebooks.map((ebook) => (
-                <Link key={ebook.id} to={`/ebooks/${ebook.id}`}>
-                  <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              {ebooks.map((ebook, index) => (
+                <Link 
+                  key={ebook.id} 
+                  to={`/ebooks/${ebook.id}`}
+                  className="animate-fade-in"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <Card className="hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer h-full group">
                     <CardContent className="p-4">
                       {ebook.cover_image ? (
-                        <img
-                          src={ebook.cover_image}
-                          alt={ebook.title}
-                          className="w-full h-48 object-cover rounded mb-3"
-                        />
+                        <div className="relative overflow-hidden rounded mb-3">
+                          <img
+                            src={ebook.cover_image}
+                            alt={ebook.title}
+                            className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                        </div>
                       ) : (
-                        <div className="w-full h-48 bg-gray-200 rounded mb-3 flex items-center justify-center">
-                          <span className="text-gray-400">No Cover</span>
+                        <div className="w-full h-48 bg-[hsl(var(--muted))] rounded mb-3 flex items-center justify-center">
+                          <svg className="w-12 h-12 text-[hsl(var(--muted-foreground))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                          </svg>
                         </div>
                       )}
-                      <h3 className="font-semibold text-lg mb-2 line-clamp-2">{ebook.title}</h3>
+                      <h3 className="font-semibold text-lg mb-2 line-clamp-2 text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--primary))] transition-colors">{ebook.title}</h3>
                       {ebook.writer && (
-                        <p className="text-sm text-gray-600 mb-2">By {ebook.writer}</p>
+                        <p className="text-sm text-[hsl(var(--muted-foreground))] mb-2">By {ebook.writer}</p>
                       )}
-                      <div className="flex items-center justify-between">
-                        <span className="text-lg font-bold text-primary">
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="text-lg font-bold text-[hsl(var(--primary))]">
                           Rs {parseFloat(ebook.price || 0).toFixed(2)}
                         </span>
                         {ebook.overall_rating > 0 && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-yellow-500">★</span>
-                            <span className="text-sm">{ebook.overall_rating.toFixed(1)}</span>
+                          <div className="flex items-center gap-1 bg-[hsl(var(--muted))] px-2 py-1 rounded-full">
+                            <span className="text-yellow-500 text-sm">★</span>
+                            <span className="text-sm font-medium">{ebook.overall_rating.toFixed(1)}</span>
                           </div>
                         )}
                       </div>

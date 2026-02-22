@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -8,23 +8,24 @@ import { Label } from './ui/label';
 
 function ResetPassword() {
   const [email, setEmail] = useState('');
-  const [token, setToken] = useState('');
+  const [resetCode, setResetCode] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Get token and email from URL parameters
-    const urlToken = searchParams.get('token');
-    const urlEmail = searchParams.get('email');
-    
-    if (urlToken) setToken(urlToken);
-    if (urlEmail) setEmail(urlEmail);
-  }, [searchParams]);
+    // Get email and code from location state (passed from ForgotPassword)
+    if (location.state?.email) {
+      setEmail(location.state.email);
+    }
+    if (location.state?.code) {
+      setResetCode(location.state.code);
+    }
+  }, [location.state]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,7 +35,7 @@ function ResetPassword() {
     try {
       const response = await axios.post('/api/reset-password', {
         email,
-        token,
+        code: resetCode,
         password,
         password_confirmation: passwordConfirmation,
       });
@@ -61,16 +62,16 @@ function ResetPassword() {
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))] p-4">
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-md animate-fade-in shadow-lg">
           <CardHeader>
-            <CardTitle>Password Reset Successful</CardTitle>
+            <CardTitle className="text-2xl">Password Reset Successful</CardTitle>
             <CardDescription>
               Your password has been reset successfully.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="p-4 bg-green-50 border border-green-200 rounded-md mb-4">
-              <p className="text-sm text-green-800">
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md mb-4">
+              <p className="text-sm text-green-800 dark:text-green-200">
                 You can now login with your new password. Redirecting to login page...
               </p>
             </div>
@@ -88,11 +89,11 @@ function ResetPassword() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))] p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md animate-fade-in shadow-lg">
         <CardHeader>
-          <CardTitle>Reset Password</CardTitle>
+          <CardTitle className="text-2xl">Reset Password</CardTitle>
           <CardDescription>
-            Enter your new password below.
+            Enter your reset code and new password below.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -106,11 +107,36 @@ function ResetPassword() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={!!searchParams.get('email')}
+                disabled={!!location.state?.email}
               />
               {errors.email && (
-                <p className="text-sm text-[hsl(var(--destructive))]">
+                <p className="text-sm text-[hsl(var(--destructive))] animate-slide-in mt-1">
                   {errors.email[0]}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="code">Reset Code</Label>
+              <Input
+                id="code"
+                type="text"
+                placeholder="Enter 6-digit code"
+                value={resetCode}
+                onChange={(e) => {
+                  // Only allow numbers and limit to 6 digits
+                  const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setResetCode(value);
+                  setErrors({ ...errors, code: '' });
+                }}
+                maxLength={6}
+                required
+                className="text-center text-2xl tracking-widest font-mono"
+                disabled={!!location.state?.code}
+              />
+              {errors.code && (
+                <p className="text-sm text-[hsl(var(--destructive))] animate-slide-in mt-1">
+                  {errors.code[0]}
                 </p>
               )}
             </div>
@@ -126,7 +152,7 @@ function ResetPassword() {
                 minLength={8}
               />
               {errors.password && (
-                <p className="text-sm text-[hsl(var(--destructive))]">
+                <p className="text-sm text-[hsl(var(--destructive))] animate-slide-in mt-1">
                   {errors.password[0]}
                 </p>
               )}
@@ -143,27 +169,13 @@ function ResetPassword() {
                 minLength={8}
               />
               {errors.password_confirmation && (
-                <p className="text-sm text-[hsl(var(--destructive))]">
+                <p className="text-sm text-[hsl(var(--destructive))] animate-slide-in mt-1">
                   {errors.password_confirmation[0]}
                 </p>
               )}
             </div>
 
-            {errors.token && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-sm text-red-800">
-                  {errors.token[0]}
-                </p>
-                <Link
-                  to="/forgot-password"
-                  className="text-sm text-[hsl(var(--primary))] hover:underline mt-2 inline-block"
-                >
-                  Request a new reset link
-                </Link>
-              </div>
-            )}
-
-            <Button type="submit" className="w-full" disabled={loading || !token}>
+            <Button type="submit" className="w-full" disabled={loading || !resetCode || resetCode.length !== 6}>
               {loading ? 'Resetting Password...' : 'Reset Password'}
             </Button>
           </form>
@@ -176,6 +188,15 @@ function ResetPassword() {
               Login
             </Link>
           </div>
+
+          <div className="mt-4 text-center">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-[hsl(var(--primary))] hover:underline"
+            >
+              Request a new reset code
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -183,4 +204,3 @@ function ResetPassword() {
 }
 
 export default ResetPassword;
-

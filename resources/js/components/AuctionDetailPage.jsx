@@ -8,6 +8,7 @@ import { Input } from './ui/input';
 import { publicAuctionAPI, ratingAPI, publicProfileAPI } from '../utils/api';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { useToast } from './Toast';
 
 function AuctionDetailPage() {
   const { id } = useParams();
@@ -38,6 +39,7 @@ function AuctionDetailPage() {
   // Seller information state
   const [sellerRating, setSellerRating] = useState(null);
   const [sellerProfile, setSellerProfile] = useState(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     loadAuction();
@@ -254,17 +256,17 @@ function AuctionDetailPage() {
     const paymentStatus = urlParams.get('payment');
     
     if (paymentStatus === 'success') {
-      alert('Payment completed successfully!');
+      showToast('Payment completed successfully!', 'success');
       // Remove payment param from URL
       window.history.replaceState({}, '', window.location.pathname);
       // Reload auction to show updated status
       loadAuction();
     } else if (paymentStatus === 'error') {
       const message = urlParams.get('message') || 'Payment failed';
-      alert(`Payment error: ${message}`);
+      showToast(`Payment error: ${message}`, 'error');
       window.history.replaceState({}, '', window.location.pathname);
     } else if (paymentStatus === 'cancelled') {
-      alert('Payment was cancelled');
+      showToast('Payment was cancelled', 'info');
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []);
@@ -547,12 +549,12 @@ function AuctionDetailPage() {
     }
 
     if (auction.winner_id !== user.id) {
-      alert('You are not the winner of this auction');
+      showToast('You are not the winner of this auction', 'error');
       return;
     }
 
     if (auction.payment_completed_at) {
-      alert('Payment already completed for this auction');
+      showToast('Payment already completed for this auction', 'info');
       return;
     }
 
@@ -600,7 +602,7 @@ function AuctionDetailPage() {
       const response = await publicAuctionAPI.cancelBid(bidId);
       
       if (response.data?.message) {
-        alert(response.data.message);
+        showToast(response.data.message, 'success');
       }
       
       // Reload auction and bid history to reflect changes
@@ -610,7 +612,7 @@ function AuctionDetailPage() {
       await loadBidHistory();
     } catch (err) {
       const errorMessage = err.response?.data?.error || err.message || 'Failed to cancel bid';
-      alert(errorMessage);
+      showToast(errorMessage, 'error');
       console.error('Error cancelling bid:', err);
       
       // Still reload to get current state
@@ -703,7 +705,7 @@ function AuctionDetailPage() {
     }
 
     if (!auction.buy_now_price) {
-      alert('Buy Now is not available for this auction');
+      showToast('Buy Now is not available for this auction', 'error');
       return;
     }
 

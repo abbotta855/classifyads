@@ -39,6 +39,7 @@ class DatabaseSeeder extends Seeder
             SupportManagementSeeder::class,
             AdPostTransactionSeeder::class,
             ForumCategoriesSeeder::class,
+            StaticPageSeeder::class,
         ]);
     }
 }

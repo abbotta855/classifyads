@@ -309,7 +309,7 @@ class AuthController extends Controller
   }
 
   /**
-   * Send password reset link to user's email
+   * Send password reset code to user's email (using same pattern as OTP)
    */
   public function forgotPassword(Request $request)
   {
@@ -328,68 +328,115 @@ class AuthController extends Controller
     // Always return success message to prevent email enumeration
     // But only send email if user exists
     if ($user) {
-      // Generate password reset token
-      $token = Str::random(64);
+      // Generate 6-digit password reset code (same as OTP)
+      $resetCode = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
       
-      // Store token in password_reset_tokens table
-      DB::table('password_reset_tokens')->updateOrInsert(
-        ['email' => $user->email],
-        [
-          'token' => Hash::make($token),
-          'created_at' => now(),
-        ]
-      );
+      // Store code in users table (same pattern as OTP) - plain text, not hashed
+      $user->password_reset_code = $resetCode;
+      $user->password_reset_expires_at = Carbon::now()->addMinutes(10);
+      $user->save();
+      
+      \Log::info('Password reset code generated and saved to database for: ' . $user->email . ' | Reset Code: ' . $resetCode);
 
-      // Generate reset URL
-      // Use FRONTEND_URL from .env, or default to Laravel server (same as APP_URL)
-      // The React app is served by Laravel, not directly by Vite
-      // In production, set FRONTEND_URL in .env to your actual frontend domain
-      $frontendUrl = env('FRONTEND_URL', config('app.url'));
-      $resetUrl = $frontendUrl . '/reset-password?token=' . $token . '&email=' . urlencode($user->email);
-
-      // Send password reset email using SendGrid (same as OTP) with SMTP fallback
+      // Send password reset code email using same method as OTP
       try {
         $sendGridService = new SendGridService();
         
-        // Render email template
-        $htmlContent = view('emails.password-reset', [
+        // Render email template (same pattern as OTP)
+        $htmlContent = view('emails.password-reset-code', [
           'userName' => $user->name,
-          'resetUrl' => $resetUrl
+          'resetCode' => $resetCode
         ])->render();
         
-        $textContent = "Hello {$user->name},\n\nWe received a request to reset your password. Click the link below to create a new password:\n\n{$resetUrl}\n\nThis link will expire in 60 minutes. If you did not request a password reset, please ignore this email.";
+        $textContent = "Hello {$user->name},\n\nWe received a request to reset your password. Please use the following code to reset your password:\n\n{$resetCode}\n\nThis code will expire in 10 minutes. Enter this code on the password reset page to unlock the password reset form.\n\nIf you did not request a password reset, please ignore this email.";
         
         $sent = $sendGridService->sendEmail(
           $user->email,
-          'Reset Your Password',
+          'Password Reset Code',
           $htmlContent,
           $textContent
         );
         
         if ($sent) {
-          \Log::info('Password reset email sent via SendGrid API to: ' . $user->email);
+          \Log::info('Password reset code email sent via SendGrid API to: ' . $user->email . ' | Reset Code: ' . $resetCode);
         } else {
-          // Fallback to SMTP if HTTP API fails
+          // Fallback to SMTP if HTTP API fails (same as OTP)
           try {
-            Mail::to($user->email)->send(new PasswordResetMail($user->name, $resetUrl));
-            \Log::info('Password reset email sent via SMTP fallback to: ' . $user->email);
+            Mail::to($user->email)->send(new \App\Mail\PasswordResetCodeMail($resetCode, $user->name));
+            \Log::info('Password reset code email sent via SMTP fallback to: ' . $user->email . ' | Reset Code: ' . $resetCode);
           } catch (\Exception $e) {
-            \Log::error('Failed to send password reset email via both methods to ' . $user->email . ': ' . $e->getMessage());
+            \Log::error('Failed to send password reset code email via both methods to ' . $user->email . ': ' . $e->getMessage());
+            \Log::error('Password Reset Code generated but not sent: ' . $resetCode);
           }
         }
       } catch (\Exception $e) {
-        // Log error but don't expose it to user
-        \Log::error('Failed to send password reset email: ' . $e->getMessage());
+        // Log error but don't fail the request (same as OTP)
+        \Log::error('Failed to send password reset code email to ' . $user->email . ': ' . $e->getMessage());
+        \Log::error('Password Reset Code generated but not sent: ' . $resetCode);
       }
     }
 
     return response()->json([
-      'message' => 'If an account exists with that email, we have sent a password reset link.',
+      'message' => 'If an account exists with that email, we have sent a password reset code.',
+      'expires_at' => $user ? $user->password_reset_expires_at->toIso8601String() : null,
     ]);
   }
 
   /**
-   * Reset password using token
+   * Verify password reset code (using same pattern as OTP verification)
+   */
+  public function verifyResetCode(Request $request)
+  {
+    $request->validate([
+      'email' => [
+        'required',
+        'email',
+        'regex:/\.com$/',
+      ],
+      'code' => 'required|string|size:6',
+    ], [
+      'email.regex' => 'Confirm your email is correct',
+      'code.size' => 'The reset code must be 6 digits.',
+    ]);
+
+    $user = User::where('email', $request->email)->first();
+
+    if (!$user) {
+      throw ValidationException::withMessages([
+        'code' => ['Invalid or expired reset code.'],
+      ]);
+    }
+
+    // Check if reset code exists (same pattern as OTP)
+    if (!$user->password_reset_code) {
+      throw ValidationException::withMessages([
+        'code' => ['No reset code found. Please request a new one.'],
+      ]);
+    }
+
+    // Check if code is expired (10 minutes) - same as OTP
+    if ($user->password_reset_expires_at && Carbon::now()->isAfter($user->password_reset_expires_at)) {
+      throw ValidationException::withMessages([
+        'code' => ['Reset code has expired. Please request a new one.'],
+      ]);
+    }
+
+    // Check if code matches (plain text comparison, same as OTP)
+    if ($user->password_reset_code !== $request->code) {
+      throw ValidationException::withMessages([
+        'code' => ['Invalid reset code. Please try again.'],
+      ]);
+    }
+
+    // Code is valid - return success (code will be used in resetPassword)
+    return response()->json([
+      'message' => 'Reset code verified successfully. You can now set your new password.',
+      'verified' => true,
+    ]);
+  }
+
+  /**
+   * Reset password using verified code (using same pattern as OTP)
    */
   public function resetPassword(Request $request)
   {
@@ -399,56 +446,51 @@ class AuthController extends Controller
         'email',
         'regex:/\.com$/',
       ],
-      'token' => 'required|string',
+      'code' => 'required|string|size:6',
       'password' => 'required|string|min:8|confirmed',
     ], [
       'email.regex' => 'Confirm your email is correct',
+      'code.size' => 'The reset code must be 6 digits.',
       'password.confirmed' => 'The password confirmation does not match.',
       'password.min' => 'The password must be at least 8 characters.',
     ]);
 
-    // Find the password reset token
-    $passwordReset = DB::table('password_reset_tokens')
-      ->where('email', $request->email)
-      ->first();
-
-    if (!$passwordReset) {
-      throw ValidationException::withMessages([
-        'token' => ['Invalid or expired reset token.'],
-      ]);
-    }
-
-    // Check if token is valid (not expired - 60 minutes)
-    $tokenAge = now()->diffInMinutes($passwordReset->created_at);
-    if ($tokenAge > 60) {
-      // Delete expired token
-      DB::table('password_reset_tokens')->where('email', $request->email)->delete();
-      throw ValidationException::withMessages([
-        'token' => ['This password reset link has expired. Please request a new one.'],
-      ]);
-    }
-
-    // Verify token
-    if (!Hash::check($request->token, $passwordReset->token)) {
-      throw ValidationException::withMessages([
-        'token' => ['Invalid or expired reset token.'],
-      ]);
-    }
-
-    // Find user and update password
     $user = User::where('email', $request->email)->first();
+
     if (!$user) {
       throw ValidationException::withMessages([
         'email' => ['User not found.'],
       ]);
     }
 
+    // Check if reset code exists (same pattern as OTP)
+    if (!$user->password_reset_code) {
+      throw ValidationException::withMessages([
+        'code' => ['No reset code found. Please request a new one.'],
+      ]);
+    }
+
+    // Check if code is expired (10 minutes) - same as OTP
+    if ($user->password_reset_expires_at && Carbon::now()->isAfter($user->password_reset_expires_at)) {
+      throw ValidationException::withMessages([
+        'code' => ['Reset code has expired. Please request a new one.'],
+      ]);
+    }
+
+    // Check if code matches (plain text comparison, same as OTP)
+    if ($user->password_reset_code !== $request->code) {
+      throw ValidationException::withMessages([
+        'code' => ['Invalid reset code. Please try again.'],
+      ]);
+    }
+
     // Update password
     $user->password = Hash::make($request->password);
+    
+    // Clear reset code (same pattern as OTP - clear after use)
+    $user->password_reset_code = null;
+    $user->password_reset_expires_at = null;
     $user->save();
-
-    // Delete used token
-    DB::table('password_reset_tokens')->where('email', $request->email)->delete();
 
     return response()->json([
       'message' => 'Password has been reset successfully. You can now login with your new password.',

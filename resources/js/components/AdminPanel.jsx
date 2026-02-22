@@ -10,6 +10,8 @@ import { Label } from './ui/label';
 import { adminAPI, getAdUrl } from '../utils/api';
 import PhotoCropModal from './PhotoCropModal';
 import axios from 'axios';
+import { useToast } from './Toast';
+import AdminStaticPages from './AdminStaticPages';
 
 // Job category options
 const JOB_CATEGORY_OPTIONS = [
@@ -62,6 +64,7 @@ function AdminPanel() {
   const { section, subsection } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { showToast } = useToast();
   const activeSection = section || null; // No section selected when on /admin
   const activeSubsection = subsection || null;
   
@@ -292,6 +295,52 @@ function AdminPanel() {
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersStatusFilter, setOrdersStatusFilter] = useState('');
   const [viewingOrder, setViewingOrder] = useState(null);
+  const [ordersMeta, setOrdersMeta] = useState(null);
+
+  // Fetch orders
+  const fetchOrders = async (status = '') => {
+    setOrdersLoading(true);
+    setError(null);
+    try {
+      const response = await adminAPI.getOrders(status || undefined);
+      const data = response.data;
+      
+      if (Array.isArray(data)) {
+        setOrders(data);
+        setOrdersMeta(null);
+      } else if (data.data && Array.isArray(data.data)) {
+        setOrders(data.data);
+        setOrdersMeta(data);
+      } else {
+        setOrders([]);
+        setOrdersMeta(null);
+      }
+    } catch (err) {
+      setError('Failed to fetch orders: ' + (err.response?.data?.message || err.message));
+      setOrders([]);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  // Handle update order status
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    try {
+      await adminAPI.updateOrder(orderId, { status: newStatus });
+      setSuccessMessage('Order status updated successfully');
+      // Refresh orders
+      await fetchOrders(ordersStatusFilter);
+      // Update viewing order if it's the same one
+      if (viewingOrder && viewingOrder.id === orderId) {
+        const updatedOrder = { ...viewingOrder, status: newStatus };
+        setViewingOrder(updatedOrder);
+      }
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to update order status: ' + (err.response?.data?.message || err.message));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
 
   // Bidding history data - fetched from database via API
   const [biddingHistoryData, setBiddingHistoryData] = useState([]);
@@ -669,6 +718,10 @@ function AdminPanel() {
       fetchCategories();
     }
   }, [activeSection]);
+
+  // Static pages data
+  const [staticPages, setStaticPages] = useState([]);
+  const [staticPagesLoading, setStaticPagesLoading] = useState(false);
 
   // Fetch wallet transactions when wallet tab is active
   useEffect(() => {
@@ -3260,7 +3313,7 @@ function AdminPanel() {
     img.onload = async () => {
       URL.revokeObjectURL(objectUrl);
       if (img.width !== 400 || img.height !== 400) {
-        alert('Image must be exactly 400x400 pixels. Please crop again.');
+        showToast('Image must be exactly 400x400 pixels. Please crop again.', 'error');
         return;
       }
       
@@ -3294,7 +3347,7 @@ function AdminPanel() {
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      alert('Error processing image. Please try again.');
+      showToast('Error processing image. Please try again.', 'error');
     };
     img.src = objectUrl;
   };
@@ -3535,6 +3588,12 @@ function AdminPanel() {
   };
 
   const handleEditAuction = (auction) => {
+    // Validate auction status before allowing edit
+    if (auction.status !== 'pending' && auction.status !== 'active') {
+      showToast(`Cannot edit auction with status: ${auction.status}. Only pending or active auctions can be edited.`, 'error');
+      return;
+    }
+    
     setShowAuctionForm(false); // Make sure inline form is hidden
     setEditingAuction(auction);
     setAuctionFormData({
@@ -3898,6 +3957,13 @@ function AdminPanel() {
       fetchCategoryManagement();
     }
   }, [activeSection]);
+
+  // Fetch orders when order-management section is active
+  useEffect(() => {
+    if (activeSection === 'order-management') {
+      fetchOrders(ordersStatusFilter);
+    }
+  }, [activeSection, ordersStatusFilter]);
 
   // Fetch eBook management data
   useEffect(() => {
@@ -18484,6 +18550,12 @@ function AdminPanel() {
             </section>
           )}
 
+          {activeSection === 'static-pages' && (
+            <section>
+              <AdminStaticPages />
+            </section>
+          )}
+
           {activeSection === 'order-management' && (
             <section>
               {ordersLoading && (
@@ -18584,6 +18656,36 @@ function AdminPanel() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                  )}
+
+                  {/* Pagination */}
+                  {ordersMeta && (ordersMeta.prev_page_url || ordersMeta.next_page_url) && (
+                    <div className="flex justify-between items-center mt-4 pt-4 border-t">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          const url = new URL(ordersMeta.prev_page_url, window.location.origin);
+                          const page = url.searchParams.get('page') || 1;
+                          fetchOrders(ordersStatusFilter);
+                        }}
+                        disabled={!ordersMeta.prev_page_url || ordersLoading}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm text-[hsl(var(--muted-foreground))]">
+                        Page {ordersMeta.current_page} of {ordersMeta.last_page}
+                      </span>
+                      <Button
+                        onClick={() => {
+                          const url = new URL(ordersMeta.next_page_url, window.location.origin);
+                          const page = url.searchParams.get('page') || 1;
+                          fetchOrders(ordersStatusFilter);
+                        }}
+                        disabled={!ordersMeta.next_page_url || ordersLoading}
+                      >
+                        Next
+                      </Button>
                     </div>
                   )}
                 </CardContent>

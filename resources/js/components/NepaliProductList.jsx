@@ -4,6 +4,8 @@ import { nepaliProductAPI } from '../utils/api';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { Skeleton } from './ui/skeleton';
+import { EmptyState } from './ui/empty-state';
 import { useAuth } from '../contexts/AuthContext';
 import SEOHead from './SEOHead';
 import LazyImage from './LazyImage';
@@ -13,13 +15,33 @@ export default function NepaliProductList() {
   const [meta, setMeta] = React.useState(null);
   const [loading, setLoading] = React.useState(false);
   const [search, setSearch] = React.useState('');
+  const [showFilters, setShowFilters] = React.useState(false);
+  const [filters, setFilters] = React.useState({
+    category_id: '',
+    subcategory_id: '',
+    min_price: '',
+    max_price: '',
+  });
+  const [categories, setCategories] = React.useState([]);
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const fetchProducts = async (params = {}) => {
     setLoading(true);
     try {
-      const res = await nepaliProductAPI.list(params);
+      // Merge search and filters
+      const queryParams = {
+        ...params,
+        search: search || undefined,
+        category_id: filters.category_id || undefined,
+        subcategory_id: filters.subcategory_id || undefined,
+        min_price: filters.min_price || undefined,
+        max_price: filters.max_price || undefined,
+      };
+      // Remove undefined values
+      Object.keys(queryParams).forEach(key => queryParams[key] === undefined && delete queryParams[key]);
+      
+      const res = await nepaliProductAPI.list(queryParams);
       const payload = res.data;
       
       // Handle paginated response structure
@@ -49,6 +71,12 @@ export default function NepaliProductList() {
 
   React.useEffect(() => {
     fetchProducts();
+  }, [filters]);
+
+  // Fetch categories (if API exists)
+  React.useEffect(() => {
+    // This would need a categories API endpoint
+    // For now, we'll skip it or use a placeholder
   }, []);
 
   const handleSearch = (e) => {
@@ -101,86 +129,164 @@ export default function NepaliProductList() {
       </div>
       <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
         <h1 className="text-3xl font-bold">Nepali Products</h1>
-        <form onSubmit={handleSearch} className="flex gap-2">
-          <Input
-            placeholder="Search products..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-64"
-          />
-          <Button type="submit" disabled={loading}>
-            Search
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            {showFilters ? 'Hide' : 'Show'} Filters
           </Button>
-        </form>
-        <Button
-          onClick={() => {
+          <form onSubmit={handleSearch} className="flex gap-2">
+            <Input
+              placeholder="Search products..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-64"
+            />
+            <Button type="submit" disabled={loading}>
+              Search
+            </Button>
+          </form>
+          <Button
+            onClick={() => {
+              if (!user) {
+                navigate('/login', { state: { from: '/nepali-products/new' } });
+              } else {
+                navigate('/nepali-products/new');
+              }
+            }}
+          >
+            Add Product
+          </Button>
+        </div>
+      </div>
+
+      {/* Advanced Filters */}
+      {showFilters && (
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <h3 className="font-semibold mb-4">Filter Products</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Min Price (Rs.)</label>
+                <Input
+                  type="number"
+                  placeholder="Min"
+                  value={filters.min_price}
+                  onChange={(e) => setFilters({...filters, min_price: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Max Price (Rs.)</label>
+                <Input
+                  type="number"
+                  placeholder="Max"
+                  value={filters.max_price}
+                  onChange={(e) => setFilters({...filters, max_price: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Category</label>
+                <select
+                  value={filters.category_id}
+                  onChange={(e) => setFilters({...filters, category_id: e.target.value, subcategory_id: ''})}
+                  className="w-full h-10 rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-3 py-2 text-sm text-[hsl(var(--foreground))] transition-all duration-200 hover:border-[hsl(var(--primary))]/50 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] focus:ring-offset-2"
+                >
+                  <option value="">All Categories</option>
+                  {/* Categories would be loaded from API */}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setFilters({ category_id: '', subcategory_id: '', min_price: '', max_price: '' });
+                    setSearch('');
+                  }}
+                  className="w-full"
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[...Array(8)].map((_, i) => (
+            <Card key={i} className="animate-fade-in">
+              <CardContent className="p-0">
+                <Skeleton className="w-full aspect-square rounded-t-lg" />
+                <div className="p-4 space-y-3">
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-6 w-1/3" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {!loading && products.length === 0 && (
+        <EmptyState
+          icon={
+            <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          }
+          title="No Products Found"
+          description={search ? `No products match your search "${search}". Try different keywords or clear filters.` : "No products are available at the moment. Be the first to add a product!"}
+          action={() => {
             if (!user) {
               navigate('/login', { state: { from: '/nepali-products/new' } });
             } else {
               navigate('/nepali-products/new');
             }
           }}
-        >
-          Add Product
-        </Button>
-      </div>
-
-      {loading && (
-        <div className="text-center py-12">
-          <p className="text-[hsl(var(--muted-foreground))]">Loading products...</p>
-        </div>
-      )}
-
-      {!loading && products.length === 0 && (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <p className="text-[hsl(var(--muted-foreground))] mb-4">No products found.</p>
-            <Button
-              onClick={() => {
-                if (!user) {
-                  navigate('/login', { state: { from: '/nepali-products/new' } });
-                } else {
-                  navigate('/nepali-products/new');
-                }
-              }}
-            >
-              Add First Product
-            </Button>
-          </CardContent>
-        </Card>
+          actionLabel="Add First Product"
+        />
       )}
 
       {!loading && products.length > 0 && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-            {products.map((product) => (
-              <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+            {products.map((product, index) => (
+              <Card 
+                key={product.id} 
+                className="overflow-hidden card-hover group animate-fade-in"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
                 <Link to={`/nepali-products/${product.slug || product.id}`}>
                   <div className="aspect-square bg-[hsl(var(--muted))] overflow-hidden relative">
                     {product.primary_image ? (
                       <LazyImage
                         src={product.primary_image}
                         alt={product.title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-[hsl(var(--muted-foreground))]">
-                        No Image
+                        <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
                       </div>
                     )}
                     {product.status === 'pending' && (
-                      <div className="absolute top-2 right-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded">
+                      <div className="absolute top-2 right-2 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full font-medium shadow-md">
                         Pending
                       </div>
                     )}
                     {product.status === 'rejected' && (
-                      <div className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
+                      <div className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full font-medium shadow-md">
                         Rejected
                       </div>
                     )}
                   </div>
                   <CardContent className="p-4">
-                    <h3 className="font-semibold text-lg mb-2 line-clamp-2">{product.title}</h3>
+                    <h3 className="font-semibold text-lg mb-2 line-clamp-2 text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--primary))] transition-colors">{product.title}</h3>
                     <p className="text-sm text-[hsl(var(--muted-foreground))] mb-2">
                       {product.company_name}
                     </p>
@@ -191,7 +297,7 @@ export default function NepaliProductList() {
                       </span>
                     </div>
                     {product.retail_price && (
-                      <p className="font-semibold text-[hsl(var(--primary))]">
+                      <p className="font-semibold text-[hsl(var(--primary))] text-lg">
                         Rs. {product.retail_price.toLocaleString()}
                       </p>
                     )}

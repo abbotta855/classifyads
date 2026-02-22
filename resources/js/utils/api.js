@@ -287,6 +287,16 @@ export const adminAPI = {
   getOrder: (id) => axios.get(`${API_BASE}/orders/${id}`),
   updateOrder: (id, data) => axios.put(`${API_BASE}/orders/${id}`, data),
 
+  // Forum Admin
+  getForumThreads: (status) => axios.get(`${API_BASE}/forum/threads`, { params: status ? { status } : {} }),
+  getForumReports: (status) => axios.get(`${API_BASE}/forum/reports`, { params: status ? { status } : {} }),
+  lockThread: (id) => axios.post(`${API_BASE}/forum/threads/${id}/lock`),
+  unlockThread: (id) => axios.post(`${API_BASE}/forum/threads/${id}/unlock`),
+  stickyThread: (id) => axios.post(`${API_BASE}/forum/threads/${id}/sticky`),
+  unstickyThread: (id) => axios.post(`${API_BASE}/forum/threads/${id}/unsticky`),
+  deleteForumPost: (id) => axios.delete(`${API_BASE}/forum/posts/${id}`),
+  resolveForumReport: (id, data) => axios.post(`${API_BASE}/forum/reports/${id}/resolve`, data),
+
   // Change Password (Super Admin only)
   changePassword: (data) => axios.post('/api/change-password', data),
 };

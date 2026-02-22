@@ -2,19 +2,42 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import axios from 'axios';
+import { useToast } from './Toast';
+import { useTranslation } from 'react-i18next';
 
 function Footer() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
+  const [subscribing, setSubscribing] = useState(false);
+  const { showToast } = useToast();
 
-  const handleSubscribe = (e) => {
+  const handleSubscribe = async (e) => {
     e.preventDefault();
-    // TODO: Implement subscription functionality
-    console.log('Subscribe:', email);
-    setEmail('');
+    if (!email) return;
+
+    setSubscribing(true);
+    try {
+      const res = await axios.post('/api/email-subscribe', { email });
+      if (res.data.already_subscribed) {
+        showToast('You are already subscribed!', 'info');
+      } else {
+        showToast('Successfully subscribed to our newsletter!', 'success');
+      }
+      setEmail('');
+    } catch (e) {
+      if (e.response?.data?.errors?.email) {
+        showToast(e.response.data.errors.email[0], 'error');
+      } else {
+        showToast(e.response?.data?.error || 'Failed to subscribe. Please try again.', 'error');
+      }
+    } finally {
+      setSubscribing(false);
+    }
   };
 
   return (
-    <footer className="border-t border-[hsl(var(--border))] bg-[hsl(var(--background))] mt-auto">
+    <footer className="border-t border-[hsl(var(--border))] bg-[hsl(var(--background))] mt-auto animate-fade-in">
       <div className="container mx-auto px-4 py-8">
         {/* Customer Testimonials Section */}
         <section className="mb-8">
@@ -32,26 +55,26 @@ function Footer() {
         {/* Footer Links */}
         <div className="grid grid-cols-2 gap-4 mb-8">
           <div>
-            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">Links</h4>
+            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.links')}</h4>
             <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/about" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
-                  About us
+                  {t('footer.aboutUs')}
                 </Link>
               </li>
               <li>
                 <Link to="/blog" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
-                  Blog
+                  {t('footer.blog')}
                 </Link>
               </li>
               <li>
                 <Link to="/contact" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
-                  Contact us
+                  {t('footer.contactUs')}
                 </Link>
               </li>
               <li>
                 <Link to="/faq" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
-                  FAQ
+                  {t('footer.faq')}
                 </Link>
               </li>
             </ul>
@@ -61,22 +84,22 @@ function Footer() {
             <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/forum" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
-                  Online community
+                  {t('footer.onlineCommunity')}
                 </Link>
               </li>
               <li>
                 <Link to="/cookie-policy" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
-                  Cookie Policy
+                  {t('footer.cookiePolicy')}
                 </Link>
               </li>
               <li>
                 <Link to="/privacy" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
-                  Privacy Policy
+                  {t('footer.privacyPolicy')}
                 </Link>
               </li>
               <li>
                 <Link to="/terms" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
-                  Terms of Services
+                  {t('footer.termsOfServices')}
                 </Link>
               </li>
             </ul>
@@ -85,24 +108,26 @@ function Footer() {
 
         {/* Subscribe Section */}
         <section className="mb-8">
-          <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">Subscribe</h4>
+          <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.subscribe')}</h4>
           <form onSubmit={handleSubscribe} className="flex gap-2 max-w-md">
             <Input
               type="email"
-              placeholder="Enter your email"
+              placeholder={t('footer.enterEmail')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               className="flex-1"
             />
-            <Button type="submit">Subscribe</Button>
+            <Button type="submit" disabled={subscribing}>
+              {subscribing ? 'Subscribing...' : t('footer.subscribe')}
+            </Button>
           </form>
         </section>
 
         {/* Copyright and Social Media */}
         <div className="pt-8 border-t border-[hsl(var(--border))] flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Copyright reserve info... &copy; {new Date().getFullYear()} Shushil12. All rights reserved.
+            {t('footer.copyright')} &copy; {new Date().getFullYear()} Shushil12. {t('footer.allRightsReserved')}
           </p>
           <div className="flex gap-4">
             {/* Social Media Links */}
@@ -158,5 +183,3 @@ function Footer() {
 }
 
 export default Footer;
-
-

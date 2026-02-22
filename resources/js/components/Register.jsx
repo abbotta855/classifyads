@@ -70,9 +70,9 @@ function Register() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))] p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md animate-fade-in shadow-lg">
         <CardHeader>
-          <CardTitle>Create an account</CardTitle>
+          <CardTitle className="text-2xl">Create an account</CardTitle>
           <CardDescription>
             Enter your information to create a new account.
           </CardDescription>
@@ -90,7 +90,7 @@ function Register() {
               required
             />
             {errors.name && (
-              <p className="text-sm text-[hsl(var(--destructive))]">
+              <p className="text-sm text-[hsl(var(--destructive))] animate-slide-in mt-1">
                 {errors.name[0]}
               </p>
             )}
@@ -107,7 +107,7 @@ function Register() {
               required
             />
             {errors.email && (
-              <p className="text-sm text-[hsl(var(--destructive))]">
+              <p className="text-sm text-[hsl(var(--destructive))] animate-slide-in mt-1">
                 {errors.email[0]}
               </p>
             )}
@@ -124,7 +124,7 @@ function Register() {
               minLength={8}
             />
             {errors.password && (
-              <p className="text-sm text-[hsl(var(--destructive))]">
+              <p className="text-sm text-[hsl(var(--destructive))] animate-slide-in mt-1">
                 {errors.password[0]}
               </p>
             )}

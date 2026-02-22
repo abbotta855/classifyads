@@ -7,6 +7,7 @@ import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
 import { useAuth } from '../contexts/AuthContext';
 import UserAvatar from './ui/UserAvatar';
+import { useToast } from './Toast';
 
 export default function NepaliProductDetail() {
   const { id } = useParams();
@@ -17,6 +18,7 @@ export default function NepaliProductDetail() {
   const [submittingRating, setSubmittingRating] = React.useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
   const { user } = useAuth();
+  const { showToast } = useToast();
 
   const load = async () => {
     setLoading(true);
@@ -43,7 +45,7 @@ export default function NepaliProductDetail() {
       setComment('');
       load(); // Reload to get updated ratings
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed to submit rating');
+      showToast(e.response?.data?.error || 'Failed to submit rating', 'error');
     } finally {
       setSubmittingRating(false);
     }
@@ -187,9 +189,33 @@ export default function NepaliProductDetail() {
               <h4 className="font-semibold mb-1">Address</h4>
               <p>{product.company_address}</p>
               {product.company_latitude && product.company_longitude && (
-                <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
-                  Coordinates: {product.company_latitude}, {product.company_longitude}
-                </p>
+                <>
+                  <div className="mt-4 mb-2">
+                    <h5 className="font-semibold mb-2">Location on Map</h5>
+                    <div className="w-full h-64 rounded-lg overflow-hidden border border-[hsl(var(--border))]">
+                      <iframe
+                        width="100%"
+                        height="100%"
+                        frameBorder="0"
+                        style={{ border: 0 }}
+                        src={`https://www.google.com/maps/embed/v1/place?key=${process.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyBFw0Qbyq9zTFTd-tUY6d-s6Y4XbK7lTzE'}&q=${product.company_latitude},${product.company_longitude}&zoom=15`}
+                        allowFullScreen
+                        title="Product Location"
+                      />
+                    </div>
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${product.company_latitude},${product.company_longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[hsl(var(--primary))] hover:underline text-sm mt-2 inline-block"
+                    >
+                      Get Directions →
+                    </a>
+                  </div>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))] mt-1">
+                    Coordinates: {product.company_latitude}, {product.company_longitude}
+                  </p>
+                </>
               )}
             </div>
             {product.retail_contact && (

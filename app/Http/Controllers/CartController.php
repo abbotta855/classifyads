@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Ad;
+use App\Models\Cart;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 
 class CartController extends Controller
 {
@@ -15,30 +15,35 @@ class CartController extends Controller
     {
         $user = $request->user();
         if (!$user) {
-            return response()->json(['items' => []]);
+            return response()->json(['items' => [], 'count' => 0]);
         }
 
-        $cartKey = "cart_user_{$user->id}";
-        $cart = Cache::get($cartKey, []);
+        $cartItems = Cart::with(['ad.photos'])
+            ->where('user_id', $user->id)
+            ->get();
 
         // Enrich cart items with ad data
         $enrichedCart = [];
-        foreach ($cart as $item) {
-            $ad = Ad::with('photos')->find($item['ad_id']);
+        foreach ($cartItems as $item) {
+            $ad = $item->ad;
             if ($ad && $ad->status === 'approved') {
                 $enrichedCart[] = [
+                    'id' => $item->id,
                     'ad_id' => $ad->id,
                     'title' => $ad->title,
-                    'price' => (float) $ad->price,
-                    'quantity' => (int) ($item['quantity'] ?? 1),
-                    'total' => (float) $ad->price * (int) ($item['quantity'] ?? 1),
+                    'price' => (float) $item->price,
+                    'quantity' => (int) $item->quantity,
+                    'total' => (float) $item->price * (int) $item->quantity,
                     'image' => $ad->photos->first()?->photo_url,
                     'slug' => $ad->slug,
                 ];
             }
         }
 
-        return response()->json(['items' => $enrichedCart]);
+        return response()->json([
+            'items' => $enrichedCart,
+            'count' => count($enrichedCart),
+        ]);
     }
 
     /**
@@ -61,36 +66,30 @@ class CartController extends Controller
             return response()->json(['error' => 'Product not available'], 400);
         }
 
-        $cartKey = "cart_user_{$user->id}";
-        $cart = Cache::get($cartKey, []);
-
-        // Check if item already exists
-        $existingIndex = null;
-        foreach ($cart as $index => $item) {
-            if ($item['ad_id'] == $validated['ad_id']) {
-                $existingIndex = $index;
-                break;
-            }
-        }
-
         $quantity = $validated['quantity'] ?? 1;
 
-        if ($existingIndex !== null) {
+        // Check if item already exists
+        $cartItem = Cart::where('user_id', $user->id)
+            ->where('ad_id', $validated['ad_id'])
+            ->first();
+
+        if ($cartItem) {
             // Update quantity
-            $cart[$existingIndex]['quantity'] += $quantity;
+            $cartItem->quantity += $quantity;
+            $cartItem->save();
         } else {
-            // Add new item
-            $cart[] = [
+            // Create new item
+            $cartItem = Cart::create([
+                'user_id' => $user->id,
                 'ad_id' => $validated['ad_id'],
                 'quantity' => $quantity,
-            ];
+                'price' => $ad->price,
+            ]);
         }
-
-        Cache::put($cartKey, $cart, now()->addDays(30));
 
         return response()->json([
             'message' => 'Item added to cart',
-            'cart' => $cart,
+            'item' => $cartItem->load('ad'),
         ]);
     }
 
@@ -108,18 +107,17 @@ class CartController extends Controller
             'quantity' => 'required|integer|min:1|max:100',
         ]);
 
-        $cartKey = "cart_user_{$user->id}";
-        $cart = Cache::get($cartKey, []);
+        $cartItem = Cart::where('user_id', $user->id)
+            ->where('ad_id', $adId)
+            ->firstOrFail();
 
-        foreach ($cart as $index => $item) {
-            if ($item['ad_id'] == $adId) {
-                $cart[$index]['quantity'] = $validated['quantity'];
-                Cache::put($cartKey, $cart, now()->addDays(30));
-                return response()->json(['message' => 'Cart updated', 'cart' => $cart]);
-            }
-        }
+        $cartItem->quantity = $validated['quantity'];
+        $cartItem->save();
 
-        return response()->json(['error' => 'Item not found in cart'], 404);
+        return response()->json([
+            'message' => 'Cart updated',
+            'item' => $cartItem->load('ad'),
+        ]);
     }
 
     /**
@@ -132,16 +130,13 @@ class CartController extends Controller
             return response()->json(['error' => 'Authentication required'], 401);
         }
 
-        $cartKey = "cart_user_{$user->id}";
-        $cart = Cache::get($cartKey, []);
+        $cartItem = Cart::where('user_id', $user->id)
+            ->where('ad_id', $adId)
+            ->firstOrFail();
 
-        $cart = array_filter($cart, function ($item) use ($adId) {
-            return $item['ad_id'] != $adId;
-        });
+        $cartItem->delete();
 
-        Cache::put($cartKey, array_values($cart), now()->addDays(30));
-
-        return response()->json(['message' => 'Item removed from cart', 'cart' => array_values($cart)]);
+        return response()->json(['message' => 'Item removed from cart']);
     }
 
     /**
@@ -154,8 +149,7 @@ class CartController extends Controller
             return response()->json(['error' => 'Authentication required'], 401);
         }
 
-        $cartKey = "cart_user_{$user->id}";
-        Cache::forget($cartKey);
+        Cart::where('user_id', $user->id)->delete();
 
         return response()->json(['message' => 'Cart cleared']);
     }

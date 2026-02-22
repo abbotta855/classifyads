@@ -291,10 +291,10 @@ export default function NepaliProductForm() {
       let response;
       if (id) {
         response = await nepaliProductAPI.update(id, data);
-        alert('Product updated successfully!');
+        showToast('Product updated successfully!', 'success');
       } else {
         response = await nepaliProductAPI.create(data);
-        alert('Product submitted successfully! It will be reviewed by an admin before being published.');
+        showToast('Product submitted successfully! It will be reviewed by an admin before being published.', 'success');
       }
 
       navigate('/nepali-products');

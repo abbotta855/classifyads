@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ratingAPI, publicProfileAPI, favouriteAPI, watchlistAPI, userAdAPI, publicAdAPI, buyerSellerMessageAPI, orderAPI } from '../utils/api';
-import { showToast } from './ui/toast';
+import { useToast } from './Toast';
 import RatingModal from './RatingModal';
 import axios from 'axios';
 
@@ -14,6 +14,7 @@ function AdDetailPage() {
   const { slug, categorySlug, adSlug } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [ad, setAd] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -176,7 +177,7 @@ function AdDetailPage() {
         setIsFavourite(true);
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update favourite');
+      showToast(err.response?.data?.message || 'Failed to update favourite', 'error');
     }
   };
 
@@ -195,7 +196,7 @@ function AdDetailPage() {
         setIsWatchlist(true);
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update watchlist');
+      showToast(err.response?.data?.message || 'Failed to update watchlist', 'error');
     }
   };
 
@@ -206,7 +207,7 @@ function AdDetailPage() {
     }
 
     if (user.id === ad.user_id) {
-      alert('You cannot rate your own ad.');
+      showToast('You cannot rate your own ad.', 'warning');
       return;
     }
 
@@ -240,7 +241,7 @@ function AdDetailPage() {
       setNewMessage('');
       loadConversation();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to send message');
+      showToast(err.response?.data?.error || 'Failed to send message', 'error');
     } finally {
       setSendingMessage(false);
     }
@@ -254,7 +255,7 @@ function AdDetailPage() {
     }
 
     if (user.id === ad.user_id) {
-      alert('You cannot contact yourself.');
+      showToast('You cannot contact yourself.', 'warning');
       return;
     }
 
@@ -269,9 +270,9 @@ function AdDetailPage() {
         sender_type: 'buyer',
       });
       setTextToSeller('');
-      alert('Message sent successfully!');
+      showToast('Message sent successfully!', 'success');
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to send message');
+      showToast(err.response?.data?.error || 'Failed to send message', 'error');
     } finally {
       setSendingTextToSeller(false);
     }
@@ -309,7 +310,7 @@ function AdDetailPage() {
     }
     const price = parseFloat(ad?.price || 0);
     if (!price) {
-      alert('Price not available');
+      showToast('Price not available', 'error');
       return;
     }
     const cart = getCart();
@@ -338,25 +339,24 @@ function AdDetailPage() {
     }
     const price = parseFloat(ad?.price || 0);
     if (!price) {
-      alert('Price not available');
+      showToast('Price not available', 'error');
       return;
     }
     // Use the same checkout path (single-item) for demo
     try {
       const res = await orderAPI.checkout([{ ad_id: ad.id, quantity }]);
-      alert(res.data?.message || 'Buy Now completed (demo). Payment simulated.');
+      showToast(res.data?.message || 'Buy Now completed (demo). Payment simulated.', 'success');
     } catch (e) {
       if (e.response?.status === 402 && e.response?.data?.needs_top_up) {
-        alert('Insufficient wallet balance. Please add funds to your e-wallet to complete purchase.');
+        showToast('Insufficient wallet balance. Please add funds to your e-wallet to complete purchase.', 'error');
         navigate('/user_dashboard/e-wallet');
         return;
       }
-      alert(
-        e.response?.data?.error ||
-          e.response?.data?.message ||
-          e.message ||
-          'Failed to process Buy Now.'
-      );
+      const errorMsg = e.response?.data?.error ||
+        e.response?.data?.message ||
+        e.message ||
+        'Failed to process Buy Now.';
+      showToast(errorMsg, 'error');
     }
   };
 

@@ -12,6 +12,7 @@ import RecentlyViewedWidget from './dashboard/RecentlyViewedWidget';
 import RatingModal from './RatingModal';
 import PhotoCropModal from './PhotoCropModal';
 import axios from 'axios';
+import { useToast } from './Toast';
 
 function UserDashboard({ mode: propMode }) {
   const { user, loading } = useAuth();
@@ -2633,7 +2634,7 @@ function ProfileSection({ user: initialUser }) {
     img.onload = async () => {
       URL.revokeObjectURL(objectUrl);
       if (img.width !== 400 || img.height !== 400) {
-        alert('Image must be exactly 400x400 pixels. Please crop again.');
+        showToast('Image must be exactly 400x400 pixels. Please crop again.', 'error');
         return;
       }
       
@@ -2659,7 +2660,7 @@ function ProfileSection({ user: initialUser }) {
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      alert('Error processing image. Please try again.');
+      showToast('Error processing image. Please try again.', 'error');
     };
     img.src = objectUrl;
   };
@@ -3668,7 +3669,7 @@ function AdPostSection({ user }) {
     img.onload = async () => {
       URL.revokeObjectURL(objectUrl);
       if (img.width !== 400 || img.height !== 400) {
-        alert('Image must be exactly 400x400 pixels. Please crop again.');
+        showToast('Image must be exactly 400x400 pixels. Please crop again.', 'error');
         return;
       }
       
@@ -3701,7 +3702,7 @@ function AdPostSection({ user }) {
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      alert('Error processing image. Please try again.');
+      showToast('Error processing image. Please try again.', 'error');
     };
     img.src = objectUrl;
   };
@@ -4477,7 +4478,7 @@ function CategoriesSection({ user }) {
       
       // Ensure max_price validation: if both are set, max must be >= min
       if (minPrice !== null && maxPrice !== null && maxPrice < minPrice) {
-        alert('Max price must be greater than or equal to min price');
+        showToast('Max price must be greater than or equal to min price', 'error');
         return;
       }
       
@@ -6417,7 +6418,7 @@ function InboxSection({ user }) {
       markMessageNotificationsAsRead(conversationId, isAuction ? 'auction' : 'ad');
     } catch (err) {
       console.error('Failed to send message:', err);
-      alert(err.response?.data?.error || 'Failed to send message');
+      showToast(err.response?.data?.error || 'Failed to send message', 'error');
     } finally {
       setSending(false);
     }
@@ -8042,7 +8043,7 @@ function MyRatingsSection({ user }) {
       await ratingAPI.deleteRating(ratingId);
       loadRatings();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to delete rating');
+      showToast(err.response?.data?.error || 'Failed to delete rating', 'error');
     }
   };
 
@@ -9356,7 +9357,7 @@ function MyEbooksSection({ user }) {
     img.onload = async () => {
       URL.revokeObjectURL(objectUrl);
       if (img.width !== 400 || img.height !== 400) {
-        alert('Image must be exactly 400x400 pixels. Please crop again.');
+        showToast('Image must be exactly 400x400 pixels. Please crop again.', 'error');
         return;
       }
       
@@ -9375,7 +9376,7 @@ function MyEbooksSection({ user }) {
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      alert('Error processing image. Please try again.');
+      showToast('Error processing image. Please try again.', 'error');
     };
     img.src = objectUrl;
   };
@@ -10775,7 +10776,7 @@ function MyAuctionsSection({ user }) {
     img.onload = async () => {
       URL.revokeObjectURL(objectUrl);
       if (img.width !== 400 || img.height !== 400) {
-        alert('Image must be exactly 400x400 pixels. Please crop again.');
+        showToast('Image must be exactly 400x400 pixels. Please crop again.', 'error');
         return;
       }
       
@@ -10797,7 +10798,7 @@ function MyAuctionsSection({ user }) {
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      alert('Error processing image. Please try again.');
+      showToast('Error processing image. Please try again.', 'error');
     };
     img.src = objectUrl;
   };

@@ -53,7 +53,7 @@ class ForumController extends Controller
         return response()->json($threads);
     }
 
-    public function showThread(string $slug)
+    public function showThread(string $slug, Request $request)
     {
         $thread = ForumThread::with(['author', 'category'])
             ->where('slug', $slug)
@@ -82,16 +82,31 @@ class ForumController extends Controller
             ->get()
             ->groupBy('forum_post_id');
 
-        // Attach reaction counts to posts
+        // Get user's reactions if authenticated
+        $userReactions = [];
+        if ($request->user()) {
+            $userReactions = ForumPostReaction::whereIn('forum_post_id', $allPostIds)
+                ->where('user_id', $request->user()->id)
+                ->get()
+                ->groupBy('forum_post_id')
+                ->map(function ($reactions) {
+                    return $reactions->pluck('reaction_type')->toArray();
+                })
+                ->toArray();
+        }
+
+        // Attach reaction counts and user reactions to posts
         if ($firstPost) {
             $firstPost->reaction_counts = $reactions->get($firstPost->id, collect())
                 ->pluck('count', 'reaction_type')
                 ->toArray();
+            $firstPost->user_reactions = $userReactions[$firstPost->id] ?? [];
         }
         foreach ($replies as $reply) {
             $reply->reaction_counts = $reactions->get($reply->id, collect())
                 ->pluck('count', 'reaction_type')
                 ->toArray();
+            $reply->user_reactions = $userReactions[$reply->id] ?? [];
         }
 
         return response()->json([

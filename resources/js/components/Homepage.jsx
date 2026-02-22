@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { getAdUrl } from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
+import SEOHead from './SEOHead';
 
 function Homepage() {
   const navigate = useNavigate();
@@ -1176,6 +1177,12 @@ function Homepage() {
 
   return (
     <Layout>
+      <SEOHead
+        title="Classified advertising in Nepal"
+        description="Classified advertising in Nepal to post hassle-free ad on various categories such as sale vehicle, house, land, tools etc. Ebyapar.com is as online community to buy & sale new and used items online to connect with potential buyer of large community."
+        keywords="classified ad post Nepal, online advertising Nepal, ad post online Nepal, classified advertising"
+        type="website"
+      />
       <div className="max-w-7xl mx-auto">
         {/* Search Part */}
         <section className="mb-6">
@@ -2922,7 +2929,7 @@ function Homepage() {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+                  className="px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm transition-all duration-200 hover:border-[hsl(var(--primary))]/50 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] focus:ring-offset-2"
                 >
                   <option value="most relevant">most relevant</option>
                   <option value="lowest price">lowest price</option>
@@ -3055,20 +3062,23 @@ function Homepage() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {categoryAds.map((ad) => (
+                      {categoryAds.map((ad, index) => (
                         <Card 
                           key={ad.id} 
-                          className="hover:shadow-lg transition-shadow cursor-pointer"
+                          className="card-hover group cursor-pointer animate-fade-in"
+                          style={{ animationDelay: `${index * 30}ms` }}
                           onClick={() => handleAdClick(ad.id)}
                         >
                           <CardContent className="p-0">
-                            <img
-                              src={ad.image}
-                              alt={ad.title}
-                              className="w-full h-48 object-cover"
-                            />
+                            <div className="relative overflow-hidden">
+                              <img
+                                src={ad.image}
+                                alt={ad.title}
+                                className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
+                              />
+                            </div>
                             <div className="p-3">
-                              <h3 className="font-semibold text-sm text-[hsl(var(--foreground))] mb-1 line-clamp-2">
+                              <h3 className="font-semibold text-sm text-[hsl(var(--foreground))] mb-1 line-clamp-2 group-hover:text-[hsl(var(--primary))] transition-colors">
                                 {ad.title}
                               </h3>
                               <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 line-clamp-2">

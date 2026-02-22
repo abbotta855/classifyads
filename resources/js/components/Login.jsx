@@ -99,9 +99,9 @@ function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))] p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md animate-fade-in shadow-lg">
         <CardHeader>
-          <CardTitle>Login</CardTitle>
+          <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
             Enter your email and password to access your account.
           </CardDescription>
@@ -119,7 +119,7 @@ function Login() {
               required
             />
             {errors.email && (
-              <p className="text-sm text-[hsl(var(--destructive))]">
+              <p className="text-sm text-[hsl(var(--destructive))] animate-slide-in mt-1">
                 {errors.email[0]}
               </p>
             )}
@@ -143,7 +143,7 @@ function Login() {
               required
             />
             {errors.password && (
-              <p className="text-sm text-[hsl(var(--destructive))]">
+              <p className="text-sm text-[hsl(var(--destructive))] animate-slide-in mt-1">
                 {errors.password[0]}
               </p>
             )}

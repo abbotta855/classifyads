@@ -2,48 +2,61 @@ import React from 'react';
 import Layout from './Layout';
 import { Button } from './ui/button';
 import { Link } from 'react-router-dom';
-import { orderAPI } from '../utils/api';
-import axios from 'axios';
-
-function getCart() {
-  try {
-    const raw = localStorage.getItem('demo_cart');
-    return raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-function saveCart(cart) {
-  localStorage.setItem('demo_cart', JSON.stringify(cart));
-}
+import { orderAPI, cartAPI } from '../utils/api';
+import { useAuth } from '../contexts/AuthContext';
+import { useToast } from './Toast';
 
 export default function CartPage() {
-  const [cart, setCart] = React.useState(getCart());
+  const { user } = useAuth();
+  const [cart, setCart] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
   const [processing, setProcessing] = React.useState(false);
-  const [message, setMessage] = React.useState(null);
+  const { showToast } = useToast();
 
-  const updateQuantity = (ad_id, qty) => {
-    const next = cart.map((item) =>
-      item.ad_id === ad_id
-        ? { ...item, quantity: Math.max(1, qty), total: Math.max(1, qty) * item.price }
-        : item
-    );
-    setCart(next);
-    saveCart(next);
+  const loadCart = async () => {
+    if (!user) {
+      setCart([]);
+      setLoading(false);
+      return;
+    }
+    try {
+      const res = await cartAPI.get();
+      setCart(res.data.items || []);
+    } catch (e) {
+      console.error('Failed to load cart', e);
+      setCart([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const removeItem = (ad_id) => {
-    const next = cart.filter((item) => item.ad_id !== ad_id);
-    setCart(next);
-    saveCart(next);
+  React.useEffect(() => {
+    loadCart();
+  }, [user]);
+
+  const updateQuantity = async (ad_id, qty) => {
+    try {
+      await cartAPI.update(ad_id, Math.max(1, qty));
+      await loadCart();
+    } catch (e) {
+      showToast(e.response?.data?.error || 'Failed to update quantity', 'error');
+    }
+  };
+
+  const removeItem = async (ad_id) => {
+    try {
+      await cartAPI.remove(ad_id);
+      await loadCart();
+    } catch (e) {
+      showToast(e.response?.data?.error || 'Failed to remove item', 'error');
+    }
   };
 
   const total = cart.reduce((sum, item) => sum + (item.total || 0), 0);
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
-      setMessage({ type: 'error', text: 'Cart is empty.' });
+      showToast('Cart is empty.', 'error');
       return;
     }
     setProcessing(true);
@@ -53,15 +66,13 @@ export default function CartPage() {
         quantity: item.quantity,
       }));
       const res = await orderAPI.checkout(items);
-      setMessage({ type: 'success', text: res.data?.message || 'Checkout complete (demo).' });
-      setCart([]);
-      saveCart([]);
+      showToast(res.data?.message || 'Checkout complete (demo).', 'success');
+      // Clear cart after successful checkout
+      await cartAPI.clear();
+      await loadCart();
     } catch (e) {
       if (e.response?.status === 402 && e.response?.data?.needs_top_up) {
-        setMessage({
-          type: 'error',
-          text: 'Insufficient wallet balance. Please add funds to your e-wallet to complete purchase.',
-        });
+        showToast('Insufficient wallet balance. Please add funds to your e-wallet to complete purchase.', 'error');
         window.location.href = '/user_dashboard/e-wallet';
         return;
       }
@@ -70,7 +81,7 @@ export default function CartPage() {
         e.response?.data?.message ||
         e.message ||
         'Failed to checkout.';
-      setMessage({ type: 'error', text: msg });
+      showToast(msg, 'error');
     } finally {
       setProcessing(false);
     }
@@ -86,17 +97,15 @@ export default function CartPage() {
           </Link>
         </div>
 
-        {message && (
-          <div
-            className={`mb-4 p-3 rounded ${
-              message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-            }`}
-          >
-            {message.text}
+        {loading ? (
+          <div className="p-6 border rounded bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
+            Loading cart...
           </div>
-        )}
-
-        {cart.length === 0 ? (
+        ) : !user ? (
+          <div className="p-6 border rounded bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
+            Please <Link to="/login" className="text-[hsl(var(--primary))] hover:underline">login</Link> to view your cart.
+          </div>
+        ) : cart.length === 0 ? (
           <div className="p-6 border rounded bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))]">
             Cart is empty.
           </div>

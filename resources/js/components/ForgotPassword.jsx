@@ -8,20 +8,21 @@ import { Label } from './ui/label';
 
 function ForgotPassword() {
   const [email, setEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [step, setStep] = useState(1); // 1: Enter email, 2: Enter code, 3: Success
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [codeVerified, setCodeVerified] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
+  const handleSendCode = async (e) => {
     e.preventDefault();
     setErrors({});
     setLoading(true);
-    setSuccess(false);
 
     try {
       const response = await axios.post('/api/forgot-password', { email });
-      setSuccess(true);
+      setStep(2); // Move to code entry step
     } catch (error) {
       if (error.response?.status === 422) {
         setErrors(error.response.data.errors || {});
@@ -33,44 +34,46 @@ function ForgotPassword() {
     }
   };
 
+  const handleVerifyCode = async (e) => {
+    e.preventDefault();
+    setErrors({});
+    setLoading(true);
+
+    try {
+      const response = await axios.post('/api/verify-reset-code', {
+        email,
+        code: resetCode,
+      });
+      setCodeVerified(true);
+      // Navigate to reset password page with email and code
+      navigate('/reset-password', {
+        state: { email, code: resetCode },
+      });
+    } catch (error) {
+      if (error.response?.status === 422) {
+        setErrors(error.response.data.errors || {});
+      } else {
+        setErrors({ code: ['Invalid or expired reset code. Please try again.'] });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[hsl(var(--background))] p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md animate-fade-in shadow-lg">
         <CardHeader>
-          <CardTitle>Forgot Password</CardTitle>
+          <CardTitle className="text-2xl">Forgot Password</CardTitle>
           <CardDescription>
-            Enter your email address and we'll send you a link to reset your password.
+            {step === 1
+              ? "Enter your email address and we'll send you a code to reset your password."
+              : "Enter the 6-digit code sent to your email."}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {success ? (
-            <div className="space-y-4">
-              <div className="p-4 bg-green-50 border border-green-200 rounded-md">
-                <p className="text-sm text-green-800">
-                  If an account exists with that email, we have sent a password reset link. Please check your email inbox.
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => navigate('/login')}
-                  className="flex-1"
-                >
-                  Back to Login
-                </Button>
-                <Button
-                  onClick={() => {
-                    setSuccess(false);
-                    setEmail('');
-                  }}
-                  className="flex-1"
-                >
-                  Send Another Email
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+          {step === 1 ? (
+            <form onSubmit={handleSendCode} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -82,14 +85,60 @@ function ForgotPassword() {
                   required
                 />
                 {errors.email && (
-                  <p className="text-sm text-[hsl(var(--destructive))]">
+                  <p className="text-sm text-[hsl(var(--destructive))] animate-slide-in mt-1">
                     {errors.email[0]}
                   </p>
                 )}
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Sending...' : 'Send Reset Link'}
+                {loading ? 'Sending...' : 'Send Reset Code'}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyCode} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="code">Reset Code</Label>
+                <Input
+                  id="code"
+                  type="text"
+                  placeholder="Enter 6-digit code"
+                  value={resetCode}
+                  onChange={(e) => {
+                    // Only allow numbers and limit to 6 digits
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setResetCode(value);
+                    setErrors({ ...errors, code: '' });
+                  }}
+                  maxLength={6}
+                  required
+                  className="text-center text-2xl tracking-widest font-mono"
+                />
+                {errors.code && (
+                  <p className="text-sm text-[hsl(var(--destructive))] animate-slide-in mt-1">
+                    {errors.code[0]}
+                  </p>
+                )}
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                  Check your email for the 6-digit code. The code expires in 10 minutes.
+                </p>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={loading || resetCode.length !== 6}>
+                {loading ? 'Verifying...' : 'Verify Code'}
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  setStep(1);
+                  setResetCode('');
+                  setErrors({});
+                }}
+              >
+                Back to Email
               </Button>
             </form>
           )}
@@ -109,4 +158,3 @@ function ForgotPassword() {
 }
 
 export default ForgotPassword;
-

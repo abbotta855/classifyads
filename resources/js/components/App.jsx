@@ -1,6 +1,11 @@
 import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import { ThemeProvider } from '../contexts/ThemeContext';
+import { LanguageProvider } from '../contexts/LanguageContext';
+import { ToastProvider } from './Toast';
+import ErrorBoundary from './ErrorBoundary';
 import { initializeTimezone } from '../utils/timezone';
+import '../i18n/config';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './Login';
 import Register from './Register';
@@ -32,12 +37,21 @@ import SupportChatWidget from './SupportChatWidget';
 import NepaliProductList from './NepaliProductList';
 import NepaliProductDetail from './NepaliProductDetail';
 import NepaliProductForm from './NepaliProductForm';
+import OrderHistory from './OrderHistory';
+import OrderDetail from './OrderDetail';
+import SearchResults from './SearchResults';
+import TransactionHistory from './TransactionHistory';
+import ContactUs from './ContactUs';
+import StaticPage from './StaticPage';
 
 function LoadingCard() {
   return (
-    <Card className="w-full">
+    <Card className="w-full animate-fade-in">
       <CardContent className="p-6">
-        <p className="text-center">Loading...</p>
+        <div className="flex items-center justify-center gap-2">
+          <div className="w-5 h-5 border-2 border-[hsl(var(--primary))] border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-[hsl(var(--muted-foreground))]">Loading...</p>
+        </div>
       </CardContent>
     </Card>
   );
@@ -132,6 +146,15 @@ function AppRoutes() {
       <Route path="/blog/:slug" element={<BlogDetail />} />
       <Route path="/forum" element={<ForumList />} />
       <Route path="/forum/:slug" element={<ForumThread />} />
+      <Route path="/search" element={<SearchResults />} />
+      <Route path="/contact" element={<ContactUs />} />
+      <Route path="/terms" element={<StaticPage />} />
+      <Route path="/faq" element={<StaticPage />} />
+      <Route path="/privacy" element={<StaticPage />} />
+      <Route path="/cookie-policy" element={<StaticPage />} />
+      <Route path="/about" element={<StaticPage />} />
+      {/* Static page route with slug parameter */}
+      <Route path="/page/:slug" element={<StaticPage />} />
       <Route path="/nepali-products" element={<NepaliProductList />} />
       <Route path="/nepali-products/:id" element={<NepaliProductDetail />} />
       <Route
@@ -155,6 +178,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <CartPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/orders"
+        element={
+          <ProtectedRoute>
+            <OrderHistory />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/orders/:id"
+        element={
+          <ProtectedRoute>
+            <OrderDetail />
           </ProtectedRoute>
         }
       />
@@ -307,13 +346,21 @@ function App() {
   }, []);
 
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <GATracker />
-        <AppRoutes />
-        <SupportChatWidget />
-      </BrowserRouter>
-    </AuthProvider>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <ThemeProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <BrowserRouter>
+                <GATracker />
+                <AppRoutes />
+                <SupportChatWidget />
+              </BrowserRouter>
+            </AuthProvider>
+          </ToastProvider>
+        </ThemeProvider>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 }
 

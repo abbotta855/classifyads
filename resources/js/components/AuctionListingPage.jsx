@@ -393,7 +393,7 @@ function AuctionListingPage() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="px-4 py-2 border rounded"
+            className="px-4 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))] text-[hsl(var(--foreground))] text-sm transition-all duration-200 hover:border-[hsl(var(--primary))]/50 focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] focus:ring-offset-2"
           >
             <option value="ending_soon">Ending Soon</option>
             <option value="highest_bid">Highest Bid</option>
@@ -403,33 +403,61 @@ function AuctionListingPage() {
 
         {/* Auctions Grid */}
         {loading ? (
-          <div className="text-center py-12">Loading auctions...</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[...Array(8)].map((_, i) => (
+              <Card key={i} className="animate-fade-in">
+                <CardContent className="p-0">
+                  <div className="w-full h-48 bg-[hsl(var(--muted))] animate-pulse rounded-t-lg"></div>
+                  <div className="p-4 space-y-3">
+                    <div className="h-5 bg-[hsl(var(--muted))] rounded animate-pulse w-3/4"></div>
+                    <div className="h-6 bg-[hsl(var(--muted))] rounded animate-pulse w-1/2"></div>
+                    <div className="h-4 bg-[hsl(var(--muted))] rounded animate-pulse w-2/3"></div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         ) : auctions.length === 0 ? (
-          <div className="text-center py-12">No auctions found.</div>
+          <div className="text-center py-12">
+            <Card className="border-dashed">
+              <CardContent className="p-12">
+                <svg className="w-16 h-16 mx-auto mb-4 text-[hsl(var(--muted-foreground))]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <p className="text-lg font-semibold text-[hsl(var(--foreground))] mb-2">No auctions found</p>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">Try adjusting your search or filters</p>
+              </CardContent>
+            </Card>
+          </div>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-              {auctions.map(auction => (
+              {auctions.map((auction, index) => (
                 <Card
                   key={auction.id}
-                  className="cursor-pointer hover:shadow-lg transition-shadow"
+                  className="cursor-pointer card-hover group animate-fade-in"
+                  style={{ animationDelay: `${index * 50}ms` }}
                   onClick={() => handleAuctionClick(auction)}
                 >
                   <CardContent className="p-0">
-                    <img
-                      src={auction.image || 'https://via.placeholder.com/300x300?text=No+Image'}
-                      alt={auction.title}
-                      className="w-full h-48 object-cover rounded-t-lg"
-                    />
+                    <div className="relative overflow-hidden rounded-t-lg">
+                      <img
+                        src={auction.image || 'https://via.placeholder.com/300x300?text=No+Image'}
+                        alt={auction.title}
+                        className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    </div>
                     <div className="p-4">
-                      <h3 className="font-semibold text-lg mb-2 line-clamp-2">{auction.title}</h3>
-                      <p className="text-2xl font-bold text-blue-600 mb-2">
+                      <h3 className="font-semibold text-lg mb-2 line-clamp-2 text-[hsl(var(--foreground))] group-hover:text-[hsl(var(--primary))] transition-colors">{auction.title}</h3>
+                      <p className="text-2xl font-bold text-[hsl(var(--primary))] mb-2">
                         Rs. {auction.current_bid?.toLocaleString() || auction.starting_price?.toLocaleString()}
                       </p>
-                      <p className="text-sm text-gray-600 mb-2">
-                        {auction.bid_count || 0} bid{auction.bid_count !== 1 ? 's' : ''}
-                      </p>
-                      <p className="text-sm text-gray-500">{auction.time_remaining}</p>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                          {auction.bid_count || 0} bid{auction.bid_count !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <p className="text-sm text-[hsl(var(--muted-foreground))]">{auction.time_remaining}</p>
                     </div>
                   </CardContent>
                 </Card>
