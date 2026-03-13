@@ -313,87 +313,109 @@ class AuthController extends Controller
    */
   public function forgotPassword(Request $request)
   {
-    $request->validate([
-      'email' => [
-        'required',
-        'email',
-        'regex:/\.com$/',
-      ],
-    ], [
-      'email.regex' => 'Confirm your email is correct',
-    ]);
+    try {
+      $request->validate([
+        'email' => [
+          'required',
+          'email',
+          'regex:/\.com$/',
+        ],
+      ], [
+        'email.regex' => 'Confirm your email is correct',
+      ]);
 
-    $user = User::where('email', $request->email)->first();
+      $user = User::where('email', $request->email)->first();
 
-    // Always return success message to prevent email enumeration
-    // But only send email if user exists
-    if ($user) {
-      // Generate 6-digit password reset code (same as OTP)
-      $resetCode = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-      
-      // Store code in users table (same pattern as OTP) - plain text, not hashed
-      $user->password_reset_code = $resetCode;
-      $user->password_reset_expires_at = Carbon::now()->addMinutes(10);
-      $user->save();
-      
-      \Log::info('Password reset code generated and saved to database for: ' . $user->email . ' | Reset Code: ' . $resetCode);
-
-      // Send password reset code email - try SendGrid first if API key exists, otherwise use SMTP directly
-      try {
-        $sendGridApiKey = env('SENDGRID_API_KEY');
+      // Always return success message to prevent email enumeration
+      // But only send email if user exists
+      if ($user) {
+        // Generate 6-digit password reset code (same as OTP)
+        $resetCode = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
         
-        // Only try SendGrid if API key is configured
-        if ($sendGridApiKey) {
-          $sendGridService = new SendGridService();
+        // Store code in users table (same pattern as OTP) - plain text, not hashed
+        $user->password_reset_code = $resetCode;
+        $user->password_reset_expires_at = Carbon::now()->addMinutes(10);
+        $user->save();
+        
+        \Log::info('Password reset code generated and saved to database for: ' . $user->email . ' | Reset Code: ' . $resetCode);
+
+        // Send password reset code email - try SendGrid first if API key exists, otherwise use SMTP directly
+        $emailSent = false;
+        try {
+          $sendGridApiKey = env('SENDGRID_API_KEY');
           
-          // Render email template
-          $htmlContent = view('emails.password-reset-code', [
-            'userName' => $user->name,
-            'resetCode' => $resetCode
-          ])->render();
-          
-          $textContent = "Hello {$user->name},\n\nWe received a request to reset your password. Please use the following code to reset your password:\n\n{$resetCode}\n\nThis code will expire in 10 minutes. Enter this code on the password reset page to unlock the password reset form.\n\nIf you did not request a password reset, please ignore this email.";
-          
-          $sent = $sendGridService->sendEmail(
-            $user->email,
-            'Password Reset Code',
-            $htmlContent,
-            $textContent
-          );
-          
-          if ($sent) {
-            \Log::info('Password reset code email sent via SendGrid API to: ' . $user->email . ' | Reset Code: ' . $resetCode);
-            return response()->json([
-              'message' => 'If an account exists with that email, we have sent a password reset code.',
-              'expires_at' => $user->password_reset_expires_at->toIso8601String(),
-            ]);
+          // Only try SendGrid if API key is configured
+          if ($sendGridApiKey) {
+            $sendGridService = new SendGridService();
+            
+            // Render email template
+            $htmlContent = view('emails.password-reset-code', [
+              'userName' => $user->name,
+              'resetCode' => $resetCode
+            ])->render();
+            
+            $textContent = "Hello {$user->name},\n\nWe received a request to reset your password. Please use the following code to reset your password:\n\n{$resetCode}\n\nThis code will expire in 10 minutes. Enter this code on the password reset page to unlock the password reset form.\n\nIf you did not request a password reset, please ignore this email.";
+            
+            $sent = $sendGridService->sendEmail(
+              $user->email,
+              'Password Reset Code',
+              $htmlContent,
+              $textContent
+            );
+            
+            if ($sent) {
+              \Log::info('Password reset code email sent via SendGrid API to: ' . $user->email . ' | Reset Code: ' . $resetCode);
+              $emailSent = true;
+            } else {
+              \Log::warning('SendGrid failed, falling back to SMTP for password reset: ' . $user->email);
+            }
           } else {
-            \Log::warning('SendGrid failed, falling back to SMTP for password reset: ' . $user->email);
+            \Log::info('SendGrid API key not configured, using SMTP directly for password reset: ' . $user->email);
           }
-        } else {
-          \Log::info('SendGrid API key not configured, using SMTP directly for password reset: ' . $user->email);
+          
+          // Use SMTP directly (sends synchronously, not queued) - only if SendGrid didn't succeed
+          if (!$emailSent) {
+            try {
+              Mail::to($user->email)->send(new \App\Mail\PasswordResetCodeMail($resetCode, $user->name));
+              \Log::info('Password reset code email sent via SMTP to: ' . $user->email . ' | Reset Code: ' . $resetCode);
+              $emailSent = true;
+            } catch (\Exception $mailException) {
+              // Log SMTP error but continue - code is still generated
+              \Log::error('SMTP send failed for password reset to ' . $user->email . ': ' . $mailException->getMessage());
+              \Log::error('SMTP Error type: ' . get_class($mailException));
+              \Log::error('SMTP Error details: ' . substr($mailException->getTraceAsString(), 0, 500));
+            }
+          }
+          
+        } catch (\Exception $e) {
+          // Log error but don't fail the request
+          \Log::error('Failed to send password reset code email to ' . $user->email . ': ' . $e->getMessage());
+          \Log::error('Error type: ' . get_class($e));
+          \Log::error('Password Reset Code generated but not sent: ' . $resetCode);
         }
-        
-        // Use SMTP directly (sends synchronously, not queued)
-        Mail::to($user->email)->send(new \App\Mail\PasswordResetCodeMail($resetCode, $user->name));
-        \Log::info('Password reset code email sent via SMTP to: ' . $user->email . ' | Reset Code: ' . $resetCode);
-        
-      } catch (\Exception $e) {
-        // Log error but don't fail the request
-        \Log::error('Failed to send password reset code email to ' . $user->email . ': ' . $e->getMessage());
-        \Log::error('Password Reset Code generated but not sent: ' . $resetCode);
-        \Log::error('Full error trace: ' . $e->getTraceAsString());
-        \Log::error('Mail config check - MAIL_MAILER: ' . env('MAIL_MAILER'));
-        \Log::error('Mail config check - MAIL_HOST: ' . env('MAIL_HOST'));
-        \Log::error('Mail config check - MAIL_PORT: ' . env('MAIL_PORT'));
-        \Log::error('Mail config check - MAIL_USERNAME: ' . env('MAIL_USERNAME'));
       }
-    }
 
-    return response()->json([
-      'message' => 'If an account exists with that email, we have sent a password reset code.',
-      'expires_at' => $user ? $user->password_reset_expires_at->toIso8601String() : null,
-    ]);
+      // Always return success message (even if email failed to send)
+      // This prevents email enumeration and doesn't reveal if user exists
+      return response()->json([
+        'message' => 'If an account exists with that email, we have sent a password reset code.',
+        'expires_at' => ($user && $user->password_reset_expires_at) ? $user->password_reset_expires_at->toIso8601String() : null,
+      ], 200);
+      
+    } catch (\Illuminate\Validation\ValidationException $e) {
+      // Re-throw validation exceptions so they're handled properly
+      throw $e;
+    } catch (\Exception $e) {
+      // Catch any other unexpected errors and return a safe response
+      \Log::error('Unexpected error in forgotPassword: ' . $e->getMessage());
+      \Log::error('Error type: ' . get_class($e));
+      \Log::error('Error trace: ' . substr($e->getTraceAsString(), 0, 500));
+      
+      return response()->json([
+        'message' => 'If an account exists with that email, we have sent a password reset code.',
+        'expires_at' => null,
+      ], 200);
+    }
   }
 
   /**
