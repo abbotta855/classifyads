@@ -64,41 +64,55 @@ class OtpController extends Controller
         
         \Log::info('OTP generated and saved to database for: ' . $user->email . ' | OTP Code: ' . $otpCode);
 
-        // Send OTP via email using SendGrid HTTP API (bypasses SMTP connection issues)
+        // Send OTP via email - try SendGrid first if API key exists, otherwise use SMTP directly
         try {
-            $sendGridService = new SendGridService();
+            $sendGridApiKey = env('SENDGRID_API_KEY');
             
-            // Render email template
-            $htmlContent = view('emails.otp', [
-                'otpCode' => $otpCode,
-                'userName' => $user->name
-            ])->render();
-            
-            $textContent = "Hello {$user->name},\n\nYour OTP verification code is: {$otpCode}\n\nThis code will expire in 10 minutes.\n\nIf you did not request this code, please ignore this email.";
-            
-            $sent = $sendGridService->sendEmail(
-                $user->email,
-                'Your OTP Verification Code',
-                $htmlContent,
-                $textContent
-            );
-            
-            if ($sent) {
-                \Log::info('OTP email sent via SendGrid API to: ' . $user->email . ' | OTP Code: ' . $otpCode);
-            } else {
-                // Fallback to SMTP if HTTP API fails
-                try {
-                    Mail::to($user->email)->send(new OtpMail($otpCode, $user->name));
-                    \Log::info('OTP email sent via SMTP fallback to: ' . $user->email . ' | OTP Code: ' . $otpCode);
-                } catch (\Exception $e) {
-                    \Log::error('Failed to send OTP email via both methods to ' . $user->email . ': ' . $e->getMessage());
-                    \Log::error('OTP Code generated but not sent: ' . $otpCode);
+            // Only try SendGrid if API key is configured
+            if ($sendGridApiKey) {
+                $sendGridService = new SendGridService();
+                
+                // Render email template
+                $htmlContent = view('emails.otp', [
+                    'otpCode' => $otpCode,
+                    'userName' => $user->name
+                ])->render();
+                
+                $textContent = "Hello {$user->name},\n\nYour OTP verification code is: {$otpCode}\n\nThis code will expire in 10 minutes.\n\nIf you did not request this code, please ignore this email.";
+                
+                $sent = $sendGridService->sendEmail(
+                    $user->email,
+                    'Your OTP Verification Code',
+                    $htmlContent,
+                    $textContent
+                );
+                
+                if ($sent) {
+                    \Log::info('OTP email sent via SendGrid API to: ' . $user->email . ' | OTP Code: ' . $otpCode);
+                    return response()->json([
+                        'message' => 'OTP has been sent to your email address.',
+                        'expires_at' => $user->otp_expires_at->toIso8601String(),
+                    ]);
+                } else {
+                    \Log::warning('SendGrid failed, falling back to SMTP for: ' . $user->email);
                 }
+            } else {
+                \Log::info('SendGrid API key not configured, using SMTP directly for: ' . $user->email);
             }
+            
+            // Use SMTP directly (sends synchronously, not queued)
+            Mail::to($user->email)->send(new OtpMail($otpCode, $user->name));
+            \Log::info('OTP email sent via SMTP to: ' . $user->email . ' | OTP Code: ' . $otpCode);
+            
         } catch (\Exception $e) {
             // Log error but don't fail the request
             \Log::error('Failed to send OTP email to ' . $user->email . ': ' . $e->getMessage());
             \Log::error('OTP Code generated but not sent: ' . $otpCode);
+            \Log::error('Full error trace: ' . $e->getTraceAsString());
+            \Log::error('Mail config check - MAIL_MAILER: ' . env('MAIL_MAILER'));
+            \Log::error('Mail config check - MAIL_HOST: ' . env('MAIL_HOST'));
+            \Log::error('Mail config check - MAIL_PORT: ' . env('MAIL_PORT'));
+            \Log::error('Mail config check - MAIL_USERNAME: ' . env('MAIL_USERNAME'));
         }
 
         return response()->json([
