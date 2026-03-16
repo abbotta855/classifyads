@@ -1,0 +1,29 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class RatingCriteria extends Model
+{
+    protected $table = 'rating_criteria';
+
+    protected $fillable = [
+        'name',
+        'description',
+        'criteria_type',
+        'sort_order',
+        'is_active',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+        'sort_order' => 'integer',
+    ];
+
+    public function scores(): HasMany
+    {
+        return $this->hasMany(RatingCriteriaScore::class);
+    }
+}
