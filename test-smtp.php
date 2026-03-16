@@ -42,7 +42,13 @@ echo "\n";
 
 // Test email sending
 echo "Testing email send...\n";
-$testEmail = $argv[1] ?? 'your-test-email@gmail.com'; // Accept email as command line argument
+// Get email from command line argument (support both $argv and $_SERVER['argv'])
+$testEmail = 'your-test-email@gmail.com';
+if (isset($argv) && isset($argv[1]) && !empty($argv[1])) {
+    $testEmail = $argv[1];
+} elseif (isset($_SERVER['argv']) && isset($_SERVER['argv'][1]) && !empty($_SERVER['argv'][1])) {
+    $testEmail = $_SERVER['argv'][1];
+}
 echo "Sending test email to: $testEmail\n";
 
 try {

@@ -67,3 +67,4 @@ echo "3. Try sending OTP email from the application"
 echo ""
 
 
+

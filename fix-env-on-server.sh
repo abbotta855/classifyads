@@ -24,3 +24,4 @@ echo "=== Current Configuration ==="
 grep "^MAIL_" .env | sed 's/MAIL_PASSWORD=.*/MAIL_PASSWORD=***HIDDEN***/'
 echo ""
 
+
