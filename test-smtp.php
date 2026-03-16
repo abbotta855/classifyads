@@ -42,13 +42,17 @@ echo "\n";
 
 // Test email sending
 echo "Testing email send...\n";
-$testEmail = 'your-test-email@gmail.com'; // Change this to your email
+$testEmail = $argv[1] ?? 'your-test-email@gmail.com'; // Accept email as command line argument
 echo "Sending test email to: $testEmail\n";
 
 try {
     Mail::to($testEmail)->send(new OtpMail('123456', 'Test User'));
     echo "✅ Email sent successfully!\n";
     echo "Check your inbox (and spam folder) for the test email.\n";
+    echo "\nNote: If email doesn't arrive, check:\n";
+    echo "1. Spam/Junk folder\n";
+    echo "2. DNS records (MX, SPF, DKIM) - these affect deliverability\n";
+    echo "3. Laravel logs: tail -f storage/logs/laravel.log\n";
 } catch (\Exception $e) {
     echo "❌ Error sending email:\n";
     echo "Message: " . $e->getMessage() . "\n";
