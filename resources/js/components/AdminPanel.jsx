@@ -12,6 +12,7 @@ import PhotoCropModal from './PhotoCropModal';
 import axios from 'axios';
 import { useToast } from './Toast';
 import AdminStaticPages from './AdminStaticPages';
+import AdminBlogPage from './AdminBlogPage';
 import { useTranslation } from '../utils/translation';
 
 // Job category options
@@ -7206,6 +7207,7 @@ function AdminPanel() {
     { id: 'ads-management', labelKey: 'admin.adsManagement' },
     { id: 'auction-management', labelKey: 'admin.auctionManagement' },
     { id: 'category-management', labelKey: 'admin.categoryManagement' },
+    { id: 'blog-management', labelKey: 'admin.blogManagement' },
     ...(isSuperAdmin ? [{ id: 'change-password', labelKey: 'admin.changePassword' }] : []), // Only show for super_admin
     { id: 'delivery-management', labelKey: 'admin.deliveryManagement' },
     { id: 'ebook-management', labelKey: 'admin.ebookManagement' },
@@ -16299,6 +16301,12 @@ function AdminPanel() {
                   </div>
                 </CardContent>
               </Card>
+            </section>
+          )}
+
+          {activeSection === 'blog-management' && (
+            <section>
+              <AdminBlogPage />
             </section>
           )}
 
