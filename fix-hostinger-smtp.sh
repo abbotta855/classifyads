@@ -29,7 +29,7 @@ MAIL_MAILER=smtp
 MAIL_HOST=smtp.hostinger.com
 MAIL_PORT=465
 MAIL_USERNAME=contact@ebyapar.com
-MAIL_PASSWORD=teakendrajhuka@1234
+MAIL_PASSWORD=__REPLACE_WITH_YOUR_HOSTINGER_EMAIL_PASSWORD__
 MAIL_ENCRYPTION=ssl
 MAIL_FROM_ADDRESS=contact@ebyapar.com
 MAIL_FROM_NAME="Ebyapar"
@@ -37,6 +37,7 @@ ADMIN_EMAIL=contact@ebyapar.com
 EOF
 
 echo "✅ SMTP configuration added to .env"
+echo "⚠️  Edit MAIL_PASSWORD in .env if you still see the __REPLACE__ placeholder."
 echo ""
 
 # Clear Laravel cache

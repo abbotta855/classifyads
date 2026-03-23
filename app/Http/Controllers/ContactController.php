@@ -7,6 +7,7 @@ use App\Services\SendGridService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class ContactController extends Controller
 {
@@ -48,11 +49,9 @@ class ContactController extends Controller
             'status' => 'pending',
         ]);
 
-        // Send email notification to admin
+        // Send email notification to admin (SendGrid if configured, else app mailer / SMTP)
         try {
-            $adminEmail = env('ADMIN_EMAIL', env('MAIL_FROM_ADDRESS', 'admin@example.com'));
-            $sendGridService = new SendGridService();
-            
+            $adminEmail = config('services.mailing.admin_email');
             $emailSubject = 'New Contact Form Submission - ' . $request->name;
             $emailContent = "
                 <h2>New Contact Form Submission</h2>
@@ -63,7 +62,15 @@ class ContactController extends Controller
                 <p><strong>Submitted:</strong> " . now()->format('Y-m-d H:i:s') . "</p>
             ";
 
-            $sendGridService->sendEmail($adminEmail, $emailSubject, $emailContent);
+            $sendGridService = new SendGridService;
+            $sent = $sendGridService->sendEmail($adminEmail, $emailSubject, $emailContent);
+
+            if (! $sent) {
+                Mail::html($emailContent, function ($message) use ($adminEmail, $emailSubject) {
+                    $message->to($adminEmail)->subject($emailSubject);
+                });
+                Log::info('Contact form notification sent via application mailer to: ' . $adminEmail);
+            }
         } catch (\Exception $e) {
             Log::error('Failed to send contact form email: ' . $e->getMessage());
             // Don't fail the request if email fails

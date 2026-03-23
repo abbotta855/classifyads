@@ -36,7 +36,7 @@ MAIL_MAILER=smtp
 MAIL_HOST=smtp.hostinger.com
 MAIL_PORT=465
 MAIL_USERNAME=contact@ebyapar.com
-MAIL_PASSWORD=Twakendrajhuka@1234
+MAIL_PASSWORD=__REPLACE_WITH_YOUR_HOSTINGER_EMAIL_PASSWORD__
 MAIL_ENCRYPTION=ssl
 MAIL_FROM_ADDRESS=contact@ebyapar.com
 MAIL_FROM_NAME="Ebyapar"
@@ -60,11 +60,16 @@ echo ""
 
 echo "=== Configuration Complete ==="
 echo ""
+echo "Edit .env and set MAIL_PASSWORD to the real mailbox password (never commit it)."
+echo ""
 echo "Next steps:"
 echo "1. Test SMTP: php test-smtp.php"
 echo "2. Check logs: tail -f storage/logs/laravel.log"
 echo "3. Try sending OTP email from the application"
 echo ""
+
+
+
 
 
 

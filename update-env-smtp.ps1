@@ -1,6 +1,12 @@
-# Simple script to update .env with SMTP settings
+# Update .env with SMTP settings (password prompted — do not hardcode secrets in git)
 $envFile = ".env"
 $content = Get-Content $envFile -Raw
+
+$mailPassword = Read-Host "Enter MAIL_PASSWORD (Hostinger mailbox password)"
+if ([string]::IsNullOrWhiteSpace($mailPassword)) {
+    Write-Host "MAIL_PASSWORD empty — aborting." -ForegroundColor Red
+    exit 1
+}
 
 # Update or add each variable
 $vars = @{
@@ -8,7 +14,7 @@ $vars = @{
     "MAIL_HOST" = "smtp.hostinger.com"
     "MAIL_PORT" = "465"
     "MAIL_USERNAME" = "contact@ebyapar.com"
-    "MAIL_PASSWORD" = "teakendrajhuka@1234"
+    "MAIL_PASSWORD" = $mailPassword
     "MAIL_ENCRYPTION" = "ssl"
     "MAIL_FROM_ADDRESS" = "contact@ebyapar.com"
     "MAIL_FROM_NAME" = '"Ebyapar"'

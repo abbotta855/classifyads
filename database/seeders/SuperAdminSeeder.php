@@ -13,6 +13,18 @@ class SuperAdminSeeder extends Seeder
      */
     public function run(): void
     {
+        $password = env('SUPER_ADMIN_SEED_PASSWORD');
+        if (empty($password)) {
+            if (app()->environment('local')) {
+                $password = 'password';
+                $this->command->warn('SUPER_ADMIN_SEED_PASSWORD not set; using default "password" for local only.');
+            } else {
+                $this->command->error('Set SUPER_ADMIN_SEED_PASSWORD in .env before running SuperAdminSeeder in this environment.');
+
+                return;
+            }
+        }
+
         // IMPORTANT: Only allow 1 super admin in the system
         // First, check if any super admin already exists
         $existingSuperAdmin = User::where('role', 'super_admin')->first();
@@ -39,7 +51,7 @@ class SuperAdminSeeder extends Seeder
             User::create([
                 'name' => 'Shushilknp',
                 'email' => 'shushilknp@gmail.com',
-                'password' => Hash::make('Shushil3141592'),
+                'password' => Hash::make($password),
                 'role' => 'super_admin',
                 'is_verified' => true,
                 'email_verified_at' => now(),
@@ -47,14 +59,14 @@ class SuperAdminSeeder extends Seeder
 
             $this->command->info('Super admin user created successfully!');
             $this->command->info('Email: shushilknp@gmail.com');
-            $this->command->info('Password: Shushil3141592');
+            $this->command->info('Password: (the value you set in SUPER_ADMIN_SEED_PASSWORD — not printed here)');
         } else {
             // If user exists but is not super admin, check if we can upgrade
             if ($superAdmin->role === 'super_admin') {
                 // Already super admin, just update password and verification
                 $superAdmin->update([
                     'name' => 'Shushilknp',
-                    'password' => Hash::make('Shushil3141592'),
+                    'password' => Hash::make($password),
                     'is_verified' => true,
                     'email_verified_at' => now(),
                 ]);
@@ -69,7 +81,7 @@ class SuperAdminSeeder extends Seeder
                 // Upgrade to super admin
                 $superAdmin->update([
                     'name' => 'Shushilknp',
-                    'password' => Hash::make('Shushil3141592'),
+                    'password' => Hash::make($password),
                     'role' => 'super_admin',
                     'is_verified' => true,
                     'email_verified_at' => now(),

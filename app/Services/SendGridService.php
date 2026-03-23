@@ -13,17 +13,19 @@ class SendGridService
 
     public function __construct()
     {
-        $this->apiKey = env('SENDGRID_API_KEY');
-        $this->fromEmail = env('MAIL_FROM_ADDRESS', 'noreply@em3028.ebyapar.com');
-        $this->fromName = env('MAIL_FROM_NAME', env('APP_NAME', 'MyApp'));
+        $this->apiKey = config('services.sendgrid.key');
+        $this->fromEmail = config('mail.from.address', 'hello@example.com');
+        $this->fromName = config('mail.from.name', config('app.name', 'MyApp'));
     }
 
     public function sendEmail($to, $subject, $htmlContent, $textContent = null)
     {
+        if (empty($this->apiKey)) {
+            return false;
+        }
+
         try {
-            // Disable SSL verification temporarily to bypass certificate issues
-            // In production, you should fix SSL certificates properly
-            $response = Http::withoutVerifying()->withHeaders([
+            $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Content-Type' => 'application/json',
             ])->post('https://api.sendgrid.com/v3/mail/send', [

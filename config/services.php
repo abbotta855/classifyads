@@ -50,4 +50,16 @@ return [
         'daily_count_limit' => env('WITHDRAWAL_DAILY_COUNT_LIMIT', 3), // Maximum number of withdrawals per day
     ],
 
+    /*
+    | Used by SendGridService and mail fallbacks. Read via config() so values stay
+    | available when php artisan config:cache is used (env() outside config files is null then).
+    */
+    'sendgrid' => [
+        'key' => env('SENDGRID_API_KEY'),
+    ],
+
+    'mailing' => [
+        'admin_email' => env('ADMIN_EMAIL', env('MAIL_FROM_ADDRESS', 'admin@example.com')),
+    ],
+
 ];

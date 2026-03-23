@@ -1,35 +1,33 @@
 #!/bin/bash
-# Update SMTP password on server
+# Set MAIL_PASSWORD in .env from prompt (password never stored in this repo).
 # Usage: bash update-smtp-password.sh
 
 cd /var/www/myapp/ads-classify-project || exit
 
-echo "=== Updating SMTP Password ==="
+echo "=== Update MAIL_PASSWORD in .env ==="
 echo ""
 
-# Backup .env
 cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
 echo "✅ .env backed up"
 echo ""
 
-# Update password (capital T)
-sed -i 's/^MAIL_PASSWORD=.*/MAIL_PASSWORD=Twakendrajhuka@1234/' .env
+read -rsp "Enter new MAIL_PASSWORD (input hidden): " MAIL_PW
+echo ""
+if [ -z "$MAIL_PW" ]; then
+  echo "❌ Empty password — aborting."
+  exit 1
+fi
 
-echo "✅ Password updated in .env"
+if grep -q '^MAIL_PASSWORD=' .env; then
+  sed -i '/^MAIL_PASSWORD=/d' .env
+fi
+echo "MAIL_PASSWORD=${MAIL_PW}" >> .env
+
+echo "✅ MAIL_PASSWORD updated"
 echo ""
 
-# Verify the change
-echo "=== Verifying Password Update ==="
-grep "^MAIL_PASSWORD=" .env
+php artisan config:clear 2>/dev/null || true
+php artisan cache:clear 2>/dev/null || true
+echo "✅ Laravel cache cleared (if artisan available)"
 echo ""
-
-# Clear Laravel cache
-php artisan config:clear
-php artisan cache:clear
-echo "✅ Laravel cache cleared"
-echo ""
-
-echo "=== Testing SMTP Connection ==="
-echo "Run: php test-smtp.php"
-echo ""
-
+echo "Run: php test-smtp.php you@example.com"

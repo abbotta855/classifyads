@@ -20,18 +20,17 @@ echo "   Encryption: ssl"
 echo "   Username: contact@ebyapar.com"
 echo ""
 
-# Verify password
-PASSWORD_VALUE=$(grep "^MAIL_PASSWORD=" .env | cut -d '=' -f2)
-if echo "$PASSWORD_VALUE" | grep -q "Twakendrajhuka@1234"; then
-    echo "✅ Password is correct: Twakendrajhuka@1234"
+# Verify password is set (value not shown)
+PASSWORD_VALUE=$(grep "^MAIL_PASSWORD=" .env | cut -d '=' -f2-)
+if [ -n "$PASSWORD_VALUE" ]; then
+    echo "✅ MAIL_PASSWORD is set (verify against Hostinger if SMTP fails)"
 else
-    echo "❌ Password issue: $PASSWORD_VALUE"
-    echo "   Expected: Twakendrajhuka@1234"
+    echo "❌ MAIL_PASSWORD missing — set in .env"
 fi
 
 echo ""
 echo "=== Current Configuration ==="
-grep "^MAIL_" .env | head -7
+grep "^MAIL_" .env | head -7 | sed 's/^MAIL_PASSWORD=.*/MAIL_PASSWORD=***HIDDEN***/'
 echo ""
 
 echo "=== Next Steps ==="

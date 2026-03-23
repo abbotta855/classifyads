@@ -46,7 +46,7 @@ class OtpController extends Controller
             $secondsSinceGeneration = Carbon::now()->diffInSeconds($otpGeneratedAt);
             
             if ($secondsSinceGeneration < 5) {
-                \Log::info('OTP generation skipped - OTP was generated ' . $secondsSinceGeneration . ' seconds ago for: ' . $user->email . ' | Current OTP: ' . $user->otp_code);
+                \Log::info('OTP generation skipped - OTP was generated ' . $secondsSinceGeneration . ' seconds ago for: ' . $user->email);
                 return response()->json([
                     'message' => 'OTP has already been sent. Please check your email or wait a few seconds before requesting a new one.',
                     'expires_at' => $user->otp_expires_at->toIso8601String(),
@@ -62,14 +62,15 @@ class OtpController extends Controller
         $user->otp_expires_at = Carbon::now()->addMinutes(10);
         $user->save();
         
-        \Log::info('OTP generated and saved to database for: ' . $user->email . ' | OTP Code: ' . $otpCode);
+        \Log::info('OTP generated and saved to database for: ' . $user->email);
 
         // Send OTP via email - try SendGrid first if API key exists, otherwise use SMTP directly
+        $mailDelivered = false;
         try {
-            $sendGridApiKey = env('SENDGRID_API_KEY');
-            
+            $sendGridApiKey = config('services.sendgrid.key');
+
             // Only try SendGrid if API key is configured
-            if ($sendGridApiKey) {
+            if (! empty($sendGridApiKey)) {
                 $sendGridService = new SendGridService();
                 
                 // Render email template
@@ -88,31 +89,38 @@ class OtpController extends Controller
                 );
                 
                 if ($sent) {
-                    \Log::info('OTP email sent via SendGrid API to: ' . $user->email . ' | OTP Code: ' . $otpCode);
+                    \Log::info('OTP email sent via SendGrid API to: ' . $user->email);
+                    $mailDelivered = true;
                     return response()->json([
                         'message' => 'OTP has been sent to your email address.',
                         'expires_at' => $user->otp_expires_at->toIso8601String(),
                     ]);
-                } else {
-                    \Log::warning('SendGrid failed, falling back to SMTP for: ' . $user->email);
                 }
+                \Log::warning('SendGrid failed, falling back to SMTP for: ' . $user->email);
             } else {
                 \Log::info('SendGrid API key not configured, using SMTP directly for: ' . $user->email);
             }
-            
+
             // Use SMTP directly (sends synchronously, not queued)
             Mail::to($user->email)->send(new OtpMail($otpCode, $user->name));
-            \Log::info('OTP email sent via SMTP to: ' . $user->email . ' | OTP Code: ' . $otpCode);
-            
+            \Log::info('OTP email sent via SMTP to: ' . $user->email);
+            $mailDelivered = true;
+
         } catch (\Exception $e) {
-            // Log error but don't fail the request
             \Log::error('Failed to send OTP email to ' . $user->email . ': ' . $e->getMessage());
-            \Log::error('OTP Code generated but not sent: ' . $otpCode);
             \Log::error('Full error trace: ' . $e->getTraceAsString());
-            \Log::error('Mail config check - MAIL_MAILER: ' . env('MAIL_MAILER'));
-            \Log::error('Mail config check - MAIL_HOST: ' . env('MAIL_HOST'));
-            \Log::error('Mail config check - MAIL_PORT: ' . env('MAIL_PORT'));
-            \Log::error('Mail config check - MAIL_USERNAME: ' . env('MAIL_USERNAME'));
+            \Log::error('Mail config check - default: ' . config('mail.default'));
+            \Log::error('Mail config check - host: ' . config('mail.mailers.smtp.host'));
+            \Log::error('Mail config check - port: ' . config('mail.mailers.smtp.port'));
+            \Log::error('Mail config check - username: ' . config('mail.mailers.smtp.username'));
+        }
+
+        if (! $mailDelivered) {
+            return response()->json([
+                'message' => 'We could not send the verification email. Please try again in a few minutes or contact support.',
+                'expires_at' => $user->otp_expires_at->toIso8601String(),
+                'email_delivery_failed' => true,
+            ], 503);
         }
 
         return response()->json([

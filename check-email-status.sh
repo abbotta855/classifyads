@@ -23,3 +23,6 @@ echo "=== 5. Check if there are any failed jobs ==="
 php artisan queue:failed 2>&1 | head -10 || echo "No failed jobs table or no failed jobs"
 
 
+
+
+

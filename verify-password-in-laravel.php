@@ -82,9 +82,7 @@ if ($envDirect && $envFunction && $configValue) {
 }
 
 echo "\n";
-echo "=== Expected Password ===";
-echo "\nPassword should be: Twakendrajhuka@1234\n";
-echo "First character should be: T (capital)\n";
-echo "Length should be: 20 characters\n";
-echo "\n";
+echo "=== Next step ===\n";
+echo "Compare MAIL_PASSWORD in .env with the password shown in Hostinger → Email → Manage account → password / app password.\n";
+echo "Do not commit real passwords to git.\n\n";
 

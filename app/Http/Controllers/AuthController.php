@@ -118,10 +118,17 @@ class AuthController extends Controller
       'requires_verification' => true,
     ];
 
+    if ($otpResponse->getStatusCode() === 503) {
+      $otpBody = $otpResponse->getData(true);
+      $responseData['email_delivery_failed'] = true;
+      $responseData['message'] = ($otpBody['message'] ?? 'We could not send the verification email.')
+        . ' You can use "Resend code" from the login or verification screen to try again.';
+    }
+
     // Include conversion info if messages were converted
     if ($convertedMessages > 0) {
       $responseData['converted_messages'] = $convertedMessages;
-      $responseData['message'] .= " Your previous support messages have been converted to live chat.";
+      $responseData['message'] .= ' Your previous support messages have been converted to live chat.';
     }
 
     return response()->json($responseData, 201);
@@ -337,15 +344,15 @@ class AuthController extends Controller
         $user->password_reset_expires_at = Carbon::now()->addMinutes(10);
         $user->save();
         
-        \Log::info('Password reset code generated and saved to database for: ' . $user->email . ' | Reset Code: ' . $resetCode);
+        \Log::info('Password reset code generated and saved to database for: ' . $user->email);
 
         // Send password reset code email - try SendGrid first if API key exists, otherwise use SMTP directly
         $emailSent = false;
         try {
-          $sendGridApiKey = env('SENDGRID_API_KEY');
-          
+          $sendGridApiKey = config('services.sendgrid.key');
+
           // Only try SendGrid if API key is configured
-          if ($sendGridApiKey) {
+          if (! empty($sendGridApiKey)) {
             $sendGridService = new SendGridService();
             
             // Render email template
@@ -364,7 +371,7 @@ class AuthController extends Controller
             );
             
             if ($sent) {
-              \Log::info('Password reset code email sent via SendGrid API to: ' . $user->email . ' | Reset Code: ' . $resetCode);
+              \Log::info('Password reset code email sent via SendGrid API to: ' . $user->email);
               $emailSent = true;
             } else {
               \Log::warning('SendGrid failed, falling back to SMTP for password reset: ' . $user->email);
@@ -377,7 +384,7 @@ class AuthController extends Controller
           if (!$emailSent) {
             try {
               Mail::to($user->email)->send(new \App\Mail\PasswordResetCodeMail($resetCode, $user->name));
-              \Log::info('Password reset code email sent via SMTP to: ' . $user->email . ' | Reset Code: ' . $resetCode);
+              \Log::info('Password reset code email sent via SMTP to: ' . $user->email);
               $emailSent = true;
             } catch (\Exception $mailException) {
               // Log SMTP error but continue - code is still generated
@@ -391,7 +398,7 @@ class AuthController extends Controller
           // Log error but don't fail the request
           \Log::error('Failed to send password reset code email to ' . $user->email . ': ' . $e->getMessage());
           \Log::error('Error type: ' . get_class($e));
-          \Log::error('Password Reset Code generated but not sent: ' . $resetCode);
+          \Log::error('Password reset code generated but email was not sent for: ' . $user->email);
         }
       }
 

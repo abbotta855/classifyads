@@ -25,12 +25,11 @@ echo "   Encryption: ssl"
 echo "   Username: contact@ebyapar.com"
 echo ""
 
-# Verify password is still correct
-PASSWORD_VALUE=$(grep "^MAIL_PASSWORD=" .env | cut -d '=' -f2)
-if echo "$PASSWORD_VALUE" | grep -q "Twakendrajhuka@1234"; then
-    echo "✅ Password is correct: Twakendrajhuka@1234"
+PASSWORD_VALUE=$(grep "^MAIL_PASSWORD=" .env | cut -d '=' -f2-)
+if [ -n "$PASSWORD_VALUE" ]; then
+    echo "✅ MAIL_PASSWORD is set"
 else
-    echo "❌ Password check failed: $PASSWORD_VALUE"
+    echo "❌ MAIL_PASSWORD missing — set in .env"
 fi
 
 echo ""
