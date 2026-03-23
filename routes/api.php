@@ -420,6 +420,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('ebooks', EbookController::class);
 
     // Blog admin
+    Route::get('blog/categories', [BlogAdminController::class, 'categories']);
+    Route::get('blog/tags', [BlogAdminController::class, 'tags']);
+    Route::post('blog/categories', [BlogAdminController::class, 'storeCategory']);
+    Route::post('blog/tags', [BlogAdminController::class, 'storeTag']);
     Route::get('blog/posts', [BlogAdminController::class, 'index']);
     Route::post('blog/posts', [BlogAdminController::class, 'store']);
     Route::put('blog/posts/{id}', [BlogAdminController::class, 'update']);

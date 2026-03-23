@@ -39,6 +39,27 @@ function Footer() {
   return (
     <footer className="border-t border-[hsl(var(--border))] bg-[hsl(var(--background))] mt-auto animate-fade-in">
       <div className="container mx-auto px-4 py-8">
+        {/* Submit Ad CTA Section */}
+        <section className="mb-8">
+          <h3 className="text-xl font-bold text-[hsl(var(--foreground))] mb-2">
+            {t('footer.submitYourAd')}
+          </h3>
+          <p className="text-sm text-[hsl(var(--muted-foreground))] mb-4">
+            {t('footer.submitYourAdDesc')}
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link to="/nepali-products/new">
+              <Button variant="outline" size="sm">{t('footer.submitNepaliProduct')}</Button>
+            </Link>
+            <Link to="/user_dashboard/my-ebooks">
+              <Button variant="outline" size="sm">{t('footer.submitEbookAd')}</Button>
+            </Link>
+            <Link to="/user_dashboard/my-auctions">
+              <Button variant="outline" size="sm">{t('footer.submitAuctionAd')}</Button>
+            </Link>
+          </div>
+        </section>
+
         {/* Customer Testimonials Section */}
         <section className="mb-8">
           <h3 className="text-xl font-bold text-[hsl(var(--foreground))] mb-4">
@@ -77,11 +98,26 @@ function Footer() {
                   {t('footer.faq')}
                 </Link>
               </li>
+              <li>
+                <Link to="/nepali-products/new" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
+                  {t('footer.submitNepaliProduct')}
+                </Link>
+              </li>
             </ul>
           </div>
           <div>
             <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">&nbsp;</h4>
             <ul className="space-y-1 text-sm">
+              <li>
+                <Link to="/user_dashboard/my-ebooks" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
+                  {t('footer.submitEbookAd')}
+                </Link>
+              </li>
+              <li>
+                <Link to="/user_dashboard/my-auctions" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
+                  {t('footer.submitAuctionAd')}
+                </Link>
+              </li>
               <li>
                 <Link to="/forum" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
                   {t('footer.onlineCommunity')}

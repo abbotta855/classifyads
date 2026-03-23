@@ -619,8 +619,18 @@ export const blogAPI = {
 // Blog Admin API
 export const blogAdminAPI = {
   list: (params) => axios.get('/api/admin/blog/posts', { params }),
-  create: (data) => axios.post('/api/admin/blog/posts', data),
-  update: (id, data) => axios.put(`/api/admin/blog/posts/${id}`, data),
+  categories: () => axios.get('/api/admin/blog/categories'),
+  tags: () => axios.get('/api/admin/blog/tags'),
+  createCategory: (name) => axios.post('/api/admin/blog/categories', { name }),
+  createTag: (name) => axios.post('/api/admin/blog/tags', { name }),
+  create: (data) => axios.post('/api/admin/blog/posts', data, data instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {}),
+  update: (id, data) => {
+    if (data instanceof FormData) {
+      data.append('_method', 'PUT');
+      return axios.post(`/api/admin/blog/posts/${id}`, data, { headers: { 'Content-Type': 'multipart/form-data' } });
+    }
+    return axios.put(`/api/admin/blog/posts/${id}`, data);
+  },
   remove: (id) => axios.delete(`/api/admin/blog/posts/${id}`),
 };
 
