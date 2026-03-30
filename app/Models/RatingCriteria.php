@@ -15,6 +15,8 @@ class RatingCriteria extends Model
         'criteria_type',
         'sort_order',
         'is_active',
+        'category_id',
+        'subcategory_id',
     ];
 
     protected $casts = [

@@ -31,6 +31,9 @@ use App\Http\Controllers\SupportAvailabilityController;
 use App\Http\Controllers\SupportOfflineMessageController;
 use App\Http\Controllers\BlogController;
 use App\Http\Controllers\Admin\BlogAdminController;
+use App\Http\Controllers\UserBlogController;
+use App\Models\BlogCategory;
+use App\Models\BlogTag;
 use App\Http\Controllers\Admin\NepaliProductController as AdminNepaliProductController;
 use App\Http\Controllers\ForumController;
 use App\Http\Controllers\ForumAdminController;
@@ -80,6 +83,13 @@ Route::get('/support/availability', [SupportAvailabilityController::class, 'stat
 // Blog public
 Route::get('/blog', [BlogController::class, 'index']);
 Route::get('/blog/{slug}', [BlogController::class, 'show']);
+// Blog taxonomies (public read)
+Route::get('/blog/categories', function () {
+    return response()->json(BlogCategory::orderBy('name')->get());
+});
+Route::get('/blog/tags', function () {
+    return response()->json(BlogTag::orderBy('name')->get());
+});
 
 // Search routes
 Route::get('/search', [App\Http\Controllers\SearchController::class, 'search']);
@@ -253,6 +263,15 @@ Route::middleware('auth:sanctum')->group(function () {
   Route::post('/inbox', [App\Http\Controllers\UserLiveChatController::class, 'store']);
   Route::post('/inbox/{id}/message', [App\Http\Controllers\UserLiveChatController::class, 'sendMessage']);
 
+  // User Blog routes (create/manage own posts; submitted as draft for admin review)
+  Route::prefix('me/blog')->group(function () {
+    Route::get('/posts', [UserBlogController::class, 'index']);
+    Route::post('/posts', [UserBlogController::class, 'store']);
+    Route::get('/posts/{id}', [UserBlogController::class, 'show']);
+    Route::put('/posts/{id}', [UserBlogController::class, 'update']);
+    Route::delete('/posts/{id}', [UserBlogController::class, 'destroy']);
+  });
+
   // Bought Items routes
   Route::get('/bought-items', [App\Http\Controllers\BoughtItemsController::class, 'index']);
 
@@ -392,6 +411,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Ratings/Reviews management
     Route::apiResource('ratings', RatingController::class);
     Route::apiResource('rating-criteria', App\Http\Controllers\Admin\RatingCriteriaController::class);
+    Route::post('rating-criteria/quick-add', [App\Http\Controllers\Admin\RatingCriteriaController::class, 'quickAdd']);
 
     // Sales Report
     Route::apiResource('sales-report', SalesReportController::class)->only(['index', 'show', 'store', 'update', 'destroy']);

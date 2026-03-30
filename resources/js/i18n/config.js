@@ -20,7 +20,8 @@ const initI18n = () => {
           },
         },
         fallbackLng: 'en',
-        lng: 'en', // Set default language explicitly
+        // Do not hard-force English; let detection/localStorage decide
+        lng: undefined,
         debug: false,
         interpolation: {
           escapeValue: false, // React already escapes

@@ -450,6 +450,10 @@ export default function NepaliProductForm() {
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
                   {formData.company_history.length}/2000 characters
                 </p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
+                  You can include details like established date, capital, employees, address, raw materials, targeted users/areas, shipping options,
+                  retail and wholesale prices, contacts, best-before, quantity, taste/colour, artificial items added, and safety tips.
+                </p>
               </div>
 
               <div>
@@ -488,6 +492,20 @@ export default function NepaliProductForm() {
                   />
                 </div>
               </div>
+
+              {(formData.company_latitude && formData.company_longitude) && (
+                <div className="rounded border border-[hsl(var(--border))] overflow-hidden">
+                  <div className="p-2 text-sm text-[hsl(var(--muted-foreground))]">Map preview</div>
+                  <iframe
+                    title="Company location"
+                    width="100%"
+                    height="240"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    src={`https://www.google.com/maps?q=${encodeURIComponent(formData.company_latitude)},${encodeURIComponent(formData.company_longitude)}&z=15&output=embed`}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Product Details */}
@@ -674,7 +692,7 @@ export default function NepaliProductForm() {
                   disabled={compressingImages}
                 />
                 <p className="text-xs text-[hsl(var(--muted-foreground))] mt-1">
-                  {compressingImages ? 'Compressing images...' : `${images.length}/8 images selected`}
+                  {compressingImages ? 'Compressing images...' : `${images.length}/8 images selected (recommended minimum 400x400px)`}
                   {images.length > 0 && !compressingImages && (
                     <span className="block mt-1">
                       {images.map((img, idx) => (

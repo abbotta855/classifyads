@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import Layout from './Layout';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { formatNumber, formatDate } from '../utils/format';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -275,6 +276,9 @@ function AdminPanel() {
   const [ebookShowCategoryDropdown, setEbookShowCategoryDropdown] = useState(false); // Category dropdown for E-Book form
   const [ebookExpandedCategories, setEbookExpandedCategories] = useState(new Set()); // Expanded categories for E-Book (using name as key)
   const [ebookExpandedSubcategories, setEbookExpandedSubcategories] = useState(new Set()); // Expanded subcategories for E-Book (using name as key)
+  // Super admin: own password change modal state
+  const [showOwnPasswordModal, setShowOwnPasswordModal] = useState(false);
+  const [ownPasswordData, setOwnPasswordData] = useState({ current_password: '', password: '', password_confirmation: '' });
   const ebookCategoryDropdownRef = useRef(null);
   // Edit E-Book category dropdown state
   const [editingEbookSelectedCategoryName, setEditingEbookSelectedCategoryName] = useState(''); // Selected category for Edit E-Book form
@@ -8902,7 +8906,7 @@ function AdminPanel() {
                                 {ad.description}
                               </p>
                               <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
-                                {t('homepage.pricePrefix')} {ad.price.toLocaleString()}
+                                {t('homepage.pricePrefix')} {formatNumber(ad.price)}
                               </p>
                               {ad.location && (
                                 <p className="text-xs text-[hsl(var(--muted-foreground))] mb-1">
@@ -9713,7 +9717,7 @@ function AdminPanel() {
                                                               </span>
                               </td>
                               <td className="p-3 text-sm">
-                                  <span className="font-semibold">Rs. {ad.price.toLocaleString()}</span>
+                                  <span className="font-semibold">Rs. {formatNumber(ad.price)}</span>
                               </td>
                               <td className="p-3 text-sm">
                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -9815,7 +9819,7 @@ function AdminPanel() {
                                     <span className="text-[hsl(var(--foreground))]">Rs. {ad.price.toLocaleString()}</span>
                                 </td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">
-                                  {ad.date ? new Date(ad.date).toLocaleDateString() : 'N/A'}
+                                  {ad.date ? formatDate(ad.date) : 'N/A'}
                                 </td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views || 0}</td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">No</td>
@@ -9850,6 +9854,81 @@ function AdminPanel() {
             </section>
           )}
 
+          {/* Own Password Modal (Super Admin) */}
+          {isSuperAdmin && showOwnPasswordModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+              <div className="bg-[hsl(var(--background))] text-[hsl(var(--foreground))] rounded-md shadow-lg w-full max-w-md">
+                <div className="p-4 border-b border-[hsl(var(--border))] font-semibold">Change my password</div>
+                <div className="p-4 space-y-3">
+                  <div className="text-sm text-[hsl(var(--muted-foreground))]">
+                    Enter your current password and a new password. This changes only your account (super admin).
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1">Current password</label>
+                    <input
+                      type="password"
+                      className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))]"
+                      value={ownPasswordData.current_password}
+                      onChange={(e) => setOwnPasswordData({ ...ownPasswordData, current_password: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1">New password (min 8 chars)</label>
+                    <input
+                      type="password"
+                      className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))]"
+                      value={ownPasswordData.password}
+                      onChange={(e) => setOwnPasswordData({ ...ownPasswordData, password: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm mb-1">Confirm new password</label>
+                    <input
+                      type="password"
+                      className="w-full px-3 py-2 border border-[hsl(var(--input))] rounded-md bg-[hsl(var(--background))]"
+                      value={ownPasswordData.password_confirmation}
+                      onChange={(e) => setOwnPasswordData({ ...ownPasswordData, password_confirmation: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="p-4 border-t border-[hsl(var(--border))] flex justify-end gap-2">
+                  <button
+                    className="px-3 py-2 rounded-md border border-[hsl(var(--border))]"
+                    onClick={() => setShowOwnPasswordModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="px-3 py-2 rounded-md bg-[hsl(var(--primary))] text-white"
+                    onClick={async () => {
+                      try {
+                        if (!ownPasswordData.password || ownPasswordData.password.length < 8) {
+                          alert('Password must be at least 8 characters.');
+                          return;
+                        }
+                        if (ownPasswordData.password !== ownPasswordData.password_confirmation) {
+                          alert('Passwords do not match.');
+                          return;
+                        }
+                        await adminAPI.changePassword({
+                          current_password: ownPasswordData.current_password,
+                          password: ownPasswordData.password,
+                          password_confirmation: ownPasswordData.password_confirmation,
+                        });
+                        alert('Password changed.');
+                        setShowOwnPasswordModal(false);
+                        setOwnPasswordData({ current_password: '', password: '', password_confirmation: '' });
+                      } catch (e) {
+                        alert('Failed to change password: ' + (e.response?.data?.message || e.message));
+                      }
+                    }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           {/* User Posted Ads Subsection */}
           {activeSection === 'ads-management' && activeSubsection === 'user-posted-ads' && (
             <section>
@@ -9923,11 +10002,11 @@ function AdminPanel() {
                                       step="0.01"
                                     />
                                   ) : (
-                                    <span className="text-[hsl(var(--foreground))]">Rs. {ad.price.toLocaleString()}</span>
+                                  <span className="text-[hsl(var(--foreground))]">Rs. {formatNumber(ad.price)}</span>
                                   )}
                                 </td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">
-                                  {ad.date ? new Date(ad.date).toLocaleDateString() : 'N/A'}
+                                  {ad.date ? formatDate(ad.date) : 'N/A'}
                                 </td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views || 0}</td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">No</td>
@@ -10035,11 +10114,11 @@ function AdminPanel() {
                                       step="0.01"
                                     />
                                   ) : (
-                                    <span className="text-[hsl(var(--foreground))]">Rs. {ad.price.toLocaleString()}</span>
+                                  <span className="text-[hsl(var(--foreground))]">Rs. {formatNumber(ad.price)}</span>
                                   )}
                                 </td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">
-                                  {ad.date ? new Date(ad.date).toLocaleDateString() : 'N/A'}
+                                  {ad.date ? formatDate(ad.date) : 'N/A'}
                                 </td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views || 0}</td>
                                 <td className="p-3 text-sm text-[hsl(var(--foreground))]">No</td>
@@ -13442,6 +13521,16 @@ function AdminPanel() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">User management</h2>
+                    {isSuperAdmin && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-3"
+                        onClick={() => setShowOwnPasswordModal(true)}
+                      >
+                        Change my password
+                      </Button>
+                    )}
                   </div>
 
                   <div className="overflow-x-auto">
@@ -13561,6 +13650,64 @@ function AdminPanel() {
                                           onClick={() => handleDeleteUser(user.id)}
                                         >
                                           Delete
+                                        </Button>
+                                      )}
+                                  {/* Super admin can set password for any non-super-admin user */}
+                                  {isSuperAdmin && user.role !== 'super_admin' && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 px-2 text-xs"
+                                          onClick={async () => {
+                                            const newPass = prompt('Enter new password for this user (min 8 chars):');
+                                            if (!newPass) return;
+                                            if (newPass.length < 8) {
+                                              alert('Password must be at least 8 characters.');
+                                              return;
+                                            }
+                                            const confirmPass = prompt('Confirm new password:');
+                                            if (confirmPass !== newPass) {
+                                              alert('Passwords do not match.');
+                                              return;
+                                            }
+                                            try {
+                                              await adminAPI.updateUser(user.id, { password: newPass });
+                                              alert('Password updated.');
+                                            } catch (e) {
+                                              alert('Failed to update password: ' + (e.response?.data?.message || e.message));
+                                            }
+                                          }}
+                                        >
+                                          Set Password
+                                        </Button>
+                                      )}
+                                  {/* Manual Block user */}
+                                  {user.role !== 'super_admin' && (user.role !== 'admin' || isSuperAdmin) && (
+                                        <Button
+                                          variant="secondary"
+                                          size="sm"
+                                          className="h-7 px-2 text-xs"
+                                          onClick={async () => {
+                                            try {
+                                              const reason = prompt('Enter reason to block this user:');
+                                              if (!reason) return;
+                                              const confirmBlock = confirm('Block this user now?');
+                                              if (!confirmBlock) return;
+                                              const today = new Date().toISOString().slice(0, 10);
+                                              await adminAPI.createBlockedUser({
+                                                user_id: user.id,
+                                                email: user.email,
+                                                address: user.location || '',
+                                                date_to_block: today,
+                                                reason_to_block: reason,
+                                              });
+                                              alert('User has been added to the blocked list.');
+                                            } catch (e) {
+                                              alert('Failed to block user: ' + (e.response?.data?.message || e.message));
+                                            }
+                                          }}
+                                        >
+                                          Block
                                         </Button>
                                       )}
                                   {(user.role === 'super_admin' || (user.role === 'admin' && !isSuperAdmin)) && (
