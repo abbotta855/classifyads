@@ -614,6 +614,8 @@ export const walletAPI = {
 export const blogAPI = {
   list: (params) => axios.get('/api/blog', { params }),
   detail: (slug) => axios.get(`/api/blog/${slug}`),
+  categories: () => axios.get('/api/blog/categories'),
+  tags: () => axios.get('/api/blog/tags'),
 };
 
 // Blog Admin API
@@ -632,6 +634,52 @@ export const blogAdminAPI = {
     return axios.put(`/api/admin/blog/posts/${id}`, data);
   },
   remove: (id) => axios.delete(`/api/admin/blog/posts/${id}`),
+};
+
+// User Blog API
+export const blogUserAPI = {
+  list: (params) => axios.get('/api/me/blog/posts', { params }),
+  get: (id) => axios.get(`/api/me/blog/posts/${id}`),
+  create: (data) => {
+    const formData = data instanceof FormData ? data : new FormData();
+    if (!(data instanceof FormData)) {
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          if (Array.isArray(data[key])) {
+            data[key].forEach((val) => formData.append(`${key}[]`, val));
+          } else if (data[key] instanceof File) {
+            formData.append(key, data[key]);
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+    }
+    return axios.post('/api/me/blog/posts', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  update: (id, data) => {
+    const formData = data instanceof FormData ? data : new FormData();
+    if (!(data instanceof FormData)) {
+      Object.keys(data).forEach(key => {
+        if (data[key] !== null && data[key] !== undefined) {
+          if (Array.isArray(data[key])) {
+            data[key].forEach((val) => formData.append(`${key}[]`, val));
+          } else if (data[key] instanceof File) {
+            formData.append(key, data[key]);
+          } else {
+            formData.append(key, data[key]);
+          }
+        }
+      });
+    }
+    formData.append('_method', 'PUT');
+    return axios.post(`/api/me/blog/posts/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  remove: (id) => axios.delete(`/api/me/blog/posts/${id}`),
 };
 
 // Forum API

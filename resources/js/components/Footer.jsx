@@ -73,8 +73,9 @@ function Footer() {
           </Link>
         </section>
 
-        {/* Footer Links */}
-        <div className="grid grid-cols-2 gap-4 mb-8">
+        {/* Footer Links - three columns */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Column 1 */}
           <div>
             <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.links')}</h4>
             <ul className="space-y-1 text-sm">
@@ -98,16 +99,17 @@ function Footer() {
                   {t('footer.faq')}
                 </Link>
               </li>
+            </ul>
+          </div>
+          {/* Column 2 */}
+          <div>
+            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.submitYourAd')}</h4>
+            <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/nepali-products/new" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
                   {t('footer.submitNepaliProduct')}
                 </Link>
               </li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">&nbsp;</h4>
-            <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/user_dashboard/my-ebooks" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
                   {t('footer.submitEbookAd')}
@@ -123,6 +125,12 @@ function Footer() {
                   {t('footer.onlineCommunity')}
                 </Link>
               </li>
+            </ul>
+          </div>
+          {/* Column 3 */}
+          <div>
+            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.policies')}</h4>
+            <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/cookie-policy" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
                   {t('footer.cookiePolicy')}

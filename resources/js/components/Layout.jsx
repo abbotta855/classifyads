@@ -4,9 +4,9 @@ import Footer from './Footer';
 
 function Layout({ children, showFooter = true }) {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-[hsl(var(--background))]">
       <Header />
-      <main className="flex-1 container mx-auto px-4 py-8">
+      <main className="flex-1 container mx-auto px-4 py-8 border border-[hsl(var(--primary))] border-opacity-50 rounded-md bg-[hsl(var(--background))]">
         {children}
       </main>
       {showFooter && <Footer />}

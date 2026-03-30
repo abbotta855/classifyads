@@ -43,6 +43,8 @@ import SearchResults from './SearchResults';
 import TransactionHistory from './TransactionHistory';
 import ContactUs from './ContactUs';
 import StaticPage from './StaticPage';
+import UserBlogList from './UserBlogList';
+import UserBlogEditor from './UserBlogEditor';
 
 function LoadingCard() {
   return (
@@ -194,6 +196,30 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <OrderDetail />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my-blog"
+        element={
+          <ProtectedRoute>
+            <UserBlogList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my-blog/new"
+        element={
+          <ProtectedRoute>
+            <UserBlogEditor />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my-blog/:id/edit"
+        element={
+          <ProtectedRoute>
+            <UserBlogEditor />
           </ProtectedRoute>
         }
       />
