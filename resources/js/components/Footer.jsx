@@ -76,6 +76,9 @@ function Footer() {
         {/* Footer Links - three columns */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {/* Column 1 */}
+        {/* Footer Links - three columns */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Column 1 */}
           <div>
             <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.links')}</h4>
             <ul className="space-y-1 text-sm">
@@ -105,6 +108,12 @@ function Footer() {
           <div>
             {/* Intentionally no column title per spec */}
             <ul className="space-y-1 text-sm">
+            </ul>
+          </div>
+          {/* Column 2 */}
+          <div>
+            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.submitYourAd')}</h4>
+            <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/nepali-products/new" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
                   {t('footer.submitNepaliProduct')}
@@ -130,6 +139,12 @@ function Footer() {
           {/* Column 3 */}
           <div>
             {/* Intentionally no column title per spec */}
+            <ul className="space-y-1 text-sm">
+            </ul>
+          </div>
+          {/* Column 3 */}
+          <div>
+            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.policies')}</h4>
             <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/cookie-policy" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
