@@ -73,9 +73,7 @@ function Footer() {
           </Link>
         </section>
 
-        {/* Footer Links - three columns */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Column 1 */}
+        
         {/* Footer Links - three columns */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {/* Column 1 */}
