@@ -478,6 +478,8 @@ function AdminPanel() {
     description: '',
     sort_order: 0,
     is_active: true,
+    category_id: '',
+    subcategory_id: '',
   });
 
   // Change Password data (Super Admin only - for changing other users' passwords)
@@ -1038,7 +1040,12 @@ function AdminPanel() {
   const handleAddCriteriaSubmit = async (e) => {
     e.preventDefault();
     try {
-      await adminAPI.createRatingCriteria(criteriaFormData);
+      const payload = {
+        ...criteriaFormData,
+        category_id: criteriaFormData.category_id ? parseInt(criteriaFormData.category_id, 10) : null,
+        subcategory_id: criteriaFormData.subcategory_id ? parseInt(criteriaFormData.subcategory_id, 10) : null,
+      };
+      await adminAPI.createRatingCriteria(payload);
       setSuccessMessage('Rating criteria added successfully');
       setShowAddCriteriaForm(false);
       setCriteriaFormData({
@@ -1046,12 +1053,31 @@ function AdminPanel() {
         description: '',
         sort_order: 0,
         is_active: true,
+        category_id: '',
+        subcategory_id: '',
       });
       fetchRatingCriteria();
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       setError('Failed to add rating criteria: ' + (err.response?.data?.message || err.message));
       console.error('Error adding rating criteria:', err);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
+  const handleQuickAddCriteria = async () => {
+    try {
+      const payload = {
+        category_id: criteriaFormData.category_id ? parseInt(criteriaFormData.category_id, 10) : null,
+        subcategory_id: criteriaFormData.subcategory_id ? parseInt(criteriaFormData.subcategory_id, 10) : null,
+      };
+      await adminAPI.quickAddRatingCriteria(payload);
+      setSuccessMessage('4 default rating criteria added successfully');
+      fetchRatingCriteria();
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError('Failed to quick add rating criteria: ' + (err.response?.data?.message || err.message));
+      console.error('Error quick adding rating criteria:', err);
       setTimeout(() => setError(null), 5000);
     }
   };
@@ -11707,6 +11733,52 @@ function AdminPanel() {
                             />
                           </div>
                         </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Category</label>
+                            <select
+                              value={criteriaFormData.category_id}
+                              onChange={(e) =>
+                                setCriteriaFormData({
+                                  ...criteriaFormData,
+                                  category_id: e.target.value,
+                                  subcategory_id: '',
+                                })
+                              }
+                              className="h-10 w-full rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-3 py-2 text-sm"
+                            >
+                              <option value="">All Categories</option>
+                              {categories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Subcategory</label>
+                            <select
+                              value={criteriaFormData.subcategory_id}
+                              onChange={(e) =>
+                                setCriteriaFormData({
+                                  ...criteriaFormData,
+                                  subcategory_id: e.target.value,
+                                })
+                              }
+                              disabled={!criteriaFormData.category_id}
+                              className="h-10 w-full rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-3 py-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              <option value="">All Subcategories</option>
+                              {(categories.find(
+                                (category) => category.id.toString() === criteriaFormData.category_id.toString()
+                              )?.subcategories || []).map((subcategory) => (
+                                <option key={subcategory.id} value={subcategory.id}>
+                                  {subcategory.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
                         <div>
                           <label className="block text-sm font-medium text-[hsl(var(--foreground))] mb-1">Description</label>
                           <Input
@@ -11736,10 +11808,15 @@ function AdminPanel() {
                                 description: '',
                                 sort_order: 0,
                                 is_active: true,
+                                category_id: '',
+                                subcategory_id: '',
                               });
                             }}
                           >
                             Cancel
+                          </Button>
+                          <Button type="button" variant="outline" onClick={handleQuickAddCriteria}>
+                            Quick Add 4 Defaults
                           </Button>
                           <Button type="submit">Add Criteria</Button>
                         </div>

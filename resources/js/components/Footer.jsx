@@ -74,10 +74,9 @@ function Footer() {
         </section>
 
         
-        {/* Footer Links - three columns */}
+        {/* Footer Links - three equal-height columns */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Column 1 */}
-          <div>
+          <div className="h-full">
             <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.links')}</h4>
             <ul className="space-y-1 text-sm">
               <li>
@@ -95,36 +94,14 @@ function Footer() {
                   {t('footer.contactUs')}
                 </Link>
               </li>
+            </ul>
+          </div>
+          <div className="h-full">
+            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.links')}</h4>
+            <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/faq" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
                   {t('footer.faq')}
-                </Link>
-              </li>
-            </ul>
-          </div>
-          {/* Column 2 */}
-          <div>
-            {/* Intentionally no column title per spec */}
-            <ul className="space-y-1 text-sm">
-            </ul>
-          </div>
-          {/* Column 2 */}
-          <div>
-            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.submitYourAd')}</h4>
-            <ul className="space-y-1 text-sm">
-              <li>
-                <Link to="/nepali-products/new" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
-                  {t('footer.submitNepaliProduct')}
-                </Link>
-              </li>
-              <li>
-                <Link to="/user_dashboard/my-ebooks" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
-                  {t('footer.submitEbookAd')}
-                </Link>
-              </li>
-              <li>
-                <Link to="/user_dashboard/my-auctions" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
-                  {t('footer.submitAuctionAd')}
                 </Link>
               </li>
               <li>
@@ -134,15 +111,8 @@ function Footer() {
               </li>
             </ul>
           </div>
-          {/* Column 3 */}
-          <div>
-            {/* Intentionally no column title per spec */}
-            <ul className="space-y-1 text-sm">
-            </ul>
-          </div>
-          {/* Column 3 */}
-          <div>
-            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.policies')}</h4>
+          <div className="h-full">
+            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.links')}</h4>
             <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/cookie-policy" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">

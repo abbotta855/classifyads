@@ -179,6 +179,7 @@ export const adminAPI = {
   getRating: (id) => axios.get(`${API_BASE}/ratings/${id}`),
   getRatingCriteria: () => axios.get(`${API_BASE}/rating-criteria`),
   createRatingCriteria: (data) => axios.post(`${API_BASE}/rating-criteria`, data),
+  quickAddRatingCriteria: (data) => axios.post(`${API_BASE}/rating-criteria/quick-add`, data),
   updateRatingCriteria: (id, data) => axios.put(`${API_BASE}/rating-criteria/${id}`, data),
   deleteRatingCriteria: (id) => axios.delete(`${API_BASE}/rating-criteria/${id}`),
   createRating: (data) => axios.post(`${API_BASE}/ratings`, data),
