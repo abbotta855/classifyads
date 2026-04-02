@@ -102,6 +102,7 @@ function Footer() {
             </ul>
           </div>
           <div className="h-full">
+            <div className="h-8" aria-hidden="true"></div>
             <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/forum" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
@@ -126,6 +127,7 @@ function Footer() {
             </ul>
           </div>
           <div className="h-full">
+            <div className="h-8" aria-hidden="true"></div>
             <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/cookie-policy" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
