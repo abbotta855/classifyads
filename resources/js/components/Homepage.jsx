@@ -3117,11 +3117,11 @@ function Homepage() {
                 <div key={section.key} className="mb-8">
                   <h3 className="text-xl font-bold text-[hsl(var(--foreground))] mb-4">{sectionTitle}</h3>
                   {isRealEmptySection ? (
-                    <Card className="border-dashed">
+                      <Card className="border-dashed">
                       <CardContent className="py-10 text-center">
                         <p className="text-[hsl(var(--muted-foreground))] mb-2">{t('homepage.zeroItems')}</p>
                         <p className="text-sm text-[hsl(var(--muted-foreground))]">
-                          This section will automatically show as soon as listings are posted.
+                          {t('homepage.sectionAutoShow')}
                         </p>
                       </CardContent>
                     </Card>
@@ -3147,7 +3147,7 @@ function Homepage() {
                                 />
                                 {isMockSection && (
                                   <span className="absolute top-2 left-2 text-xs font-medium px-2 py-1 rounded bg-black/60 text-white">
-                                    Demo preview
+                                    {t('homepage.demoPreview')}
                                   </span>
                                 )}
                               </div>

@@ -3,8 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { blogAPI, blogUserAPI } from '../utils/api';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
+import Layout from './Layout';
+import { useTranslation } from '../utils/translation';
 
 export default function UserBlogEditor() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const isEdit = useMemo(() => Boolean(id), [id]);
   const navigate = useNavigate();
@@ -86,15 +89,16 @@ export default function UserBlogEditor() {
   };
 
   if (loading) {
-    return <Card><CardContent className="p-6">Loading...</CardContent></Card>;
+    return <Layout><Card><CardContent className="p-6">{t('common.loading')}</CardContent></Card></Layout>;
   }
 
   return (
-    <div className="container mx-auto p-4 space-y-4">
-      <h1 className="text-2xl font-semibold">{isEdit ? 'Edit Post' : 'Create Post'}</h1>
-      <form onSubmit={onSubmit} className="space-y-4">
+    <Layout>
+      <div className="container mx-auto p-4 space-y-4">
+        <h1 className="text-2xl font-semibold">{isEdit ? t('blog.editPost') : t('blog.createPost')}</h1>
+        <form onSubmit={onSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm mb-1">Title</label>
+          <label className="block text-sm mb-1">{t('blog.titleLabel')}</label>
           <input
             name="title"
             value={form.title}
@@ -104,7 +108,7 @@ export default function UserBlogEditor() {
           />
         </div>
         <div>
-          <label className="block text-sm mb-1">Excerpt</label>
+          <label className="block text-sm mb-1">{t('blog.excerptLabel')}</label>
           <textarea
             name="excerpt"
             value={form.excerpt}
@@ -114,7 +118,7 @@ export default function UserBlogEditor() {
           />
         </div>
         <div>
-          <label className="block text-sm mb-1">Content</label>
+          <label className="block text-sm mb-1">{t('blog.contentLabel')}</label>
           <textarea
             name="content"
             value={form.content}
@@ -125,21 +129,21 @@ export default function UserBlogEditor() {
           />
         </div>
         <div>
-          <label className="block text-sm mb-1">Category</label>
+          <label className="block text-sm mb-1">{t('blog.categoryLabel')}</label>
           <select
             name="blog_category_id"
             value={form.blog_category_id || ''}
             onChange={onChange}
             className="border rounded px-3 py-2 w-full"
           >
-            <option value="">— None —</option>
+            <option value="">{t('blog.noneOption')}</option>
             {categories.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-sm mb-2">Tags</label>
+          <label className="block text-sm mb-2">{t('blog.tagsLabel')}</label>
           <div className="flex flex-wrap gap-2">
             {tags.map(t => {
               const active = form.tag_ids.includes(t.id);
@@ -157,15 +161,16 @@ export default function UserBlogEditor() {
           </div>
         </div>
         <div>
-          <label className="block text-sm mb-1">Featured Image</label>
+          <label className="block text-sm mb-1">{t('blog.featuredImageLabel')}</label>
           <input type="file" accept="image/*" onChange={onFileChange} />
         </div>
         <div className="flex gap-2">
-          <Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save (Submit for Review)'}</Button>
-          <Button type="button" variant="secondary" onClick={() => navigate('/my-blog')}>Cancel</Button>
+          <Button type="submit" disabled={saving}>{saving ? t('blog.saving') : t('blog.saveForReview')}</Button>
+          <Button type="button" variant="secondary" onClick={() => navigate('/my-blog')}>{t('common.cancel')}</Button>
         </div>
-      </form>
-    </div>
+        </form>
+      </div>
+    </Layout>
   );
 }
 
