@@ -37,7 +37,7 @@ function Footer() {
   };
 
   return (
-    <footer className="border-t border-[hsl(var(--border))] bg-[hsl(var(--background))] mt-auto animate-fade-in">
+    <footer className="bg-[hsl(var(--background))] mt-auto animate-fade-in">
       <div className="container mx-auto px-4 py-8">
         {/* Submit Ad CTA Section */}
         <section className="mb-8">
@@ -74,7 +74,7 @@ function Footer() {
         </section>
 
         
-        {/* Footer Links - three equal-height columns */}
+        {/* Footer Links - match client-approved structure */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="h-full">
             <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.links')}</h4>
@@ -94,25 +94,38 @@ function Footer() {
                   {t('footer.contactUs')}
                 </Link>
               </li>
-            </ul>
-          </div>
-          <div className="h-full">
-            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.links')}</h4>
-            <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/faq" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
                   {t('footer.faq')}
                 </Link>
               </li>
+            </ul>
+          </div>
+          <div className="h-full">
+            <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/forum" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
                   {t('footer.onlineCommunity')}
                 </Link>
               </li>
+              <li>
+                <Link to="/nepali-products/new" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
+                  {t('footer.submitNepaliProduct')}
+                </Link>
+              </li>
+              <li>
+                <Link to="/user_dashboard/my-ebooks" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
+                  {t('footer.submitEbookAd')}
+                </Link>
+              </li>
+              <li>
+                <Link to="/user_dashboard/my-auctions" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">
+                  {t('footer.submitAuctionAd')}
+                </Link>
+              </li>
             </ul>
           </div>
           <div className="h-full">
-            <h4 className="font-semibold mb-2 text-[hsl(var(--foreground))]">{t('footer.links')}</h4>
             <ul className="space-y-1 text-sm">
               <li>
                 <Link to="/cookie-policy" className="text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--primary))] transition-colors">

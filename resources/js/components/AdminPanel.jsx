@@ -9758,7 +9758,7 @@ function AdminPanel() {
                               </td>
                               <td className="p-3 text-sm text-[hsl(var(--foreground))]">{ad.views}</td>
                               <td className="p-3 text-sm text-[hsl(var(--muted-foreground))]">{new Date(ad.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</td>
-                              <td className="p-3 text-sm">
+                              <td className="p-3 text-sm whitespace-nowrap">
                                 <div className="flex gap-2">
                                       <Button 
                                         variant="outline" 
@@ -13611,18 +13611,18 @@ function AdminPanel() {
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
+                    <table className="w-full min-w-[1080px] border-collapse table-fixed">
                       <thead>
                         <tr className="border-b border-[hsl(var(--border))]">
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User Name</th>
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Joined Date</th>
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Email</th>
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Address</th>
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User/Vendor</th>
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Status</th>
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Comment</th>
-                          <th className="text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
+                          <th className="w-[56px] text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">S.N.</th>
+                          <th className="w-[120px] text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User Name</th>
+                          <th className="w-[96px] text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Joined Date</th>
+                          <th className="w-[190px] text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Email</th>
+                          <th className="w-[130px] text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Address</th>
+                          <th className="w-[96px] text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">User/Vendor</th>
+                          <th className="w-[84px] text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Status</th>
+                          <th className="w-[120px] text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Comment</th>
+                          <th className="min-w-[188px] text-left p-3 text-sm font-semibold text-[hsl(var(--foreground))]">Edit/Delete</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -13645,9 +13645,9 @@ function AdminPanel() {
                                 {new Date(user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                               </td>
                               <td className="p-3 text-sm">
-                                  <span>{user.email}</span>
+                                  <span className="block truncate" title={user.email}>{user.email}</span>
                               </td>
-                              <td className="p-3 text-sm max-w-xs">
+                              <td className="p-3 text-sm">
                                   <span className="text-[hsl(var(--muted-foreground))] text-xs truncate block">
                                     {user.location || '-'}
                                   </span>

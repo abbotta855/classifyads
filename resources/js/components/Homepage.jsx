@@ -1169,6 +1169,49 @@ function Homepage() {
     return `/search?q=${encodeURIComponent(keyword)}`;
   };
 
+  const getMockCategoryAds = (sectionKey) => {
+    const mockLibrary = {
+      landForSale: [
+        { id: 'mock-land-1', title: 'Residential Plot in Peaceful Area', description: 'Road access, water line, and clear ownership papers.', price: 2500000, image: 'https://picsum.photos/id/1043/1200/800' },
+        { id: 'mock-land-2', title: 'Commercial Corner Land', description: 'Great visibility, ideal for office or showroom setup.', price: 7200000, image: 'https://picsum.photos/id/1015/1200/800' },
+        { id: 'mock-land-3', title: 'Valley View Land Parcel', description: 'Scenic location with easy access to main highway.', price: 4100000, image: 'https://picsum.photos/id/1025/1200/800' },
+        { id: 'mock-land-4', title: 'Ready-to-Build Plot', description: 'Flat surface and nearby market, school, and clinic.', price: 3600000, image: 'https://picsum.photos/id/1039/1200/800' },
+      ],
+      carForSale: [
+        { id: 'mock-car-1', title: 'Premium Sedan - Excellent Condition', description: 'Single owner, serviced regularly, smooth drive.', price: 1850000, image: 'https://picsum.photos/id/111/1200/800' },
+        { id: 'mock-car-2', title: 'Family SUV with Low Mileage', description: 'Spacious interior with comfort-focused features.', price: 2850000, image: 'https://picsum.photos/id/1071/1200/800' },
+        { id: 'mock-car-3', title: 'City Hatchback - Fuel Efficient', description: 'Best for daily commute, clean interior and body.', price: 1250000, image: 'https://picsum.photos/id/133/1200/800' },
+        { id: 'mock-car-4', title: 'Sporty Compact Car', description: 'Responsive performance with modern infotainment.', price: 2120000, image: 'https://picsum.photos/id/176/1200/800' },
+      ],
+      motorbikeForSale: [
+        { id: 'mock-bike-1', title: 'Street Bike - Well Maintained', description: 'Strong pickup, good mileage, recently serviced.', price: 285000, image: 'https://picsum.photos/id/1072/1200/800' },
+        { id: 'mock-bike-2', title: 'Adventure Touring Bike', description: 'Comfortable long ride setup with luggage rack.', price: 680000, image: 'https://picsum.photos/id/338/1200/800' },
+        { id: 'mock-bike-3', title: 'Commuter Bike - Reliable Daily Use', description: 'Economical and practical for city traffic.', price: 210000, image: 'https://picsum.photos/id/292/1200/800' },
+        { id: 'mock-bike-4', title: 'Performance Motorcycle', description: 'Powerful engine with sporty styling.', price: 950000, image: 'https://picsum.photos/id/319/1200/800' },
+      ],
+      busForSale: [
+        { id: 'mock-bus-1', title: 'Intercity Passenger Bus', description: 'Comfort seats and recently upgraded interior.', price: 7200000, image: 'https://picsum.photos/id/287/1200/800' },
+        { id: 'mock-bus-2', title: 'School Transport Bus', description: 'Reliable condition, route-ready and spacious.', price: 5400000, image: 'https://picsum.photos/id/356/1200/800' },
+        { id: 'mock-bus-3', title: 'Tourist Coach Bus', description: 'Air-conditioned cabin with luxury seating.', price: 9800000, image: 'https://picsum.photos/id/316/1200/800' },
+        { id: 'mock-bus-4', title: 'Mini Bus - Urban Route', description: 'Easy maneuvering and efficient operation cost.', price: 4300000, image: 'https://picsum.photos/id/188/1200/800' },
+      ],
+      truckForSale: [
+        { id: 'mock-truck-1', title: 'Heavy Duty Cargo Truck', description: 'Strong engine and high load carrying capacity.', price: 8600000, image: 'https://picsum.photos/id/183/1200/800' },
+        { id: 'mock-truck-2', title: 'Medium Load Delivery Truck', description: 'Ideal for regional logistics and distribution.', price: 5900000, image: 'https://picsum.photos/id/133/1200/800' },
+        { id: 'mock-truck-3', title: 'Tipper Truck for Construction', description: 'Construction-ready body and hydraulic setup.', price: 7900000, image: 'https://picsum.photos/id/304/1200/800' },
+        { id: 'mock-truck-4', title: 'Compact Utility Truck', description: 'Excellent for business operations and transport.', price: 4700000, image: 'https://picsum.photos/id/247/1200/800' },
+      ],
+      houseForSale: [
+        { id: 'mock-house-1', title: 'Modern Family House', description: 'Bright rooms, parking space, and secure neighborhood.', price: 14500000, image: 'https://picsum.photos/id/1068/1200/800' },
+        { id: 'mock-house-2', title: 'Duplex Home with Garden', description: 'Two floors, private yard, and open balcony.', price: 18200000, image: 'https://picsum.photos/id/1067/1200/800' },
+        { id: 'mock-house-3', title: 'Cozy City House', description: 'Close to schools, markets, and public transport.', price: 11800000, image: 'https://picsum.photos/id/1048/1200/800' },
+        { id: 'mock-house-4', title: 'Premium Villa Style Home', description: 'Elegant design with spacious living area.', price: 26500000, image: 'https://picsum.photos/id/1056/1200/800' },
+      ],
+    };
+
+    return mockLibrary[sectionKey] || [];
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -3063,65 +3106,84 @@ function Homepage() {
               { key: 'houseForSale', name: 'House for sale' }
             ].map((section) => {
               const categoryAds = getCategoryAds(section.name);
+              const mockAds = getMockCategoryAds(section.key);
+              const shouldShowMockAds = !user && categoryAds.length === 0;
+              const isRealEmptySection = user && categoryAds.length === 0;
+              const displayAds = shouldShowMockAds ? mockAds : categoryAds;
+              const isMockSection = shouldShowMockAds;
               const sectionTitle = t(`homepage.categorySections.${section.key}`);
 
               return (
                 <div key={section.key} className="mb-8">
                   <h3 className="text-xl font-bold text-[hsl(var(--foreground))] mb-4">{sectionTitle}</h3>
-                  {categoryAds.length === 0 ? (
-                    <div className="text-center py-8 text-[hsl(var(--muted-foreground))]">
-                      <p>{t('homepage.zeroItems')}</p>
-                    </div>
+                  {isRealEmptySection ? (
+                    <Card className="border-dashed">
+                      <CardContent className="py-10 text-center">
+                        <p className="text-[hsl(var(--muted-foreground))] mb-2">{t('homepage.zeroItems')}</p>
+                        <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                          This section will automatically show as soon as listings are posted.
+                        </p>
+                      </CardContent>
+                    </Card>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {categoryAds.map((ad, index) => (
-                        <Card 
-                          key={ad.id} 
-                          className="card-hover group cursor-pointer animate-fade-in"
-                          style={{ animationDelay: `${index * 30}ms` }}
-                          onClick={() => handleAdClick(ad.id)}
-                        >
-                          <CardContent className="p-0">
-                            <div className="relative overflow-hidden">
-                              <img
-                                src={ad.image}
-                                alt={ad.title}
-                                className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
-                              />
-                            </div>
-                            <div className="p-3">
-                              <h3 className="font-semibold text-sm text-[hsl(var(--foreground))] mb-1 line-clamp-2 group-hover:text-[hsl(var(--primary))] transition-colors">
-                                {ad.title}
-                              </h3>
-                              <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 line-clamp-2">
-                                {ad.description}
-                              </p>
-                              <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
-                                {t('homepage.pricePrefix')} {ad.price.toLocaleString()}
-                              </p>
-                              {ad.user_id && (
-                                <Link
-                                  to={`/profile/${ad.user_id}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="text-xs text-[hsl(var(--primary))] hover:underline"
-                                >
-                                  {t('homepage.viewSellerProfile')}
-                                </Link>
-                              )}
-                            </div>
+                        {displayAds.map((ad, index) => (
+                          <Card 
+                            key={ad.id} 
+                            className={`card-hover group animate-fade-in ${isMockSection ? 'cursor-default' : 'cursor-pointer'}`}
+                            style={{ animationDelay: `${index * 30}ms` }}
+                            onClick={() => {
+                              if (!isMockSection) {
+                                handleAdClick(ad.id);
+                              }
+                            }}
+                          >
+                            <CardContent className="p-0">
+                              <div className="relative overflow-hidden">
+                                <img
+                                  src={ad.image}
+                                  alt={ad.title}
+                                  className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
+                                />
+                                {isMockSection && (
+                                  <span className="absolute top-2 left-2 text-xs font-medium px-2 py-1 rounded bg-black/60 text-white">
+                                    Demo preview
+                                  </span>
+                                )}
+                              </div>
+                              <div className="p-3">
+                                <h3 className="font-semibold text-sm text-[hsl(var(--foreground))] mb-1 line-clamp-2 group-hover:text-[hsl(var(--primary))] transition-colors">
+                                  {ad.title}
+                                </h3>
+                                <p className="text-xs text-[hsl(var(--muted-foreground))] mb-2 line-clamp-2">
+                                  {ad.description}
+                                </p>
+                                <p className="text-lg font-bold text-[hsl(var(--primary))] mb-2">
+                                  {t('homepage.pricePrefix')} {ad.price.toLocaleString()}
+                                </p>
+                                {!isMockSection && ad.user_id && (
+                                  <Link
+                                    to={`/profile/${ad.user_id}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-xs text-[hsl(var(--primary))] hover:underline"
+                                  >
+                                    {t('homepage.viewSellerProfile')}
+                                  </Link>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                        <Card className="hover:shadow-lg transition-shadow flex items-center justify-center">
+                          <CardContent className="p-4 text-center">
+                            <Link
+                              to={getCategoryRoute(section.name)}
+                              className="text-[hsl(var(--primary))] hover:underline font-semibold"
+                            >
+                              {t('homepage.moreAd')}
+                            </Link>
                           </CardContent>
                         </Card>
-                      ))}
-                      <Card className="hover:shadow-lg transition-shadow flex items-center justify-center">
-                        <CardContent className="p-4 text-center">
-                          <Link
-                            to={getCategoryRoute(section.name)}
-                            className="text-[hsl(var(--primary))] hover:underline font-semibold"
-                          >
-                            {t('homepage.moreAd')}
-                          </Link>
-                        </CardContent>
-                      </Card>
                     </div>
                   )}
                 </div>

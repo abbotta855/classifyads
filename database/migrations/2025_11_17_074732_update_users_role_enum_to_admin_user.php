@@ -12,15 +12,17 @@ return new class extends Migration
    */
   public function up(): void
   {
-    // For PostgreSQL, we need to drop the constraint first
-    DB::statement("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check");
-    
-    // Update existing data before changing the constraint
+    $driver = DB::getDriverName();
+
+    // Update existing data before changing DB-specific constraints/defaults
     DB::statement("UPDATE users SET role = 'user' WHERE role IN ('seller', 'buyer')");
-    
-    // Recreate the constraint with new enum values
-    DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'user'))");
-    DB::statement("ALTER TABLE users ALTER COLUMN role SET DEFAULT 'user'");
+
+    // Constraint/default syntax below is PostgreSQL specific.
+    if ($driver === 'pgsql') {
+      DB::statement("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check");
+      DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'user'))");
+      DB::statement("ALTER TABLE users ALTER COLUMN role SET DEFAULT 'user'");
+    }
   }
 
   /**
@@ -28,10 +30,14 @@ return new class extends Migration
    */
   public function down(): void
   {
-    // Revert to original enum
-    DB::statement("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check");
+    $driver = DB::getDriverName();
+
     DB::statement("UPDATE users SET role = 'buyer' WHERE role = 'user'");
-    DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'seller', 'buyer'))");
-    DB::statement("ALTER TABLE users ALTER COLUMN role SET DEFAULT 'buyer'");
+
+    if ($driver === 'pgsql') {
+      DB::statement("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check");
+      DB::statement("ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'seller', 'buyer'))");
+      DB::statement("ALTER TABLE users ALTER COLUMN role SET DEFAULT 'buyer'");
+    }
   }
 };
