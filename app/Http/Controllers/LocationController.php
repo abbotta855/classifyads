@@ -7,11 +7,18 @@ use Illuminate\Http\Request;
 
 class LocationController extends Controller
 {
+    private function isNepaliRequest(Request $request): bool
+    {
+        $lang = strtolower((string) ($request->header('X-Language') ?? $request->query('lang', 'en')));
+        return str_starts_with($lang, 'ne');
+    }
+
     /**
      * Get all locations in hierarchical format (Province → District → Local Level)
      */
-    public function index()
+    public function index(Request $request)
     {
+        $isNepali = $this->isNepaliRequest($request);
         // Get all locations from database
         $locations = Location::orderBy('province')
             ->orderBy('district')
@@ -24,10 +31,13 @@ class LocationController extends Controller
         $districtMap = [];
 
         foreach ($locations as $location) {
-            $provinceName = $location->province;
-            $districtName = $location->district;
-            $localLevelName = $location->local_level;
+            $provinceName = $isNepali ? ($location->province_ne ?: $location->province) : $location->province;
+            $districtName = $isNepali ? ($location->district_ne ?: $location->district) : $location->district;
+            $localLevelName = $isNepali ? ($location->local_level_ne ?: $location->local_level) : $location->local_level;
             $localLevelType = $location->local_level_type;
+            $rawProvince = $location->province;
+            $rawDistrict = $location->district;
+            $rawLocalLevel = $location->local_level;
 
             // Create province if it doesn't exist
             if (!isset($provinceMap[$provinceName])) {
@@ -78,15 +88,16 @@ class LocationController extends Controller
                 }
                 
                 // Get all wards for this local level
-                $wards = Location::where('province', $provinceName)
-                    ->where('district', $districtName)
-                    ->where('local_level', $localLevelName)
+                $wards = Location::where('province', $rawProvince)
+                    ->where('district', $rawDistrict)
+                    ->where('local_level', $rawLocalLevel)
                     ->orderBy('ward_number')
-                    ->get(['id', 'ward_number', 'local_address']);
+                    ->get(['id', 'ward_number', 'local_address', 'local_address_ne']);
                 
                 $wardsData = [];
                 foreach ($wards as $ward) {
-                    $localAddresses = $ward->local_address ? explode(', ', $ward->local_address) : [];
+                    $addressValue = $isNepali ? ($ward->local_address_ne ?: $ward->local_address) : $ward->local_address;
+                    $localAddresses = $addressValue ? explode(', ', $addressValue) : [];
                     $wardsData[] = [
                         'id' => $ward->id,
                         'ward_number' => $ward->ward_number,

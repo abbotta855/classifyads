@@ -8,7 +8,10 @@ class Category extends Model
 {
   protected $fillable = [
     'domain_category',
+    'domain_category_ne',
     'field_category',
+    'field_category_ne',
     'item_category',
+    'item_category_ne',
   ];
 }

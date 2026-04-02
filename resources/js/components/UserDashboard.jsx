@@ -217,6 +217,7 @@ function UserDashboard({ mode: propMode }) {
     { id: 'dashboard', labelKey: 'dashboard.dashboard', icon: '📊' },
     { id: 'profile', labelKey: 'dashboard.profile', icon: '👤' },
     { id: 'ad-post', labelKey: 'dashboard.adPost', icon: '📝' },
+    { id: 'my-blog', labelKey: 'dashboard.myBlog', icon: '✍️' },
     { id: 'categories', labelKey: 'dashboard.categories', icon: '📂' },
     { id: 'e-wallet', labelKey: 'dashboard.eWallet', icon: '💳' },
     ...(user?.seller_verified ? [{ id: 'my-ebooks', labelKey: 'dashboard.myEbooks', icon: '📚' }] : []),
@@ -249,6 +250,11 @@ function UserDashboard({ mode: propMode }) {
 
   // Handle navigation - use correct base path based on mode
   const handleSectionChange = (sectionId) => {
+    if (sectionId === 'my-blog') {
+      navigate('/my-blog');
+      return;
+    }
+
     const basePath = dashboardMode === 'seller' ? '/seller_dashboard' : '/user_dashboard';
     if (sectionId === 'dashboard') {
       navigate(`${basePath}/dashboard`);

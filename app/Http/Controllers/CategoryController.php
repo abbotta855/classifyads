@@ -7,12 +7,19 @@ use Illuminate\Http\Request;
 
 class CategoryController extends Controller
 {
+  private function isNepaliRequest(Request $request): bool
+  {
+    $lang = strtolower((string) ($request->header('X-Language') ?? $request->query('lang', 'en')));
+    return str_starts_with($lang, 'ne');
+  }
+
   /**
    * Get all categories in hierarchical format (Domain Category → Field Category → Item Category)
    * Similar to LocationController - builds hierarchy from complete paths
    */
-  public function index()
+  public function index(Request $request)
   {
+    $isNepali = $this->isNepaliRequest($request);
     // Get all categories from database (each row is a complete path)
     $categories = Category::orderBy('domain_category')
       ->orderBy('field_category')
@@ -25,9 +32,9 @@ class CategoryController extends Controller
     $fieldMap = [];
 
     foreach ($categories as $category) {
-      $domainCategoryName = $category->domain_category;
-      $fieldCategoryName = $category->field_category;
-      $itemCategoryName = $category->item_category;
+      $domainCategoryName = $isNepali ? ($category->domain_category_ne ?: $category->domain_category) : $category->domain_category;
+      $fieldCategoryName = $isNepali ? ($category->field_category_ne ?: $category->field_category) : $category->field_category;
+      $itemCategoryName = $isNepali ? ($category->item_category_ne ?: $category->item_category) : $category->item_category;
 
       // Create domain category if it doesn't exist
       if (!isset($domainMap[$domainCategoryName])) {
@@ -124,6 +131,7 @@ class CategoryController extends Controller
    */
   public function show($slug)
   {
+    $isNepali = $this->isNepaliRequest(request());
     // Get all categories for this domain category
     $categories = Category::where('domain_category', $slug)
       ->orderBy('field_category')
@@ -134,14 +142,16 @@ class CategoryController extends Controller
       abort(404, 'Category not found');
     }
 
-    $domainCategoryName = $categories->first()->domain_category;
+    $domainCategoryName = $isNepali
+      ? ($categories->first()->domain_category_ne ?: $categories->first()->domain_category)
+      : $categories->first()->domain_category;
     $fieldCategories = [];
     $fieldMap = [];
     $directItemCategories = [];
 
     foreach ($categories as $category) {
-      $fieldCategoryName = $category->field_category;
-      $itemCategoryName = $category->item_category;
+      $fieldCategoryName = $isNepali ? ($category->field_category_ne ?: $category->field_category) : $category->field_category;
+      $itemCategoryName = $isNepali ? ($category->item_category_ne ?: $category->item_category) : $category->item_category;
 
       if ($fieldCategoryName) {
         // Has field category

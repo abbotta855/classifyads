@@ -7,6 +7,9 @@ if (typeof window !== 'undefined' && window.axios) {
   ax.defaults.withCredentials = true;
   ax.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
   ax.defaults.headers.common['Accept'] = 'application/json';
+  ax.defaults.headers.common['X-Language'] = typeof window !== 'undefined'
+    ? (localStorage.getItem('i18nextLng') || 'en')
+    : 'en';
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   if (token) {
     ax.defaults.headers.common['Authorization'] = `Bearer ${token}`;

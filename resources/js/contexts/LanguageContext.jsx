@@ -36,6 +36,9 @@ export function LanguageProvider({ children }) {
   const changeLanguage = (lng) => {
     setLanguage(lng);
     localStorage.setItem('i18nextLng', lng);
+    if (typeof window !== 'undefined' && window.axios) {
+      window.axios.defaults.headers.common['X-Language'] = lng;
+    }
     if (i18n) {
       i18n.changeLanguage(lng);
     }

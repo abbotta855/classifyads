@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Ad;
+use App\Services\NepaliAutoTranslationService;
 use App\Services\SavedSearchNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -11,28 +12,38 @@ use Illuminate\Support\Facades\Storage;
 
 class AdController extends Controller
 {
+  private function isNepaliRequest(Request $request): bool
+  {
+    $lang = strtolower((string) ($request->header('X-Language') ?? $request->query('lang', 'en')));
+    return str_starts_with($lang, 'ne');
+  }
+
   /**
    * Display a listing of the resource.
    */
-  public function index()
+  public function index(Request $request)
   {
+    $isNepali = $this->isNepaliRequest($request);
     try {
       $ads = Ad::with(['category', 'user', 'location'])
         ->orderBy('created_at', 'desc')
         ->get()
-        ->map(function ($ad) {
+        ->map(function ($ad) use ($isNepali) {
           // Build category string from hierarchy (domain > field > item)
           $categoryString = null;
           if ($ad->category) {
             $categoryParts = [];
-            if ($ad->category->domain_category) {
-              $categoryParts[] = $ad->category->domain_category;
+            $domainName = $isNepali ? ($ad->category->domain_category_ne ?: $ad->category->domain_category) : $ad->category->domain_category;
+            $fieldName = $isNepali ? ($ad->category->field_category_ne ?: $ad->category->field_category) : $ad->category->field_category;
+            $itemName = $isNepali ? ($ad->category->item_category_ne ?: $ad->category->item_category) : $ad->category->item_category;
+            if ($domainName) {
+              $categoryParts[] = $domainName;
             }
-            if ($ad->category->field_category) {
-              $categoryParts[] = $ad->category->field_category;
+            if ($fieldName) {
+              $categoryParts[] = $fieldName;
             }
-            if ($ad->category->item_category) {
-              $categoryParts[] = $ad->category->item_category;
+            if ($itemName) {
+              $categoryParts[] = $itemName;
             }
             if (!empty($categoryParts)) {
               $categoryString = implode(' > ', $categoryParts);
@@ -43,12 +54,16 @@ class AdController extends Controller
           $locationString = null;
           if ($ad->location) {
             $parts = [];
-            if ($ad->location->province) $parts[] = $ad->location->province;
-            if ($ad->location->district) $parts[] = $ad->location->district;
-            if ($ad->location->local_level) $parts[] = $ad->location->local_level;
-            if ($ad->location->ward_number) $parts[] = 'Ward ' . $ad->location->ward_number;
-            if ($ad->location->local_address) {
-              $addresses = explode(', ', $ad->location->local_address);
+            $province = $isNepali ? ($ad->location->province_ne ?: $ad->location->province) : $ad->location->province;
+            $district = $isNepali ? ($ad->location->district_ne ?: $ad->location->district) : $ad->location->district;
+            $localLevel = $isNepali ? ($ad->location->local_level_ne ?: $ad->location->local_level) : $ad->location->local_level;
+            $localAddress = $isNepali ? ($ad->location->local_address_ne ?: $ad->location->local_address) : $ad->location->local_address;
+            if ($province) $parts[] = $province;
+            if ($district) $parts[] = $district;
+            if ($localLevel) $parts[] = $localLevel;
+            if ($ad->location->ward_number) $parts[] = ($isNepali ? 'वडा ' : 'Ward ') . $ad->location->ward_number;
+            if ($localAddress) {
+              $addresses = explode(', ', $localAddress);
               if (!empty($addresses[0])) {
                 $parts[] = $addresses[0];
               }
@@ -58,17 +73,17 @@ class AdController extends Controller
           
           return [
             'id' => $ad->id,
-            'title' => $ad->title,
-            'description' => $ad->description,
+            'title' => $isNepali ? ($ad->title_ne ?: $ad->title) : $ad->title,
+            'description' => $isNepali ? ($ad->description_ne ?: $ad->description) : $ad->description,
             'price' => (float) $ad->price,
             'category_id' => $ad->category_id,
             'category_path' => $categoryString, // Full hierarchy path (domain > field > item)
-            'category' => $ad->category ? ($ad->category->domain_category ?? $ad->category->category ?? null) : null,
+            'category' => $ad->category ? ($isNepali ? (($ad->category->domain_category_ne ?: $ad->category->domain_category) ?? $ad->category->category ?? null) : ($ad->category->domain_category ?? $ad->category->category ?? null)) : null,
             'subcategory' => $ad->category && $ad->category->field_category 
-              ? $ad->category->field_category 
+              ? ($isNepali ? ($ad->category->field_category_ne ?: $ad->category->field_category) : $ad->category->field_category)
               : ($ad->category && $ad->category->sub_category ? $ad->category->sub_category : null),
             'sub_category' => $ad->category && $ad->category->field_category 
-              ? $ad->category->field_category 
+              ? ($isNepali ? ($ad->category->field_category_ne ?: $ad->category->field_category) : $ad->category->field_category)
               : ($ad->category && $ad->category->sub_category ? $ad->category->sub_category : null),
             'location' => $locationString,
             'location_id' => $ad->location_id,
@@ -114,6 +129,7 @@ class AdController extends Controller
    */
   public function store(Request $request)
   {
+    $translator = app(NepaliAutoTranslationService::class);
     $validated = $request->validate([
       'title' => 'required|string|max:90',
       'description' => ['required', 'string', function ($attribute, $value, $fail) {
@@ -160,7 +176,9 @@ class AdController extends Controller
     // Create the ad with image URLs
     $ad = Ad::create([
       'title' => $validated['title'],
+      'title_ne' => $translator->translateToNepali($validated['title']),
       'description' => $validated['description'],
+      'description_ne' => $translator->translateToNepali($validated['description']),
       'price' => $validated['price'],
       'category_id' => $validated['category_id'],
       'user_id' => $validated['user_id'],
@@ -208,6 +226,7 @@ class AdController extends Controller
    */
   public function update(Request $request, string $id)
   {
+    $translator = app(NepaliAutoTranslationService::class);
     $ad = Ad::findOrFail($id);
 
     $validated = $request->validate([
@@ -227,6 +246,13 @@ class AdController extends Controller
       'posted_by' => 'sometimes|in:user,vendor,admin',
       'status' => 'sometimes|in:draft,active,sold,expired,removed',
     ]);
+
+    if (isset($validated['title'])) {
+      $validated['title_ne'] = $translator->translateToNepali($validated['title']);
+    }
+    if (isset($validated['description'])) {
+      $validated['description_ne'] = $translator->translateToNepali($validated['description']);
+    }
 
     $ad->update($validated);
 
