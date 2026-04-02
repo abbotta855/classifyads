@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Location;
+use App\Services\NepaliAutoTranslationService;
 use Illuminate\Http\Request;
 
 class LocationController extends Controller
@@ -19,6 +20,7 @@ class LocationController extends Controller
     public function index(Request $request)
     {
         $isNepali = $this->isNepaliRequest($request);
+        $translator = $isNepali ? app(NepaliAutoTranslationService::class) : null;
         // Get all locations from database
         $locations = Location::orderBy('province')
             ->orderBy('district')
@@ -31,9 +33,9 @@ class LocationController extends Controller
         $districtMap = [];
 
         foreach ($locations as $location) {
-            $provinceName = $isNepali ? ($location->province_ne ?: $location->province) : $location->province;
-            $districtName = $isNepali ? ($location->district_ne ?: $location->district) : $location->district;
-            $localLevelName = $isNepali ? ($location->local_level_ne ?: $location->local_level) : $location->local_level;
+            $provinceName = $isNepali ? ($location->province_ne ?: $translator->translateToNepali($location->province)) : $location->province;
+            $districtName = $isNepali ? ($location->district_ne ?: $translator->translateToNepali($location->district)) : $location->district;
+            $localLevelName = $isNepali ? ($location->local_level_ne ?: $translator->translateToNepali($location->local_level)) : $location->local_level;
             $localLevelType = $location->local_level_type;
             $rawProvince = $location->province;
             $rawDistrict = $location->district;
@@ -96,7 +98,7 @@ class LocationController extends Controller
                 
                 $wardsData = [];
                 foreach ($wards as $ward) {
-                    $addressValue = $isNepali ? ($ward->local_address_ne ?: $ward->local_address) : $ward->local_address;
+                    $addressValue = $isNepali ? ($ward->local_address_ne ?: $translator->translateToNepali($ward->local_address)) : $ward->local_address;
                     $localAddresses = $addressValue ? explode(', ', $addressValue) : [];
                     $wardsData[] = [
                         'id' => $ward->id,

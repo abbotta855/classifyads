@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
+use App\Services\NepaliAutoTranslationService;
 use Illuminate\Http\Request;
 
 class CategoryController extends Controller
@@ -20,6 +21,7 @@ class CategoryController extends Controller
   public function index(Request $request)
   {
     $isNepali = $this->isNepaliRequest($request);
+    $translator = $isNepali ? app(NepaliAutoTranslationService::class) : null;
     // Get all categories from database (each row is a complete path)
     $categories = Category::orderBy('domain_category')
       ->orderBy('field_category')
@@ -32,9 +34,9 @@ class CategoryController extends Controller
     $fieldMap = [];
 
     foreach ($categories as $category) {
-      $domainCategoryName = $isNepali ? ($category->domain_category_ne ?: $category->domain_category) : $category->domain_category;
-      $fieldCategoryName = $isNepali ? ($category->field_category_ne ?: $category->field_category) : $category->field_category;
-      $itemCategoryName = $isNepali ? ($category->item_category_ne ?: $category->item_category) : $category->item_category;
+      $domainCategoryName = $isNepali ? ($category->domain_category_ne ?: $translator->translateToNepali($category->domain_category)) : $category->domain_category;
+      $fieldCategoryName = $isNepali ? ($category->field_category_ne ?: $translator->translateToNepali($category->field_category)) : $category->field_category;
+      $itemCategoryName = $isNepali ? ($category->item_category_ne ?: $translator->translateToNepali($category->item_category)) : $category->item_category;
 
       // Create domain category if it doesn't exist
       if (!isset($domainMap[$domainCategoryName])) {
@@ -42,6 +44,7 @@ class CategoryController extends Controller
         $domainMap[$domainCategoryName] = $domainId;
         $domainCategories[] = [
           'id' => $domainId,
+          '_raw_domain' => $category->domain_category,
           'name' => $domainCategoryName,
           'domain_category' => $domainCategoryName,
           'slug' => $domainCategoryName,
@@ -116,10 +119,11 @@ class CategoryController extends Controller
 
     // Set domain category IDs to the first category ID for each domain
     foreach ($domainCategories as &$domainCategory) {
-      $firstCategory = Category::where('domain_category', $domainCategory['domain_category'])
+      $firstCategory = Category::where('domain_category', $domainCategory['_raw_domain'])
         ->orderBy('id')
         ->first();
       $domainCategory['id'] = $firstCategory ? $firstCategory->id : null;
+      unset($domainCategory['_raw_domain']);
     }
 
     return response()->json($domainCategories);
@@ -132,6 +136,7 @@ class CategoryController extends Controller
   public function show($slug)
   {
     $isNepali = $this->isNepaliRequest(request());
+    $translator = $isNepali ? app(NepaliAutoTranslationService::class) : null;
     // Get all categories for this domain category
     $categories = Category::where('domain_category', $slug)
       ->orderBy('field_category')
@@ -143,15 +148,15 @@ class CategoryController extends Controller
     }
 
     $domainCategoryName = $isNepali
-      ? ($categories->first()->domain_category_ne ?: $categories->first()->domain_category)
+      ? ($categories->first()->domain_category_ne ?: $translator->translateToNepali($categories->first()->domain_category))
       : $categories->first()->domain_category;
     $fieldCategories = [];
     $fieldMap = [];
     $directItemCategories = [];
 
     foreach ($categories as $category) {
-      $fieldCategoryName = $isNepali ? ($category->field_category_ne ?: $category->field_category) : $category->field_category;
-      $itemCategoryName = $isNepali ? ($category->item_category_ne ?: $category->item_category) : $category->item_category;
+      $fieldCategoryName = $isNepali ? ($category->field_category_ne ?: $translator->translateToNepali($category->field_category)) : $category->field_category;
+      $itemCategoryName = $isNepali ? ($category->item_category_ne ?: $translator->translateToNepali($category->item_category)) : $category->item_category;
 
       if ($fieldCategoryName) {
         // Has field category

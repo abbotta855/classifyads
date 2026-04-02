@@ -21,6 +21,7 @@ class CategoryController extends Controller
     public function index(Request $request)
     {
         $isNepali = $this->isNepaliRequest($request);
+        $translator = $isNepali ? app(NepaliAutoTranslationService::class) : null;
 
         // Get all categories ordered by domain_category, then field_category, then item_category, then id
         $categories = Category::orderBy('domain_category')
@@ -33,9 +34,9 @@ class CategoryController extends Controller
         $result = [];
         
         foreach ($categories as $category) {
-            $domain = $isNepali ? ($category->domain_category_ne ?: $category->domain_category) : $category->domain_category;
-            $field = $isNepali ? ($category->field_category_ne ?: $category->field_category) : $category->field_category;
-            $item = $isNepali ? ($category->item_category_ne ?: $category->item_category) : $category->item_category;
+            $domain = $isNepali ? ($category->domain_category_ne ?: $translator->translateToNepali($category->domain_category)) : $category->domain_category;
+            $field = $isNepali ? ($category->field_category_ne ?: $translator->translateToNepali($category->field_category)) : $category->field_category;
+            $item = $isNepali ? ($category->item_category_ne ?: $translator->translateToNepali($category->item_category)) : $category->item_category;
 
             $result[] = [
                 'id' => $category->id,

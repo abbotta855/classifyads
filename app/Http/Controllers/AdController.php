@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Ad;
 use App\Models\AdClick;
+use App\Services\NepaliAutoTranslationService;
 use Illuminate\Http\Request;
 
 class AdController extends Controller
@@ -20,20 +21,21 @@ class AdController extends Controller
     public function index(Request $request)
     {
         $isNepali = $this->isNepaliRequest($request);
+        $translator = $isNepali ? app(NepaliAutoTranslationService::class) : null;
         try {
             $ads = Ad::with(['category', 'location'])
                 ->where('status', 'active')
                 ->orderBy('created_at', 'desc')
                 ->get()
-                ->map(function ($ad) use ($isNepali) {
+                ->map(function ($ad) use ($isNepali, $translator) {
                     // Build location string from hierarchy
                     $locationString = null;
                     if ($ad->location) {
                         $parts = [];
-                        $province = $isNepali ? ($ad->location->province_ne ?: $ad->location->province) : $ad->location->province;
-                        $district = $isNepali ? ($ad->location->district_ne ?: $ad->location->district) : $ad->location->district;
-                        $localLevel = $isNepali ? ($ad->location->local_level_ne ?: $ad->location->local_level) : $ad->location->local_level;
-                        $localAddress = $isNepali ? ($ad->location->local_address_ne ?: $ad->location->local_address) : $ad->location->local_address;
+                        $province = $isNepali ? ($ad->location->province_ne ?: $translator->translateToNepali($ad->location->province)) : $ad->location->province;
+                        $district = $isNepali ? ($ad->location->district_ne ?: $translator->translateToNepali($ad->location->district)) : $ad->location->district;
+                        $localLevel = $isNepali ? ($ad->location->local_level_ne ?: $translator->translateToNepali($ad->location->local_level)) : $ad->location->local_level;
+                        $localAddress = $isNepali ? ($ad->location->local_address_ne ?: $translator->translateToNepali($ad->location->local_address)) : $ad->location->local_address;
                         if ($province) $parts[] = $province;
                         if ($district) $parts[] = $district;
                         if ($localLevel) $parts[] = $localLevel;
@@ -59,9 +61,9 @@ class AdController extends Controller
                     $categoryString = null;
                     if ($ad->category) {
                         $categoryParts = [];
-                        $domainName = $isNepali ? ($ad->category->domain_category_ne ?: $ad->category->domain_category) : $ad->category->domain_category;
-                        $fieldName = $isNepali ? ($ad->category->field_category_ne ?: $ad->category->field_category) : $ad->category->field_category;
-                        $itemName = $isNepali ? ($ad->category->item_category_ne ?: $ad->category->item_category) : $ad->category->item_category;
+                        $domainName = $isNepali ? ($ad->category->domain_category_ne ?: $translator->translateToNepali($ad->category->domain_category)) : $ad->category->domain_category;
+                        $fieldName = $isNepali ? ($ad->category->field_category_ne ?: $translator->translateToNepali($ad->category->field_category)) : $ad->category->field_category;
+                        $itemName = $isNepali ? ($ad->category->item_category_ne ?: $translator->translateToNepali($ad->category->item_category)) : $ad->category->item_category;
 
                         if ($domainName) {
                             $categoryParts[] = $domainName;
@@ -80,18 +82,18 @@ class AdController extends Controller
                     // Keep backward compatibility for old category structure
                     $categoryName = $ad->category
                         ? ($isNepali
-                            ? (($ad->category->domain_category_ne ?: $ad->category->domain_category) ?? $ad->category->category ?? 'Uncategorized')
+                            ? (($ad->category->domain_category_ne ?: $translator->translateToNepali($ad->category->domain_category)) ?? $ad->category->category ?? 'Uncategorized')
                             : ($ad->category->domain_category ?? $ad->category->category ?? 'Uncategorized'))
                         : 'Uncategorized';
                     $subcategoryName = $ad->category && $ad->category->field_category 
-                        ? ($isNepali ? ($ad->category->field_category_ne ?: $ad->category->field_category) : $ad->category->field_category)
+                        ? ($isNepali ? ($ad->category->field_category_ne ?: $translator->translateToNepali($ad->category->field_category)) : $ad->category->field_category)
                         : ($ad->category && $ad->category->sub_category ? $ad->category->sub_category : null);
 
                     return [
                         'id' => $ad->id,
                         'slug' => $ad->slug,
-                        'title' => $isNepali ? ($ad->title_ne ?: $ad->title) : $ad->title,
-                        'description' => $isNepali ? ($ad->description_ne ?: $ad->description) : $ad->description,
+                        'title' => $isNepali ? ($ad->title_ne ?: $translator->translateToNepali($ad->title)) : $ad->title,
+                        'description' => $isNepali ? ($ad->description_ne ?: $translator->translateToNepali($ad->description)) : $ad->description,
                         'price' => (float) $ad->price,
                         'image' => $image,
                         'category' => $categoryName,
@@ -134,6 +136,7 @@ class AdController extends Controller
     {
         try {
             $isNepali = $this->isNepaliRequest(request());
+            $translator = $isNepali ? app(NepaliAutoTranslationService::class) : null;
             // Check if identifier is numeric (ID) or string (slug)
             $ad = Ad::with(['category', 'location', 'user'])
                 ->where(function ($query) use ($identifier) {
@@ -150,10 +153,10 @@ class AdController extends Controller
             $locationString = null;
             if ($ad->location) {
                 $parts = [];
-                $province = $isNepali ? ($ad->location->province_ne ?: $ad->location->province) : $ad->location->province;
-                $district = $isNepali ? ($ad->location->district_ne ?: $ad->location->district) : $ad->location->district;
-                $localLevel = $isNepali ? ($ad->location->local_level_ne ?: $ad->location->local_level) : $ad->location->local_level;
-                $localAddress = $isNepali ? ($ad->location->local_address_ne ?: $ad->location->local_address) : $ad->location->local_address;
+                $province = $isNepali ? ($ad->location->province_ne ?: $translator->translateToNepali($ad->location->province)) : $ad->location->province;
+                $district = $isNepali ? ($ad->location->district_ne ?: $translator->translateToNepali($ad->location->district)) : $ad->location->district;
+                $localLevel = $isNepali ? ($ad->location->local_level_ne ?: $translator->translateToNepali($ad->location->local_level)) : $ad->location->local_level;
+                $localAddress = $isNepali ? ($ad->location->local_address_ne ?: $translator->translateToNepali($ad->location->local_address)) : $ad->location->local_address;
                 if ($province) $parts[] = $province;
                 if ($district) $parts[] = $district;
                 if ($localLevel) $parts[] = $localLevel;
@@ -183,9 +186,9 @@ class AdController extends Controller
             $categoryString = null;
             if ($ad->category) {
                 $categoryParts = [];
-                $domainName = $isNepali ? ($ad->category->domain_category_ne ?: $ad->category->domain_category) : $ad->category->domain_category;
-                $fieldName = $isNepali ? ($ad->category->field_category_ne ?: $ad->category->field_category) : $ad->category->field_category;
-                $itemName = $isNepali ? ($ad->category->item_category_ne ?: $ad->category->item_category) : $ad->category->item_category;
+                $domainName = $isNepali ? ($ad->category->domain_category_ne ?: $translator->translateToNepali($ad->category->domain_category)) : $ad->category->domain_category;
+                $fieldName = $isNepali ? ($ad->category->field_category_ne ?: $translator->translateToNepali($ad->category->field_category)) : $ad->category->field_category;
+                $itemName = $isNepali ? ($ad->category->item_category_ne ?: $translator->translateToNepali($ad->category->item_category)) : $ad->category->item_category;
 
                 if ($domainName) {
                     $categoryParts[] = $domainName;
@@ -204,11 +207,11 @@ class AdController extends Controller
             // Keep backward compatibility for old category structure
             $categoryName = $ad->category
                 ? ($isNepali
-                    ? (($ad->category->domain_category_ne ?: $ad->category->domain_category) ?? $ad->category->category ?? 'Uncategorized')
+                    ? (($ad->category->domain_category_ne ?: $translator->translateToNepali($ad->category->domain_category)) ?? $ad->category->category ?? 'Uncategorized')
                     : ($ad->category->domain_category ?? $ad->category->category ?? 'Uncategorized'))
                 : 'Uncategorized';
             $subcategoryName = $ad->category && $ad->category->field_category 
-                ? ($isNepali ? ($ad->category->field_category_ne ?: $ad->category->field_category) : $ad->category->field_category)
+                ? ($isNepali ? ($ad->category->field_category_ne ?: $translator->translateToNepali($ad->category->field_category)) : $ad->category->field_category)
                 : ($ad->category && $ad->category->sub_category ? $ad->category->sub_category : null);
 
             // Get seller info (limited)
@@ -228,8 +231,8 @@ class AdController extends Controller
             return response()->json([
                 'id' => $ad->id,
                 'slug' => $ad->slug,
-                'title' => $isNepali ? ($ad->title_ne ?: $ad->title) : $ad->title,
-                'description' => $isNepali ? ($ad->description_ne ?: $ad->description) : $ad->description,
+                'title' => $isNepali ? ($ad->title_ne ?: $translator->translateToNepali($ad->title)) : $ad->title,
+                'description' => $isNepali ? ($ad->description_ne ?: $translator->translateToNepali($ad->description)) : $ad->description,
                 'price' => (float) $ad->price,
                 'images' => $images,
                 'image' => $images[0], // Primary image for backward compatibility

@@ -21,21 +21,22 @@ class LocationController extends Controller
   public function index(Request $request)
   {
     $isNepali = $this->isNepaliRequest($request);
+    $translator = $isNepali ? app(NepaliAutoTranslationService::class) : null;
     $locations = Location::orderBy('province')
       ->orderBy('district')
       ->orderBy('local_level')
       ->orderBy('id', 'asc') // Within same hierarchy, newest at bottom
       ->get()
-      ->map(function ($location) use ($isNepali) {
+      ->map(function ($location) use ($isNepali, $translator) {
         if (!$isNepali) {
           return $location;
         }
 
-        $location->province = $location->province_ne ?: $location->province;
-        $location->district = $location->district_ne ?: $location->district;
-        $location->local_level = $location->local_level_ne ?: $location->local_level;
-        $location->local_level_type = $location->local_level_type_ne ?: $location->local_level_type;
-        $location->local_address = $location->local_address_ne ?: $location->local_address;
+        $location->province = $location->province_ne ?: $translator->translateToNepali($location->province);
+        $location->district = $location->district_ne ?: $translator->translateToNepali($location->district);
+        $location->local_level = $location->local_level_ne ?: $translator->translateToNepali($location->local_level);
+        $location->local_level_type = $location->local_level_type_ne ?: $translator->translateToNepali($location->local_level_type);
+        $location->local_address = $location->local_address_ne ?: $translator->translateToNepali($location->local_address);
         return $location;
       });
 
